@@ -2,27 +2,33 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
-  TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   Alert,
-  ActivityIndicator
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView
 } from 'react-native';
-import { COLORS, CONFIG } from '../utils/constants';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { COLORS, FONTS, SPACING, RADIUS, SHADOWS, CONFIG } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
+import { Button, Input } from '../components/ui';
 
 const ManagementLoginScreen = ({ navigation }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({});
+
+  const validateForm = () => {
+    const newErrors = {};
+    if (!username.trim()) newErrors.username = 'Username is required';
+    if (!password.trim()) newErrors.password = 'Password is required';
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleLogin = async () => {
-    if (!username.trim() || !password.trim()) {
-      Alert.alert('Error', 'Please fill in all fields');
-      return;
-    }
+    if (!validateForm()) return;
 
     setLoading(true);
 
@@ -52,71 +58,64 @@ const ManagementLoginScreen = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Ionicons name="shield-checkmark" size={80} color={COLORS.secondary} />
-        <Text style={styles.title}>Management Portal</Text>
-        <Text style={styles.subtitle}>Secure Admin Access</Text>
-      </View>
-
-      <View style={styles.content}>
-        <View style={styles.inputContainer}>
-          <Ionicons name="person" size={20} color={COLORS.gray} style={styles.inputIcon} />
-          <TextInput
-            style={styles.input}
-            placeholder="Username"
-            value={username}
-            onChangeText={setUsername}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-        </View>
-
-        <View style={styles.inputContainer}>
-          <Ionicons name="lock-closed" size={20} color={COLORS.gray} style={styles.inputIcon} />
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry={!showPassword}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          <TouchableOpacity
-            onPress={() => setShowPassword(!showPassword)}
-            style={styles.eyeIcon}
-          >
-            <Ionicons 
-              name={showPassword ? "eye-off" : "eye"} 
-              size={20} 
-              color={COLORS.gray} 
-            />
-          </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity
-          style={[styles.loginButton, loading && styles.loginButtonDisabled]}
-          onPress={handleLogin}
-          disabled={loading}
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <KeyboardAvoidingView 
+        style={styles.keyboardAvoid}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
         >
-          {loading ? (
-            <ActivityIndicator size="small" color={COLORS.white} />
-          ) : (
-            <>
-              <Text style={styles.loginButtonText}>Login</Text>
-              <Ionicons name="arrow-forward" size={20} color={COLORS.white} />
-            </>
-          )}
-        </TouchableOpacity>
+          <View style={styles.header}>
+            <View style={styles.iconContainer}>
+              <Ionicons name="shield-checkmark" size={60} color={COLORS.white} />
+            </View>
+            <Text style={styles.title}>Management Portal</Text>
+            <Text style={styles.subtitle}>Secure Admin Access</Text>
+          </View>
 
-        <View style={styles.securityNote}>
-          <Ionicons name="information-circle" size={16} color={COLORS.gray} />
-          <Text style={styles.securityText}>
-            This is a secure management portal. Unauthorized access is prohibited.
-          </Text>
-        </View>
-      </View>
+          <View style={styles.form}>
+            <Input
+              label="Username"
+              placeholder="Enter admin username"
+              value={username}
+              onChangeText={setUsername}
+              icon="person-outline"
+              error={errors.username}
+              editable={!loading}
+            />
+
+            <Input
+              label="Password"
+              placeholder="Enter admin password"
+              value={password}
+              onChangeText={setPassword}
+              icon="lock-closed-outline"
+              secureTextEntry={true}
+              error={errors.password}
+              editable={!loading}
+            />
+
+            <Button
+              title="Login as Admin"
+              onPress={handleLogin}
+              loading={loading}
+              fullWidth
+              icon="shield-checkmark-outline"
+              size="lg"
+              style={styles.loginButton}
+            />
+
+            <View style={styles.infoCard}>
+              <Ionicons name="information-circle" size={20} color={COLORS.secondary} />
+              <Text style={styles.infoText}>
+                For security reasons, management access is restricted to authorized personnel only.
+              </Text>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -126,92 +125,62 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+  keyboardAvoid: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    padding: SPACING.lg,
+  },
   header: {
     alignItems: 'center',
-    paddingTop: 40,
-    paddingBottom: 30,
+    marginTop: SPACING.xl,
+    marginBottom: SPACING.xxl,
+  },
+  iconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: RADIUS.round,
+    backgroundColor: COLORS.secondary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: SPACING.lg,
+    ...SHADOWS.md,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: COLORS.secondary,
-    marginTop: 20,
+    fontSize: 32,
+    fontFamily: FONTS.bold,
+    color: COLORS.textPrimary,
+    marginBottom: SPACING.xs,
   },
   subtitle: {
     fontSize: 16,
-    color: COLORS.gray,
-    marginTop: 5,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
   },
-  content: {
+  form: {
     flex: 1,
-    paddingHorizontal: 20,
+    gap: SPACING.md,
   },
-  inputContainer: {
+  loginButton: {
+    marginTop: SPACING.md,
+  },
+  infoCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.white,
-    borderRadius: 10,
-    paddingHorizontal: 15,
-    paddingVertical: 15,
-    marginVertical: 10,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 3,
+    padding: SPACING.md,
+    borderRadius: RADIUS.md,
+    marginTop: SPACING.lg,
+    gap: SPACING.sm,
+    ...SHADOWS.sm,
   },
-  inputIcon: {
-    marginRight: 10,
-  },
-  input: {
+  infoText: {
     flex: 1,
-    fontSize: 16,
-    color: COLORS.black,
-  },
-  eyeIcon: {
-    padding: 5,
-  },
-  loginButton: {
-    backgroundColor: COLORS.secondary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 15,
-    borderRadius: 10,
-    marginTop: 20,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  loginButtonDisabled: {
-    opacity: 0.6,
-  },
-  loginButtonText: {
-    color: COLORS.white,
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginRight: 10,
-  },
-  securityNote: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 30,
-    paddingHorizontal: 15,
-  },
-  securityText: {
-    flex: 1,
-    fontSize: 12,
-    color: COLORS.gray,
-    marginLeft: 5,
-    textAlign: 'center',
+    fontSize: 13,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
+    lineHeight: 18,
   },
 });
 

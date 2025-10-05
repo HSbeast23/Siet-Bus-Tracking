@@ -2,48 +2,54 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
-  TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   Alert,
-  ActivityIndicator
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView
 } from 'react-native';
-import { COLORS } from '../utils/constants';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
 import { authService } from '../services/authService';
+import { Button, Input } from '../components/ui';
 
 const StudentLoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({});
+
+  const isValidEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+    if (!email.trim()) {
+      newErrors.email = 'Email is required';
+    } else if (!isValidEmail(email)) {
+      newErrors.email = 'Please enter a valid email address';
+    }
+    if (!password.trim()) {
+      newErrors.password = 'Password is required';
+    }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleLogin = async () => {
-    if (!email.trim() || !password.trim()) {
-      Alert.alert('Error', 'Please fill in all fields');
-      return;
-    }
-
-    if (!isValidEmail(email)) {
-      Alert.alert('Error', 'Please enter a valid email address');
-      return;
-    }
+    if (!validateForm()) return;
 
     setLoading(true);
 
     try {
-      console.log('Attempting student login with email:', email.trim());
-      
-      // Use JWT authentication service to verify registered student
       const result = await authService.loginStudent(email.trim(), password.trim());
-      
-      console.log('Login result:', result);
       
       setLoading(false);
       
       if (result.success) {
-        console.log('Login successful for student:', result.user.name);
         Alert.alert(
           'Login Successful!', 
           `Welcome back, ${result.user.name}!`,
@@ -55,7 +61,6 @@ const StudentLoginScreen = ({ navigation }) => {
           ]
         );
       } else {
-        console.log('Login failed:', result.message);
         Alert.alert('Login Failed', result.message);
       }
       
@@ -64,89 +69,76 @@ const StudentLoginScreen = ({ navigation }) => {
       console.error('Login error:', error);
       Alert.alert('Error', 'An unexpected error occurred. Please try again.');
     }
-  };  const isValidEmail = (email) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Ionicons name="school" size={80} color={COLORS.primary} />
-        <Text style={styles.title}>Student Portal</Text>
-        <Text style={styles.subtitle}>Track your bus anytime, anywhere</Text>
-      </View>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <KeyboardAvoidingView 
+        style={styles.keyboardAvoid}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.header}>
+            <View style={styles.iconContainer}>
+              <Ionicons name="school" size={60} color={COLORS.secondary} />
+            </View>
+            <Text style={styles.title}>Student Portal</Text>
+            <Text style={styles.subtitle}>Track your bus anytime, anywhere</Text>
+          </View>
 
-      <View style={styles.content}>
-        <View style={styles.inputContainer}>
-          <Ionicons name="mail" size={20} color={COLORS.gray} style={styles.inputIcon} />
-          <TextInput
-            style={styles.input}
-            placeholder="Email Address"
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="email-address"
-          />
-        </View>
-
-        <View style={styles.inputContainer}>
-          <Ionicons name="lock-closed" size={20} color={COLORS.gray} style={styles.inputIcon} />
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry={!showPassword}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          <TouchableOpacity
-            onPress={() => setShowPassword(!showPassword)}
-            style={styles.eyeIcon}
-          >
-            <Ionicons 
-              name={showPassword ? "eye-off" : "eye"} 
-              size={20} 
-              color={COLORS.gray} 
+          <View style={styles.form}>
+            <Input
+              label="Email Address"
+              placeholder="Enter your email"
+              value={email}
+              onChangeText={setEmail}
+              icon="mail-outline"
+              keyboardType="email-address"
+              error={errors.email}
+              editable={!loading}
             />
-          </TouchableOpacity>
-        </View>
 
-        <TouchableOpacity
-          style={[styles.loginButton, loading && styles.loginButtonDisabled]}
-          onPress={handleLogin}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator size="small" color={COLORS.white} />
-          ) : (
-            <>
-              <Text style={styles.loginButtonText}>Login</Text>
-              <Ionicons name="arrow-forward" size={20} color={COLORS.white} />
-            </>
-          )}
-        </TouchableOpacity>
+            <Input
+              label="Password"
+              placeholder="Enter your password"
+              value={password}
+              onChangeText={setPassword}
+              icon="lock-closed-outline"
+              secureTextEntry={true}
+              error={errors.password}
+              editable={!loading}
+            />
 
-        <View style={styles.divider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>OR</Text>
-          <View style={styles.dividerLine} />
-        </View>
+            <Button
+              title="Login"
+              onPress={handleLogin}
+              loading={loading}
+              fullWidth
+              icon="log-in-outline"
+              size="lg"
+              style={styles.loginButton}
+            />
 
-        <TouchableOpacity
-          style={styles.signupButton}
-          onPress={() => navigation.navigate('StudentSignup')}
-        >
-          <Text style={styles.signupButtonText}>Create New Account</Text>
-          <Ionicons name="person-add" size={20} color={COLORS.secondary} />
-        </TouchableOpacity>
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>OR</Text>
+              <View style={styles.dividerLine} />
+            </View>
 
-        <TouchableOpacity style={styles.forgotPassword}>
-          <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-        </TouchableOpacity>
-      </View>
+            <Button
+              title="Create New Account"
+              onPress={() => navigation.navigate('StudentSignup')}
+              variant="outline"
+              fullWidth
+              icon="person-add-outline"
+              disabled={loading}
+            />
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -156,85 +148,53 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+  keyboardAvoid: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: SPACING.xl,
+  },
   header: {
     alignItems: 'center',
-    paddingTop: 40,
-    paddingBottom: 30,
+    paddingTop: SPACING.xxl,
+    paddingBottom: SPACING.xl,
+    paddingHorizontal: SPACING.lg,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: COLORS.secondary,
-    marginTop: 20,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: COLORS.gray,
-    marginTop: 5,
-    textAlign: 'center',
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.white,
-    borderRadius: 10,
-    paddingHorizontal: 15,
-    paddingVertical: 15,
-    marginVertical: 10,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 3,
-  },
-  inputIcon: {
-    marginRight: 10,
-  },
-  input: {
-    flex: 1,
-    fontSize: 16,
-    color: COLORS.black,
-  },
-  eyeIcon: {
-    padding: 5,
-  },
-  loginButton: {
-    backgroundColor: COLORS.secondary,
-    flexDirection: 'row',
+  iconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: RADIUS.round,
+    backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 15,
-    borderRadius: 10,
-    marginTop: 20,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    ...SHADOWS.lg,
   },
-  loginButtonDisabled: {
-    opacity: 0.6,
+  title: {
+    fontFamily: FONTS.bold,
+    fontSize: 32,
+    color: COLORS.secondary,
+    marginTop: SPACING.lg,
   },
-  loginButtonText: {
-    color: COLORS.white,
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginRight: 10,
+  subtitle: {
+    fontFamily: FONTS.regular,
+    fontSize: 16,
+    color: COLORS.gray,
+    marginTop: SPACING.xs,
+    textAlign: 'center',
+  },
+  form: {
+    flex: 1,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.md,
+  },
+  loginButton: {
+    marginTop: SPACING.lg,
   },
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 20,
+    marginVertical: SPACING.xl,
   },
   dividerLine: {
     flex: 1,
@@ -242,31 +202,8 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.lightGray,
   },
   dividerText: {
-    marginHorizontal: 10,
-    color: COLORS.gray,
-    fontSize: 14,
-  },
-  signupButton: {
-    backgroundColor: COLORS.white,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 15,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: COLORS.secondary,
-  },
-  signupButtonText: {
-    color: COLORS.secondary,
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginRight: 10,
-  },
-  forgotPassword: {
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  forgotPasswordText: {
+    fontFamily: FONTS.medium,
+    marginHorizontal: SPACING.md,
     color: COLORS.gray,
     fontSize: 14,
   },

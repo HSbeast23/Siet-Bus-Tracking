@@ -13,6 +13,59 @@ export const COLORS = {
   warning: '#FF9800',
 };
 
+// Typography
+export const FONTS = {
+  light: 'Poppins_300Light',
+  regular: 'Poppins_400Regular',
+  medium: 'Poppins_500Medium',
+  semiBold: 'Poppins_600SemiBold',
+  bold: 'Poppins_700Bold',
+};
+
+// Spacing
+export const SPACING = {
+  xs: 4,
+  sm: 8,
+  md: 16,
+  lg: 24,
+  xl: 32,
+  xxl: 48,
+};
+
+// Border Radius
+export const RADIUS = {
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 24,
+  round: 999,
+};
+
+// Shadows
+export const SHADOWS = {
+  sm: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  md: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  lg: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    elevation: 8,
+  },
+};
+
 // App Configuration
 export const CONFIG = {
   API_BASE_URL: 'http://localhost:3000/api', // Change this to your backend URL
@@ -42,6 +95,10 @@ export const SAMPLE_STOPS = [
 
 export default {
   COLORS,
+  FONTS,
+  SPACING,
+  RADIUS,
+  SHADOWS,
   CONFIG,
   SAMPLE_STOPS
 };
