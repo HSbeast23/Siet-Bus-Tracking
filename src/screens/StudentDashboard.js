@@ -4,14 +4,16 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   Alert,
   ScrollView,
   ActivityIndicator
 } from 'react-native';
-import { COLORS, SAMPLE_STOPS } from '../utils/constants';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { COLORS, SAMPLE_STOPS, FONTS, SPACING, RADIUS, SHADOWS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
-import { busStorage } from '../services/storage';
+import { Card, CardHeader, CardContent } from '../components/ui/Card';
+import { Button } from '../components/ui';
+import { getBusLocation } from '../services/locationService';
 import { authService } from '../services/authService';
 
 const StudentDashboard = ({ navigation }) => {
@@ -34,10 +36,22 @@ const StudentDashboard = ({ navigation }) => {
 
   useEffect(() => {
     loadStudentData();
-    const interval = setInterval(checkBusStatus, 10000); // Check every 10 seconds
-    
-    return () => clearInterval(interval);
   }, []);
+
+  // Separate effect for checking bus status - only runs when busNumber is available
+  useEffect(() => {
+    if (studentInfo.busNumber && studentInfo.busNumber !== 'N/A') {
+      // Check immediately
+      checkBusStatus(studentInfo.busNumber);
+      
+      // Then check every 10 seconds
+      const interval = setInterval(() => {
+        checkBusStatus(studentInfo.busNumber);
+      }, 10000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [studentInfo.busNumber]);
 
   const loadStudentData = async () => {
     try {
@@ -64,9 +78,6 @@ const StudentDashboard = ({ navigation }) => {
           ...prev,
           busNumber: currentUser.busNumber || 'N/A'
         }));
-        
-        // Check initial bus status
-        checkBusStatus(currentUser.busNumber);
       } else {
         console.log('No authenticated user found');
         // Handle case where user is not authenticated
@@ -88,28 +99,55 @@ const StudentDashboard = ({ navigation }) => {
     }
   };
 
-  const checkBusStatus = async (busNumber = studentInfo.busNumber) => {
+  const checkBusStatus = async (busNumber) => {
     try {
-      const busLocationData = await busStorage.getLastLocation();
+      // Validate bus number before fetching
+      if (!busNumber || busNumber === 'N/A') {
+        console.log('⚠️ No valid bus number to check');
+        return;
+      }
+
+      // 🔥 REAL GPS: Fetch bus location from Firestore (no mock data!)
+      const result = await getBusLocation(busNumber);
       
-      if (busLocationData && busLocationData.busNumber === busNumber) {
-        // Check if location is recent (within last 5 minutes)
-        const lastUpdate = new Date(busLocationData.timestamp);
-        const now = new Date();
-        const diffMinutes = (now - lastUpdate) / (1000 * 60);
+      if (result.success && result.data) {
+        const locationData = result.data;
         
-        if (diffMinutes <= 5) {
-          setBusInfo(prev => ({
-            ...prev,
-            isActive: true,
-            currentLocation: {
-              latitude: busLocationData.latitude,
-              longitude: busLocationData.longitude,
-              stop: 'Moving' // In real app, calculate nearest stop
-            },
-            eta: '15 mins' // In real app, calculate using Bing Maps API
-          }));
+        // Check if bus is actively tracking
+        if (locationData.isTracking) {
+          // Check if location is recent (within last 5 minutes)
+          const lastUpdate = new Date(locationData.lastUpdate);
+          const now = new Date();
+          const diffMinutes = (now - lastUpdate) / (1000 * 60);
+          
+          if (diffMinutes <= 5) {
+            console.log('✅ Bus is actively tracking:', {
+              busNumber,
+              location: locationData.currentLocation,
+              lastUpdate: locationData.lastUpdate
+            });
+            
+            setBusInfo(prev => ({
+              ...prev,
+              isActive: true,
+              currentLocation: {
+                latitude: locationData.currentLocation.latitude,
+                longitude: locationData.currentLocation.longitude,
+                stop: 'Moving' // In real app, calculate nearest stop
+              },
+              eta: '15 mins' // In real app, calculate using route API
+            }));
+          } else {
+            console.log('⚠️ Bus location is outdated (>5 minutes)');
+            setBusInfo(prev => ({
+              ...prev,
+              isActive: false,
+              currentLocation: null,
+              eta: 'N/A'
+            }));
+          }
         } else {
+          console.log('⚠️ Bus is not currently tracking');
           setBusInfo(prev => ({
             ...prev,
             isActive: false,
@@ -118,6 +156,7 @@ const StudentDashboard = ({ navigation }) => {
           }));
         }
       } else {
+        console.log('⚠️ No bus location data available');
         setBusInfo(prev => ({
           ...prev,
           isActive: false,
@@ -207,7 +246,7 @@ const StudentDashboard = ({ navigation }) => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <View>
           <Text style={styles.welcomeText}>Welcome,</Text>
@@ -218,93 +257,110 @@ const StudentDashboard = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         {/* Student Info Card */}
-        <View style={styles.studentInfoCard}>
+        <Card style={styles.studentCard}>
           <View style={styles.studentInfoContent}>
-            <Ionicons name="person-circle" size={50} color={COLORS.secondary} />
+            <View style={styles.avatarContainer}>
+              <Ionicons name="person-circle" size={50} color={COLORS.primary} />
+            </View>
             <View style={styles.studentDetails}>
               <Text style={styles.studentName}>{studentInfo.name}</Text>
-              <Text style={styles.studentId}>{studentInfo.registerNumber}</Text>
+              <Text style={styles.studentId}>Reg: {studentInfo.registerNumber}</Text>
               <Text style={styles.studentYear}>{studentInfo.year}</Text>
             </View>
           </View>
-        </View>
+        </Card>
 
         {/* Bus Status Card */}
-        <View style={styles.busStatusCard}>
-          <View style={styles.busStatusHeader}>
-            <Ionicons name="bus" size={30} color={COLORS.primary} />
-            <View style={styles.busStatusDetails}>
-              <Text style={styles.busNumber}>{busInfo.busNumber}</Text>
-              <Text style={styles.routeName}>{busInfo.route}</Text>
-            </View>
-            <View style={[
-              styles.statusIndicator, 
-              { backgroundColor: busInfo.isActive ? COLORS.success : COLORS.danger }
-            ]}>
-              <Text style={styles.statusText}>
-                {busInfo.isActive ? 'ACTIVE' : 'OFFLINE'}
-              </Text>
-            </View>
-          </View>
-
-          {busInfo.isActive && (
-            <View style={styles.busLocationInfo}>
-              <View style={styles.locationRow}>
-                <Ionicons name="location" size={20} color={COLORS.accent} />
-                <Text style={styles.currentStopText}>
-                  Current: {busInfo.currentLocation.stop}
+        <Card style={styles.card}>
+          <CardHeader>
+            <View style={styles.busStatusHeader}>
+              <View style={styles.busIcon}>
+                <Ionicons name="bus" size={28} color={COLORS.white} />
+              </View>
+              <View style={styles.busStatusDetails}>
+                <Text style={styles.busNumber}>{busInfo.busNumber}</Text>
+                <Text style={styles.routeName}>{busInfo.route}</Text>
+              </View>
+              <View style={[
+                styles.statusIndicator, 
+                { backgroundColor: busInfo.isActive ? COLORS.success : COLORS.danger }
+              ]}>
+                <View style={styles.statusDot} />
+                <Text style={styles.statusText}>
+                  {busInfo.isActive ? 'LIVE' : 'OFFLINE'}
                 </Text>
               </View>
-              <View style={styles.locationRow}>
-                <Ionicons name="time" size={20} color={COLORS.warning} />
-                <Text style={styles.etaText}>ETA: {busInfo.eta}</Text>
-              </View>
             </View>
+          </CardHeader>
+          {busInfo.isActive && (
+            <CardContent>
+              <View style={styles.busLocationInfo}>
+                <View style={styles.locationRow}>
+                  <Ionicons name="location" size={20} color={COLORS.accent} />
+                  <Text style={styles.currentStopText}>
+                    {busInfo.currentLocation.stop}
+                  </Text>
+                </View>
+                <View style={styles.locationRow}>
+                  <Ionicons name="time" size={20} color={COLORS.warning} />
+                  <Text style={styles.etaText}>ETA: {busInfo.eta}</Text>
+                </View>
+              </View>
+            </CardContent>
           )}
-        </View>
+        </Card>
 
         {/* Emergency SOS Section */}
-        <View style={styles.emergencySection}>
-          <Text style={styles.emergencyTitle}>Emergency SOS</Text>
-          <View style={styles.sosButtons}>
-            <TouchableOpacity
-              style={[styles.sosButton, { backgroundColor: COLORS.danger }]}
-              onPress={() => handleSOS('Management')}
-            >
-              <Ionicons name="business" size={24} color={COLORS.white} />
-              <Text style={styles.sosButtonText}>Management</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.sosButton, { backgroundColor: COLORS.warning }]}
-              onPress={() => handleSOS('Ambulance')}
-            >
-              <Ionicons name="medical" size={24} color={COLORS.white} />
-              <Text style={styles.sosButtonText}>Ambulance</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        <Card style={styles.card} variant="outlined">
+          <CardHeader>
+            <View style={styles.emergencyHeader}>
+              <Ionicons name="alert-circle" size={24} color={COLORS.danger} />
+              <Text style={styles.emergencyTitle}>Emergency SOS</Text>
+            </View>
+          </CardHeader>
+          <CardContent>
+            <View style={styles.sosButtons}>
+              <Button
+                title="Management"
+                onPress={() => handleSOS('Management')}
+                variant="danger"
+                icon="business"
+                style={styles.sosButton}
+              />
+              <Button
+                title="Ambulance"
+                onPress={() => handleSOS('Ambulance')}
+                style={[styles.sosButton, { backgroundColor: COLORS.warning }]}
+                icon="medical"
+              />
+            </View>
+          </CardContent>
+        </Card>
 
         {/* Quick Actions */}
         <View style={styles.actionsContainer}>
           <Text style={styles.sectionTitle}>Quick Actions</Text>
           {quickActions.map((action, index) => (
-            <TouchableOpacity
+            <Card
               key={index}
-              style={styles.actionItem}
               onPress={action.onPress}
-              activeOpacity={0.7}
+              style={styles.actionCard}
             >
-              <View style={[styles.actionIcon, { backgroundColor: action.color }]}>
-                <Ionicons name={action.icon} size={20} color={COLORS.white} />
-              </View>
-              <View style={styles.actionContent}>
-                <Text style={styles.actionTitle}>{action.title}</Text>
-                <Text style={styles.actionSubtitle}>{action.subtitle}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={COLORS.gray} />
-            </TouchableOpacity>
+              <CardContent>
+                <View style={styles.actionItem}>
+                  <View style={[styles.actionIcon, { backgroundColor: action.color }]}>
+                    <Ionicons name={action.icon} size={22} color={COLORS.white} />
+                  </View>
+                  <View style={styles.actionContent}>
+                    <Text style={styles.actionTitle}>{action.title}</Text>
+                    <Text style={styles.actionSubtitle}>{action.subtitle}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
+                </View>
+              </CardContent>
+            </Card>
           ))}
         </View>
       </ScrollView>
@@ -323,220 +379,203 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    marginTop: 10,
+    marginTop: SPACING.sm,
     fontSize: 16,
-    color: COLORS.gray,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 20,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.lg,
     backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.lightGray,
+    ...SHADOWS.sm,
   },
   welcomeText: {
-    fontSize: 16,
-    color: COLORS.gray,
+    fontSize: 15,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
   },
   studentText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: COLORS.secondary,
+    fontSize: 24,
+    fontFamily: FONTS.bold,
+    color: COLORS.textPrimary,
+    marginTop: SPACING.xs,
   },
   logoutButton: {
-    padding: 10,
+    padding: SPACING.sm,
   },
-  studentInfoCard: {
-    backgroundColor: COLORS.white,
-    margin: 20,
-    padding: 20,
-    borderRadius: 15,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+  scrollContent: {
+    paddingTop: SPACING.md,
+  },
+  studentCard: {
+    marginHorizontal: SPACING.lg,
+    marginBottom: SPACING.md,
+    marginTop: SPACING.sm,
+    padding: 0,
+    overflow: 'hidden',
+  },
+  card: {
+    marginHorizontal: SPACING.lg,
+    marginBottom: SPACING.md,
+    padding: 0,
+    overflow: 'hidden',
   },
   studentInfoContent: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.lg,
+    paddingBottom: SPACING.lg,
+  },
+  avatarContainer: {
+    marginRight: SPACING.md,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   studentDetails: {
     flex: 1,
-    marginLeft: 15,
+    justifyContent: 'center',
   },
   studentName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: COLORS.secondary,
+    fontSize: 18,
+    fontFamily: FONTS.bold,
+    color: COLORS.textPrimary,
+    marginBottom: 2,
   },
   studentId: {
-    fontSize: 16,
-    color: COLORS.gray,
-    marginTop: 2,
+    fontSize: 14,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
+    marginBottom: 2,
   },
   studentYear: {
     fontSize: 14,
+    fontFamily: FONTS.semiBold,
     color: COLORS.accent,
-    marginTop: 2,
-  },
-  busStatusCard: {
-    backgroundColor: COLORS.white,
-    marginHorizontal: 20,
-    marginBottom: 20,
-    padding: 20,
-    borderRadius: 15,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
   },
   busStatusHeader: {
     flexDirection: 'row',
     alignItems: 'center',
   },
+  busIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: SPACING.md,
+  },
   busStatusDetails: {
     flex: 1,
-    marginLeft: 15,
   },
   busNumber: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: COLORS.secondary,
+    fontSize: 18,
+    fontFamily: FONTS.bold,
+    color: COLORS.textPrimary,
   },
   routeName: {
     fontSize: 14,
-    color: COLORS.gray,
-    marginTop: 2,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
+    marginTop: SPACING.xs,
   },
   statusIndicator: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 6,
+    borderRadius: RADIUS.md,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: RADIUS.round,
+    backgroundColor: COLORS.white,
+    marginRight: 6,
   },
   statusText: {
     color: COLORS.white,
     fontSize: 12,
-    fontWeight: 'bold',
+    fontFamily: FONTS.bold,
   },
   busLocationInfo: {
-    marginTop: 15,
-    paddingTop: 15,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.lightGray,
+    gap: SPACING.sm,
   },
   locationRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
   },
   currentStopText: {
-    fontSize: 16,
-    color: COLORS.black,
-    marginLeft: 10,
+    fontSize: 15,
+    fontFamily: FONTS.medium,
+    color: COLORS.textPrimary,
+    marginLeft: SPACING.sm,
   },
   etaText: {
-    fontSize: 16,
-    color: COLORS.black,
-    marginLeft: 10,
-    fontWeight: 'bold',
+    fontSize: 15,
+    fontFamily: FONTS.semiBold,
+    color: COLORS.textPrimary,
+    marginLeft: SPACING.sm,
   },
-  emergencySection: {
-    backgroundColor: COLORS.white,
-    marginHorizontal: 20,
-    marginBottom: 20,
-    padding: 20,
-    borderRadius: 15,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  emergencyTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.danger,
-    marginBottom: 15,
-    textAlign: 'center',
-  },
-  sosButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  sosButton: {
-    flex: 1,
+  emergencyHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 10,
-    marginHorizontal: 5,
   },
-  sosButtonText: {
-    color: COLORS.white,
-    fontSize: 14,
-    fontWeight: 'bold',
-    marginLeft: 8,
+  emergencyTitle: {
+    fontSize: 18,
+    fontFamily: FONTS.bold,
+    color: COLORS.danger,
+    marginLeft: SPACING.sm,
+  },
+  sosButtons: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+  },
+  sosButton: {
+    flex: 1,
   },
   actionsContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingHorizontal: SPACING.lg,
+    paddingBottom: SPACING.xl,
   },
   sectionTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: COLORS.secondary,
-    marginBottom: 15,
+    fontFamily: FONTS.bold,
+    color: COLORS.textPrimary,
+    marginBottom: SPACING.md,
+  },
+  actionCard: {
+    marginBottom: SPACING.sm,
   },
   actionItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.white,
-    padding: 15,
-    borderRadius: 12,
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 3,
   },
   actionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: RADIUS.md,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 15,
+    marginRight: SPACING.md,
   },
   actionContent: {
     flex: 1,
   },
   actionTitle: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: COLORS.black,
+    fontFamily: FONTS.semiBold,
+    color: COLORS.textPrimary,
   },
   actionSubtitle: {
-    fontSize: 12,
-    color: COLORS.gray,
+    fontSize: 13,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
     marginTop: 2,
   },
 });

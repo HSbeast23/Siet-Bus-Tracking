@@ -1,8 +1,22 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
 
-export const Card = ({ children, style, variant = 'default' }) => {
+export const Card = ({ children, style, variant = 'default', onPress }) => {
+  // If onPress is provided, wrap in TouchableOpacity
+  if (onPress) {
+    return (
+      <TouchableOpacity 
+        style={[styles.card, styles[variant], style]}
+        onPress={onPress}
+        activeOpacity={0.7}
+      >
+        {children}
+      </TouchableOpacity>
+    );
+  }
+  
+  // Otherwise, just use View
   return (
     <View style={[styles.card, styles[variant], style]}>
       {children}

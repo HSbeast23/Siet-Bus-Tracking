@@ -4,11 +4,11 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   Dimensions
 } from 'react-native';
-import { COLORS } from '../utils/constants';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
@@ -313,18 +313,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
     backgroundColor: COLORS.white,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.lightGray,
   },
   backButton: {
-    padding: 5,
+    padding: SPACING.xs,
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontFamily: FONTS.bold,
     color: COLORS.secondary,
   },
   placeholder: {
@@ -332,64 +332,56 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    padding: 20,
+    padding: SPACING.lg,
   },
   timeframeContainer: {
     flexDirection: 'row',
     backgroundColor: COLORS.white,
-    borderRadius: 12,
-    padding: 5,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 3,
+    borderRadius: RADIUS.md,
+    padding: SPACING.xs,
+    marginBottom: SPACING.lg,
+    ...SHADOWS.sm,
   },
   timeframeButton: {
     flex: 1,
-    paddingVertical: 10,
+    paddingVertical: SPACING.sm,
     alignItems: 'center',
-    borderRadius: 8,
+    borderRadius: RADIUS.sm,
   },
   activeTimeframe: {
     backgroundColor: COLORS.primary,
   },
   timeframeText: {
     fontSize: 14,
+    fontFamily: FONTS.semiBold,
     color: COLORS.gray,
-    fontWeight: '600',
   },
   activeTimeframeText: {
     color: COLORS.white,
   },
   sectionCard: {
     backgroundColor: COLORS.white,
-    borderRadius: 15,
-    padding: 20,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 3,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.lg,
+    marginBottom: SPACING.lg,
+    ...SHADOWS.sm,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 15,
+    marginBottom: SPACING.md,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontFamily: FONTS.bold,
     color: COLORS.secondary,
-    marginBottom: 15,
+    marginBottom: SPACING.md,
   },
   viewAllText: {
     fontSize: 14,
+    fontFamily: FONTS.semiBold,
     color: COLORS.primary,
-    fontWeight: '600',
   },
   metricsGrid: {
     flexDirection: 'row',
@@ -399,17 +391,18 @@ const styles = StyleSheet.create({
   metricCard: {
     width: (width - 80) / 3,
     alignItems: 'center',
-    paddingVertical: 15,
-    marginBottom: 15,
+    paddingVertical: SPACING.md,
+    marginBottom: SPACING.md,
   },
   metricValue: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontFamily: FONTS.bold,
     color: COLORS.secondary,
-    marginVertical: 8,
+    marginVertical: SPACING.sm,
   },
   metricLabel: {
     fontSize: 12,
+    fontFamily: FONTS.regular,
     color: COLORS.gray,
     textAlign: 'center',
   },
@@ -424,24 +417,25 @@ const styles = StyleSheet.create({
   feedbackDot: {
     width: 8,
     height: 8,
-    borderRadius: 4,
-    marginRight: 8,
+    borderRadius: SPACING.xs,
+    marginRight: SPACING.sm,
   },
   feedbackTypeText: {
     fontSize: 12,
+    fontFamily: FONTS.regular,
     color: COLORS.gray,
   },
   feedbackCard: {
     borderBottomWidth: 1,
     borderBottomColor: COLORS.lightGray,
-    paddingBottom: 15,
-    marginBottom: 15,
+    paddingBottom: SPACING.md,
+    marginBottom: SPACING.md,
   },
   feedbackHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: SPACING.sm,
   },
   feedbackInfo: {
     flexDirection: 'row',
@@ -451,21 +445,22 @@ const styles = StyleSheet.create({
   typeIconContainer: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: RADIUS.md,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 10,
+    marginRight: SPACING.sm,
   },
   feedbackDetails: {
     flex: 1,
   },
   feedbackTitle: {
     fontSize: 14,
-    fontWeight: 'bold',
+    fontFamily: FONTS.bold,
     color: COLORS.secondary,
   },
   feedbackStudent: {
     fontSize: 12,
+    fontFamily: FONTS.regular,
     color: COLORS.gray,
     marginTop: 2,
   },
@@ -473,31 +468,32 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   priorityBadge: {
-    paddingHorizontal: 8,
+    paddingHorizontal: SPACING.sm,
     paddingVertical: 2,
-    borderRadius: 8,
+    borderRadius: RADIUS.sm,
     marginBottom: 4,
   },
   priorityText: {
     color: COLORS.white,
     fontSize: 10,
-    fontWeight: 'bold',
+    fontFamily: FONTS.semiBold,
   },
   statusBadge: {
-    paddingHorizontal: 8,
+    paddingHorizontal: SPACING.sm,
     paddingVertical: 2,
-    borderRadius: 8,
+    borderRadius: RADIUS.sm,
   },
   statusText: {
     color: COLORS.white,
     fontSize: 10,
-    fontWeight: 'bold',
+    fontFamily: FONTS.semiBold,
   },
   feedbackDescription: {
     fontSize: 13,
+    fontFamily: FONTS.regular,
     color: COLORS.gray,
     lineHeight: 18,
-    marginBottom: 8,
+    marginBottom: SPACING.sm,
   },
   feedbackFooter: {
     flexDirection: 'row',
@@ -506,28 +502,29 @@ const styles = StyleSheet.create({
   },
   feedbackDate: {
     fontSize: 11,
+    fontFamily: FONTS.regular,
     color: COLORS.gray,
   },
   actionButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 20,
+    marginBottom: SPACING.lg,
   },
   actionButton: {
     backgroundColor: COLORS.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 12,
-    paddingVertical: 15,
+    borderRadius: RADIUS.md,
+    paddingVertical: SPACING.md,
     flex: 1,
-    marginHorizontal: 5,
+    marginHorizontal: SPACING.xs,
   },
   actionButtonText: {
     color: COLORS.white,
     fontSize: 14,
-    fontWeight: 'bold',
-    marginLeft: 8,
+    fontFamily: FONTS.semiBold,
+    marginLeft: SPACING.sm,
   },
 });
 

@@ -18,6 +18,7 @@ const StudentSignupScreen = ({ navigation }) => {
   const [formData, setFormData] = useState({
     name: '',
     year: '',
+    department: '',
     registerNumber: '',
     email: '',
     password: '',
@@ -44,6 +45,7 @@ const StudentSignupScreen = ({ navigation }) => {
     const newErrors = {};
     if (!formData.name.trim()) newErrors.name = 'Full name is required';
     if (!formData.year.trim()) newErrors.year = 'Year is required';
+    if (!formData.department.trim()) newErrors.department = 'Department is required';
     if (!formData.registerNumber.trim()) newErrors.registerNumber = 'Register number is required';
     if (!formData.email.trim()) {
       newErrors.email = 'Email is required';
@@ -71,16 +73,17 @@ const StudentSignupScreen = ({ navigation }) => {
     setLoading(true);
 
     try {
-      console.log('Starting student registration for:', email.trim());
+      console.log('Starting student registration for:', formData.email.trim());
 
       const result = await authService.registerStudent({
-        name: name.trim(),
-        email: email.trim(),
-        password: password.trim(),
-        registerNumber: registerNumber.trim(),
-        year: year.trim(),
-        busNumber: busNumber.trim(),
-        phone: phone.trim(),
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        password: formData.password.trim(),
+        registerNumber: formData.registerNumber.trim(),
+        year: formData.year.trim(),
+        department: formData.department.trim(),
+        busNumber: formData.busNumber.trim(),
+        phone: formData.phone.trim(),
       });
 
       setLoading(false);
@@ -146,6 +149,17 @@ const StudentSignupScreen = ({ navigation }) => {
               error={errors.year}
               editable={!loading}
               autoCapitalize="words"
+            />
+
+            <Input
+              label="Department"
+              placeholder="e.g., CSE, ECE, MECH, CIVIL"
+              value={formData.department}
+              onChangeText={(value) => handleInputChange('department', value)}
+              icon="layers-outline"
+              error={errors.department}
+              editable={!loading}
+              autoCapitalize="characters"
             />
 
             <Input

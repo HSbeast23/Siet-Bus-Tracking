@@ -13,6 +13,7 @@ import StudentDashboard from '../screens/StudentDashboard';
 import MapScreen from '../screens/MapScreen';
 import BusManagement from '../screens/BusManagement';
 import BusDetails from '../screens/BusDetails';
+import BusLiveTrackingScreen from '../screens/BusLiveTrackingScreen';
 import DriverManagement from '../screens/DriverManagement';
 import DriverDetails from '../screens/DriverDetails';
 import ReportsAnalytics from '../screens/ReportsAnalytics';
@@ -101,6 +102,11 @@ const AppNavigator = () => {
         name="BusDetails" 
         component={BusDetails} 
         options={{ title: 'Bus Details', headerShown: false }}
+      />
+      <Stack.Screen 
+        name="BusLiveTracking" 
+        component={BusLiveTrackingScreen} 
+        options={{ title: 'Live Bus Tracking', headerShown: false }}
       />
       <Stack.Screen 
         name="DriverManagement" 

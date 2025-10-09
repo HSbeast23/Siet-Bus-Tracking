@@ -4,10 +4,10 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   Dimensions
 } from 'react-native';
-import { COLORS } from '../utils/constants';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
@@ -17,14 +17,14 @@ const LoginSelectionScreen = ({ navigation }) => {
     {
       title: 'Management',
       subtitle: 'Admin Portal',
-      icon: 'settings',
+      icon: 'business',
       color: COLORS.secondary,
       onPress: () => navigation.navigate('ManagementLogin')
     },
     {
       title: 'Driver',
       subtitle: 'Driver Portal',
-      icon: 'car',
+      icon: 'bus',
       color: COLORS.accent,
       onPress: () => navigation.navigate('DriverLogin')
     },
@@ -38,7 +38,7 @@ const LoginSelectionScreen = ({ navigation }) => {
   ];
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.title}>Choose Your Role</Text>
         <Text style={styles.subtitle}>Select how you want to access the system</Text>
@@ -54,13 +54,13 @@ const LoginSelectionScreen = ({ navigation }) => {
           >
             <View style={styles.cardContent}>
               <View style={[styles.iconContainer, { backgroundColor: option.color }]}>
-                <Ionicons name={option.icon} size={30} color={COLORS.white} />
+                <Ionicons name={option.icon} size={32} color={COLORS.white} />
               </View>
               <View style={styles.textContainer}>
                 <Text style={styles.optionTitle}>{option.title}</Text>
                 <Text style={styles.optionSubtitle}>{option.subtitle}</Text>
               </View>
-              <Ionicons name="chevron-forward" size={24} color={COLORS.gray} />
+              <Ionicons name="chevron-forward" size={24} color={COLORS.textSecondary} />
             </View>
           </TouchableOpacity>
         ))}
@@ -85,82 +85,78 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   header: {
-    paddingTop: 40,
-    paddingHorizontal: 20,
-    paddingBottom: 30,
+    paddingTop: SPACING.xl,
+    paddingHorizontal: SPACING.lg,
+    paddingBottom: SPACING.xl,
     alignItems: 'center',
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontFamily: FONTS.bold,
     color: COLORS.secondary,
-    marginBottom: 10,
+    marginBottom: SPACING.sm,
   },
   subtitle: {
     fontSize: 16,
-    color: COLORS.gray,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
     textAlign: 'center',
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: SPACING.lg,
     justifyContent: 'center',
   },
   optionCard: {
     backgroundColor: COLORS.white,
-    borderRadius: 15,
-    marginVertical: 10,
+    borderRadius: RADIUS.lg,
+    marginVertical: SPACING.sm,
     borderLeftWidth: 5,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    ...SHADOWS.md,
   },
   cardContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 20,
+    padding: SPACING.lg,
   },
   iconContainer: {
     width: 60,
     height: 60,
-    borderRadius: 30,
+    borderRadius: RADIUS.round,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 15,
+    marginRight: SPACING.md,
   },
   textContainer: {
     flex: 1,
   },
   optionTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: COLORS.black,
-    marginBottom: 5,
+    fontFamily: FONTS.bold,
+    color: COLORS.textPrimary,
+    marginBottom: SPACING.xs,
   },
   optionSubtitle: {
     fontSize: 14,
-    color: COLORS.gray,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
   },
   footer: {
-    paddingHorizontal: 20,
-    paddingBottom: 30,
+    paddingHorizontal: SPACING.lg,
+    paddingBottom: SPACING.xl,
     alignItems: 'center',
   },
   backButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
   },
   backText: {
     fontSize: 16,
+    fontFamily: FONTS.medium,
     color: COLORS.secondary,
-    marginLeft: 5,
+    marginLeft: SPACING.xs,
   },
 });
 

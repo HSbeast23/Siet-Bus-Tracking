@@ -4,12 +4,13 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   Alert
 } from 'react-native';
-import { COLORS } from '../utils/constants';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
+import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { busStorage } from '../services/storage';
 import { registeredUsersStorage } from '../services/registeredUsersStorage';
 import { authService } from '../services/authService';
@@ -91,7 +92,7 @@ const ManagementDashboard = ({ navigation }) => {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     Alert.alert(
       'Logout',
       'Are you sure you want to logout?',
@@ -100,7 +101,10 @@ const ManagementDashboard = ({ navigation }) => {
         { 
           text: 'Logout', 
           style: 'destructive',
-          onPress: () => navigation.navigate('Welcome')
+          onPress: async () => {
+            await authService.logout();
+            navigation.replace('Welcome');
+          }
         }
       ]
     );
@@ -161,15 +165,28 @@ const ManagementDashboard = ({ navigation }) => {
       description: 'Sign out from management panel',
       icon: 'log-out',
       color: COLORS.danger,
-      onPress: () => {
-        userStorage.clearUser();
-        navigation.replace('Welcome');
+      onPress: async () => {
+        Alert.alert(
+          'Logout',
+          'Are you sure you want to sign out?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Logout', 
+              style: 'destructive',
+              onPress: async () => {
+                await authService.logout();
+                navigation.replace('Welcome');
+              }
+            }
+          ]
+        );
       }
     }
   ];
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <View>
           <Text style={styles.welcomeText}>Welcome,</Text>
@@ -185,24 +202,44 @@ const ManagementDashboard = ({ navigation }) => {
         {/* Stats Cards */}
         <View style={styles.statsContainer}>
           <View style={styles.statsRow}>
-            <View style={[styles.statCard, { backgroundColor: COLORS.primary }]}>
-              <Text style={styles.statNumber}>{stats.totalBuses}</Text>
-              <Text style={styles.statLabel}>Total Buses</Text>
-            </View>
-            <View style={[styles.statCard, { backgroundColor: COLORS.accent }]}>
-              <Text style={styles.statNumber}>{stats.activeBuses}</Text>
-              <Text style={styles.statLabel}>Active Buses</Text>
-            </View>
+            <Card style={[styles.statCard, { backgroundColor: COLORS.primary }]}>
+              <CardContent>
+                <View style={styles.statContent}>
+                  <Ionicons name="bus" size={32} color={COLORS.white} />
+                  <Text style={styles.statNumber}>{stats.totalBuses}</Text>
+                  <Text style={styles.statLabel}>Total Buses</Text>
+                </View>
+              </CardContent>
+            </Card>
+            <Card style={[styles.statCard, { backgroundColor: COLORS.success }]}>
+              <CardContent>
+                <View style={styles.statContent}>
+                  <Ionicons name="checkmark-circle" size={32} color={COLORS.white} />
+                  <Text style={styles.statNumber}>{stats.activeBuses}</Text>
+                  <Text style={styles.statLabel}>Active Now</Text>
+                </View>
+              </CardContent>
+            </Card>
           </View>
           <View style={styles.statsRow}>
-            <View style={[styles.statCard, { backgroundColor: COLORS.secondary }]}>
-              <Text style={styles.statNumber}>{stats.totalDrivers}</Text>
-              <Text style={styles.statLabel}>Total Drivers</Text>
-            </View>
-            <View style={[styles.statCard, { backgroundColor: COLORS.warning }]}>
-              <Text style={styles.statNumber}>{stats.totalStudents}</Text>
-              <Text style={styles.statLabel}>Total Students</Text>
-            </View>
+            <Card style={[styles.statCard, { backgroundColor: COLORS.accent }]}>
+              <CardContent>
+                <View style={styles.statContent}>
+                  <Ionicons name="people" size={32} color={COLORS.white} />
+                  <Text style={styles.statNumber}>{stats.totalDrivers}</Text>
+                  <Text style={styles.statLabel}>Total Drivers</Text>
+                </View>
+              </CardContent>
+            </Card>
+            <Card style={[styles.statCard, { backgroundColor: COLORS.warning }]}>
+              <CardContent>
+                <View style={styles.statContent}>
+                  <Ionicons name="school" size={32} color={COLORS.white} />
+                  <Text style={styles.statNumber}>{stats.totalStudents}</Text>
+                  <Text style={styles.statLabel}>Total Students</Text>
+                </View>
+              </CardContent>
+            </Card>
           </View>
         </View>
 
@@ -210,21 +247,24 @@ const ManagementDashboard = ({ navigation }) => {
         <View style={styles.menuContainer}>
           <Text style={styles.sectionTitle}>Management Tools</Text>
           {menuItems.map((item, index) => (
-            <TouchableOpacity
+            <Card
               key={index}
-              style={styles.menuItem}
               onPress={item.onPress}
-              activeOpacity={0.7}
+              style={styles.menuCard}
             >
-              <View style={[styles.menuIcon, { backgroundColor: item.color }]}>
-                <Ionicons name={item.icon} size={24} color={COLORS.white} />
-              </View>
-              <View style={styles.menuContent}>
-                <Text style={styles.menuTitle}>{item.title}</Text>
-                <Text style={styles.menuSubtitle}>{item.subtitle}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={COLORS.gray} />
-            </TouchableOpacity>
+              <CardContent>
+                <View style={styles.menuItem}>
+                  <View style={[styles.menuIcon, { backgroundColor: item.color }]}>
+                    <Ionicons name={item.icon} size={24} color={COLORS.white} />
+                  </View>
+                  <View style={styles.menuContent}>
+                    <Text style={styles.menuTitle}>{item.title}</Text>
+                    <Text style={styles.menuSubtitle}>{item.description}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
+                </View>
+              </CardContent>
+            </Card>
           ))}
         </View>
       </ScrollView>
@@ -241,108 +281,97 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 20,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.lg,
     backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.lightGray,
+    ...SHADOWS.sm,
   },
   welcomeText: {
-    fontSize: 16,
-    color: COLORS.gray,
+    fontSize: 15,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
   },
   adminText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: COLORS.secondary,
+    fontSize: 24,
+    fontFamily: FONTS.bold,
+    color: COLORS.textPrimary,
+    marginTop: SPACING.xs,
   },
   roleText: {
-    fontSize: 12,
-    color: COLORS.gray,
+    fontSize: 13,
+    fontFamily: FONTS.medium,
+    color: COLORS.secondary,
     marginTop: 2,
   },
   logoutButton: {
-    padding: 10,
+    padding: SPACING.sm,
   },
   statsContainer: {
-    padding: 20,
+    padding: SPACING.lg,
   },
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 15,
+    marginBottom: SPACING.md,
   },
   statCard: {
     flex: 1,
-    padding: 20,
-    borderRadius: 15,
+    marginHorizontal: 6,
+  },
+  statContent: {
     alignItems: 'center',
-    marginHorizontal: 5,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    paddingVertical: SPACING.sm,
   },
   statNumber: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    fontSize: 32,
+    fontFamily: FONTS.bold,
     color: COLORS.white,
+    marginTop: SPACING.xs,
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 13,
+    fontFamily: FONTS.medium,
     color: COLORS.white,
-    marginTop: 5,
+    marginTop: SPACING.xs,
     textAlign: 'center',
   },
   menuContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingHorizontal: SPACING.lg,
+    paddingBottom: SPACING.xl,
   },
   sectionTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: COLORS.secondary,
-    marginBottom: 15,
+    fontFamily: FONTS.bold,
+    color: COLORS.textPrimary,
+    marginBottom: SPACING.md,
+  },
+  menuCard: {
+    marginBottom: SPACING.sm,
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.white,
-    padding: 15,
-    borderRadius: 12,
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 3,
   },
   menuIcon: {
     width: 50,
     height: 50,
-    borderRadius: 25,
+    borderRadius: RADIUS.md,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 15,
+    marginRight: SPACING.md,
   },
   menuContent: {
     flex: 1,
   },
   menuTitle: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: COLORS.black,
+    fontFamily: FONTS.semiBold,
+    color: COLORS.textPrimary,
   },
   menuSubtitle: {
-    fontSize: 12,
-    color: COLORS.gray,
+    fontSize: 13,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
     marginTop: 2,
   },
 });

@@ -7,13 +7,21 @@ import {
   SafeAreaView,
   Alert,
   ScrollView,
-  ActivityIndicator
+  ActivityIndicator,
+  BackHandler
 } from 'react-native';
 import * as Location from 'expo-location';
 import { COLORS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
-import { busStorage } from '../services/storage';
+import { updateBusLocation, stopBusTracking } from '../services/locationService';
 import { authService } from '../services/authService';
+import { useFocusEffect } from '@react-navigation/native';
+
+// Normalize bus number to handle variations (SIET--005 → SIET-005)
+const normalizeBusNumber = (busNumber) => {
+  if (!busNumber) return '';
+  return busNumber.toString().trim().toUpperCase().replace(/-+/g, '-');
+};
 
 const DriverDashboard = ({ navigation }) => {
   const [driverInfo, setDriverInfo] = useState({
@@ -33,10 +41,46 @@ const DriverDashboard = ({ navigation }) => {
     return () => {
       // Cleanup location tracking when component unmounts
       if (locationSubscription) {
+        console.log('🧹 [DRIVER] Component unmounting - cleaning up location tracking');
         locationSubscription.remove();
       }
     };
   }, []);
+
+  // Handle back button press - ask confirmation if tracking is active
+  useFocusEffect(
+    React.useCallback(() => {
+      const onBackPress = () => {
+        if (isTracking) {
+          Alert.alert(
+            'Stop Tracking?',
+            'You are currently tracking. Going back will stop location tracking. Do you want to continue?',
+            [
+              {
+                text: 'Cancel',
+                style: 'cancel',
+                onPress: () => {}
+              },
+              {
+                text: 'Stop & Go Back',
+                style: 'destructive',
+                onPress: async () => {
+                  await stopLocationTracking();
+                  navigation.goBack();
+                }
+              }
+            ]
+          );
+          return true; // Prevent default back action
+        }
+        return false; // Allow default back action
+      };
+
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+
+      return () => backHandler.remove();
+    }, [isTracking])
+  );
 
   const loadDriverData = async () => {
     try {
@@ -45,9 +89,12 @@ const DriverDashboard = ({ navigation }) => {
       console.log('Current authenticated driver:', currentUser);
       
       if (currentUser) {
+        const normalizedBusNumber = normalizeBusNumber(currentUser.busNumber || '');
+        console.log(`🔧 [DRIVER] Normalizing bus number: "${currentUser.busNumber}" → "${normalizedBusNumber}"`);
+        
         setDriverInfo({
           name: currentUser.name || 'Driver',
-          busNumber: currentUser.busNumber || 'N/A',
+          busNumber: normalizedBusNumber,
           email: currentUser.email || '',
           phone: currentUser.phone || 'N/A',
           licenseNumber: currentUser.licenseNumber || 'N/A'
@@ -55,7 +102,7 @@ const DriverDashboard = ({ navigation }) => {
         
         console.log('Driver info loaded:', {
           name: currentUser.name,
-          busNumber: currentUser.busNumber,
+          busNumber: normalizedBusNumber,
           email: currentUser.email
         });
       } else {
@@ -102,89 +149,157 @@ const DriverDashboard = ({ navigation }) => {
     if (!hasPermission) return;
 
     try {
-      setIsTracking(true);
+      const normalizedBusNumber = normalizeBusNumber(driverInfo.busNumber);
+      console.log(`🚀 [DRIVER] Starting tracking for bus: ${normalizedBusNumber}`);
       
-      // Get initial location
-      const initialLocation = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
+      // Try to get initial location with fallback accuracy levels
+      let initialLocation;
+      try {
+        console.log('📍 [DRIVER] Attempting BestForNavigation accuracy...');
+        initialLocation = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.BestForNavigation,
+        });
+      } catch (bestError) {
+        console.log('⚠️ [DRIVER] BestForNavigation failed, trying High accuracy...');
+        try {
+          initialLocation = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.High,
+          });
+        } catch (highError) {
+          console.log('⚠️ [DRIVER] High accuracy failed, using Balanced...');
+          initialLocation = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          });
+        }
+      }
+      
+      console.log(`✅ [DRIVER] Got initial location:`, initialLocation.coords);
       
       const locationData = {
         latitude: initialLocation.coords.latitude,
         longitude: initialLocation.coords.longitude,
         timestamp: new Date().toISOString(),
-        busNumber: driverInfo.busNumber,
-        driverName: driverInfo.name
+        busNumber: normalizedBusNumber,
+        driverName: driverInfo.name,
+        heading: initialLocation.coords.heading || 0,
+        speed: initialLocation.coords.speed || 0,
+        accuracy: initialLocation.coords.accuracy || 0,
+        isTracking: true // Set tracking flag to TRUE
       };
       
       setCurrentLocation(locationData);
+      setIsTracking(true);
       
-      // Store location for students to track
-      await busStorage.setLastLocation(locationData);
+      // Update Firestore with initial location
+      await updateBusLocation(normalizedBusNumber, locationData);
+      console.log(`✅ [DRIVER] Initial location saved for bus ${normalizedBusNumber}`);
       
-      // Start continuous location tracking
+      // Start continuous location tracking with best settings
       const subscription = await Location.watchPositionAsync(
         {
-          accuracy: Location.Accuracy.High,
-          timeInterval: 5000, // Update every 5 seconds
-          distanceInterval: 10, // Update every 10 meters
+          accuracy: Location.Accuracy.High, // Use High instead of BestForNavigation for better compatibility
+          timeInterval: 2000, // Update every 2 seconds for smoother tracking
+          distanceInterval: 5, // Update every 5 meters
         },
-        (location) => {
+        async (location) => {
           const newLocationData = {
             latitude: location.coords.latitude,
             longitude: location.coords.longitude,
             timestamp: new Date().toISOString(),
-            busNumber: driverInfo.busNumber,
+            busNumber: normalizedBusNumber,
             driverName: driverInfo.name,
             speed: location.coords.speed || 0,
-            heading: location.coords.heading || 0
+            heading: location.coords.heading || 0,
+            accuracy: location.coords.accuracy || 0,
+            isTracking: true // Ensure tracking flag stays TRUE
           };
           
           setCurrentLocation(newLocationData);
-          busStorage.setLastLocation(newLocationData);
           
-          // TODO: Send to backend API
-          // busAPI.updateBusLocation(driverInfo.busNumber, newLocationData);
+          // Update Firestore in real-time
+          try {
+            await updateBusLocation(normalizedBusNumber, newLocationData);
+            console.log(`📍 [DRIVER] Location updated for bus ${normalizedBusNumber}`);
+          } catch (error) {
+            console.error(`❌ [DRIVER] Failed to update location:`, error);
+          }
         }
       );
       
       setLocationSubscription(subscription);
-      Alert.alert('Success', 'Location tracking started successfully!');
+      Alert.alert('Success', `Location tracking started for bus ${normalizedBusNumber}!`);
       
     } catch (error) {
-      console.error('Error starting location tracking:', error);
+      console.error('❌ [DRIVER] Error starting location tracking:', error);
+      console.error('❌ [DRIVER] Error details:', error.message);
       setIsTracking(false);
-      Alert.alert('Error', 'Failed to start location tracking.');
+      
+      // Provide helpful error message
+      if (error.message.includes('unavailable')) {
+        Alert.alert(
+          'Location Unavailable',
+          'GPS location is not available. If using an emulator:\n\n1. Open emulator extended controls (...)\n2. Go to Location tab\n3. Set a location manually\n\nIf on a real device, ensure Location Services are enabled in Settings.',
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert('Error', 'Failed to start location tracking. Please try again.');
+      }
     }
   };
 
-  const stopLocationTracking = () => {
+  const stopLocationTracking = async () => {
+    console.log('🛑 [DRIVER] Stopping location tracking...');
+    
+    // Stop location subscription first
     if (locationSubscription) {
       locationSubscription.remove();
       setLocationSubscription(null);
+      console.log('✅ [DRIVER] Location subscription removed');
     }
+    
+    // Mark bus as NOT tracking in Firestore
+    if (driverInfo.busNumber) {
+      const normalizedBusNumber = normalizeBusNumber(driverInfo.busNumber);
+      try {
+        await stopBusTracking(normalizedBusNumber);
+        console.log(`🛑 [DRIVER] Tracking stopped in Firestore for bus ${normalizedBusNumber}`);
+      } catch (error) {
+        console.error(`❌ [DRIVER] Error stopping tracking in Firestore:`, error);
+      }
+    }
+    
     setIsTracking(false);
     setCurrentLocation(null);
+    console.log('✅ [DRIVER] Tracking state cleared');
     Alert.alert('Success', 'Location tracking stopped.');
   };
 
   const handleLogout = () => {
     Alert.alert(
       'Logout',
-      'Are you sure you want to logout? This will stop location tracking.',
+      isTracking 
+        ? 'You are currently tracking. Logging out will stop location tracking. Are you sure?'
+        : 'Are you sure you want to logout?',
       [
         { text: 'Cancel', style: 'cancel' },
         { 
           text: 'Logout', 
           style: 'destructive',
           onPress: async () => {
+            // Stop tracking if active
             if (isTracking) {
-              stopLocationTracking();
+              console.log('🚨 [DRIVER] Stopping tracking due to logout...');
+              await stopLocationTracking();
             }
+            
+            // Logout from auth service
             const success = await authService.logout();
             if (success) {
-              console.log('Driver logged out successfully');
-              navigation.navigate('Welcome');
+              console.log('✅ [DRIVER] Driver logged out successfully');
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'Welcome' }],
+              });
             } else {
               Alert.alert('Error', 'Failed to logout. Please try again.');
             }

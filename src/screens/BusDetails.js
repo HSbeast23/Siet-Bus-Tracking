@@ -320,7 +320,7 @@ const BusDetails = ({ route, navigation }) => {
         <View style={styles.actionButtons}>
           <TouchableOpacity 
             style={styles.actionButton}
-            onPress={() => navigation.navigate('MapScreen', { selectedBus: bus.number })}
+            onPress={() => navigation.navigate('BusLiveTracking', { bus: bus })}
           >
             <Ionicons name="map" size={20} color={COLORS.white} />
             <Text style={styles.actionButtonText}>Track Live</Text>
