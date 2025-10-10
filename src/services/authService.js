@@ -7,6 +7,7 @@ import {
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from './firebaseConfig';
 import { registeredUsersStorage } from './registeredUsersStorage';
+import { CONFIG } from '../utils/constants';
 
 const AUTH_TOKEN_KEY = 'authToken';
 const CURRENT_USER_KEY = 'currentUser';
@@ -161,6 +162,50 @@ class AuthService {
       return {
         success: false,
         message: formatFirebaseError(error),
+      };
+    }
+  }
+
+  async loginCoAdmin(email, password) {
+    try {
+      // Get Co-Admin credentials from environment variables
+      const COADMIN_EMAIL = CONFIG.COADMIN_CREDENTIALS.email;
+      const COADMIN_PASSWORD = CONFIG.COADMIN_CREDENTIALS.password;
+      const COADMIN_NAME = CONFIG.COADMIN_CREDENTIALS.name;
+      const COADMIN_BUS_ID = CONFIG.COADMIN_CREDENTIALS.busId;
+
+      // Validate credentials
+      if (email.trim().toLowerCase() !== COADMIN_EMAIL.toLowerCase() || password !== COADMIN_PASSWORD) {
+        return {
+          success: false,
+          message: 'Invalid Co-Admin credentials. Please contact administration.',
+        };
+      }
+
+      // Create Co-Admin user object
+      const currentUser = {
+        email: COADMIN_EMAIL,
+        role: 'coadmin',
+        name: COADMIN_NAME,
+        id: 'Coadmin-005',
+        busId: COADMIN_BUS_ID,
+        uid: 'coadmin-001',
+      };
+
+      // Store in AsyncStorage
+      await AsyncStorage.setItem(AUTH_TOKEN_KEY, 'coadmin-token');
+      await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(currentUser));
+
+      return {
+        success: true,
+        token: 'coadmin-token',
+        user: currentUser,
+        message: `Welcome, ${COADMIN_NAME}!`
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: 'Co-Admin login error. Please try again.',
       };
     }
   }

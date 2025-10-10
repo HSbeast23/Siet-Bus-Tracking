@@ -12,17 +12,19 @@ import {
 } from 'react-native';
 import MapView, { Marker, AnimatedRegion, PROVIDER_GOOGLE, Callout, Polyline } from 'react-native-maps';
 import * as Location from 'expo-location';
-import { COLORS, SAMPLE_STOPS } from '../utils/constants';
+import { COLORS, BUS_ROUTES } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
-import { subscribeToBusLocation } from '../services/locationService';
+import { subscribeToBusLocation, normalizeBusNumber } from '../services/locationService';
 import { authService } from '../services/authService';
 
 const MapScreen = ({ route, navigation }) => {
   const [busLocation, setBusLocation] = useState(null);
   const [studentLocation, setStudentLocation] = useState(null);
-  const [studentInfo, setStudentInfo] = useState({});
+  const [userInfo, setUserInfo] = useState({}); // Changed from studentInfo to userInfo
   const [loading, setLoading] = useState(true);
   const [mapRef, setMapRef] = useState(null);
+  const [selectedBusId, setSelectedBusId] = useState(null); // For management to select bus
+  const [routeStops, setRouteStops] = useState([]); // Add state for route stops
   
   const busCoordinate = useRef(
     new AnimatedRegion({
@@ -35,10 +37,12 @@ const MapScreen = ({ route, navigation }) => {
   
   const markerRef = useRef(null);
 
-  const selectedBus = route?.params?.selectedBus;
+  // Get bus from route params (for management) or from user info (for students)
+  const busFromParams = route?.params?.bus;
+  const busIdFromParams = route?.params?.busId;
 
   useEffect(() => {
-    loadStudentData();
+    loadUserData();
     getUserLocation();
     
     // Cleanup function
@@ -47,36 +51,48 @@ const MapScreen = ({ route, navigation }) => {
     };
   }, []);
 
-  // 🔥 Subscribe to real-time bus location updates from Firestore
+  // �️ Load route stops immediately if busIdFromParams is available
+  useEffect(() => {
+    if (busIdFromParams) {
+      console.log(`🗺️ [MAP] Bus ID from params detected: ${busIdFromParams}, loading route stops immediately`);
+      loadRouteStops();
+    }
+  }, [busIdFromParams]);
+
+  // �🔥 Subscribe to real-time bus location updates from Firestore
   useEffect(() => {
     let unsubscribe = null;
     let timeoutId = null;
     
-    if (studentInfo.busNumber) {
-      console.log('🔥 [STUDENT] Setting up real-time GPS tracking for bus:', studentInfo.busNumber);
-      console.log('🔍 [STUDENT] Student info:', JSON.stringify(studentInfo));
+    // Determine which bus to track
+    const busToTrack = busIdFromParams || userInfo.busNumber || userInfo.busId;
+    
+    if (busToTrack) {
+      const userRole = userInfo.role || 'management';
+      console.log(`🔥 [${userRole.toUpperCase()}] Setting up real-time GPS tracking for bus:`, busToTrack);
+      console.log(`🔍 [${userRole.toUpperCase()}] User info:`, JSON.stringify(userInfo));
       
       // Set timeout for loading state (5 seconds)
       timeoutId = setTimeout(() => {
-        console.log('⏱️ [STUDENT] Loading timeout - setting loading to false');
+        console.log(`⏱️ [${userRole.toUpperCase()}] Loading timeout - setting loading to false`);
         setLoading(false);
       }, 5000);
       
       unsubscribe = subscribeToBusLocation(
-        studentInfo.busNumber,
+        busToTrack,
         (locationData) => {
           // Clear timeout since we got data
           if (timeoutId) {
             clearTimeout(timeoutId);
           }
           
-          console.log('📦 [STUDENT] Raw location data received:', JSON.stringify(locationData));
+          console.log(`📦 [${userRole.toUpperCase()}] Raw location data received:`, JSON.stringify(locationData));
           
           if (locationData && locationData.currentLocation) {
-            console.log('📍 [STUDENT] Real-time bus location update:', JSON.stringify(locationData.currentLocation));
-            console.log('🔥 [STUDENT] Is tracking:', locationData.isTracking);
-            console.log('🚀 [STUDENT] Speed:', locationData.speed);
-            console.log('👤 [STUDENT] Driver:', locationData.driverName);
+            console.log(`📍 [${userRole.toUpperCase()}] Real-time bus location update:`, JSON.stringify(locationData.currentLocation));
+            console.log(`🔥 [${userRole.toUpperCase()}] Is tracking:`, locationData.isTracking);
+            console.log(`🚀 [${userRole.toUpperCase()}] Speed:`, locationData.speed);
+            console.log(`👤 [${userRole.toUpperCase()}] Driver:`, locationData.driverName);
             
             const newLocation = {
               latitude: locationData.currentLocation.latitude,
@@ -111,24 +127,24 @@ const MapScreen = ({ route, navigation }) => {
               }, { duration: 1000 });
             }
             
-            console.log('✅ [STUDENT] Bus location state updated successfully');
+            console.log(`✅ [${userRole.toUpperCase()}] Bus location state updated successfully`);
             setLoading(false);
           } else if (locationData && !locationData.isTracking) {
-            console.log('⚠️ [STUDENT] Bus stopped tracking - clearing map');
-            console.log('🛑 [STUDENT] isTracking:', locationData.isTracking);
+            console.log(`⚠️ [${userRole.toUpperCase()}] Bus stopped tracking - clearing map`);
+            console.log(`🛑 [${userRole.toUpperCase()}] isTracking:`, locationData.isTracking);
             setBusLocation(null); // Clear location so marker disappears
             setLoading(false);
           } else {
-            console.log('⚠️ [STUDENT] Bus not currently tracking');
-            console.log('⚠️ [STUDENT] Full data:', JSON.stringify(locationData));
+            console.log(`⚠️ [${userRole.toUpperCase()}] Bus not currently tracking`);
+            console.log(`⚠️ [${userRole.toUpperCase()}] Full data:`, JSON.stringify(locationData));
             setBusLocation(null);
             setLoading(false);
           }
         },
         (error) => {
-          console.error('❌ [STUDENT] Error in real-time location updates:', error);
-          console.error('❌ [STUDENT] Error message:', error.message);
-          console.error('❌ [STUDENT] Error stack:', error.stack);
+          console.error(`❌ [${userRole.toUpperCase()}] Error in real-time location updates:`, error);
+          console.error(`❌ [${userRole.toUpperCase()}] Error message:`, error.message);
+          console.error(`❌ [${userRole.toUpperCase()}] Error stack:`, error.stack);
           if (timeoutId) {
             clearTimeout(timeoutId);
           }
@@ -136,32 +152,77 @@ const MapScreen = ({ route, navigation }) => {
         }
       );
       
-      console.log('📡 [STUDENT] Subscription setup complete for bus:', studentInfo.busNumber);
+      console.log(`📡 [${userRole.toUpperCase()}] Subscription setup complete for bus:`, busToTrack);
     }
     
-    // Cleanup subscription on unmount or when busNumber changes
+    // Cleanup subscription on unmount or when bus changes
     return () => {
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
       if (unsubscribe) {
-        console.log('🛑 [STUDENT] Unsubscribing from bus location updates');
+        const userRole = userInfo.role || 'management';
+        console.log(`🛑 [${userRole.toUpperCase()}] Unsubscribing from bus location updates`);
         unsubscribe();
       }
     };
-  }, [studentInfo.busNumber]);
+  }, [userInfo.busNumber, userInfo.busId, busIdFromParams]);
 
-  const loadStudentData = async () => {
+  // 🗺️ Load route stops when user info changes (for students/co-admin)
+  useEffect(() => {
+    if (userInfo.busNumber || userInfo.busId) {
+      console.log(`🗺️ [MAP] User info loaded, loading route stops for user's bus`);
+      loadRouteStops();
+    }
+  }, [userInfo.busNumber, userInfo.busId]);
+
+  const loadUserData = async () => {
     try {
       const userData = await authService.getCurrentUser();
       if (userData) {
-        setStudentInfo(userData);
+        setUserInfo(userData);
+        console.log(`✅ [${userData.role?.toUpperCase() || 'USER'}] User data loaded:`, userData.name || userData.email);
       } else {
         console.warn('No authenticated user found for map view');
       }
     } catch (error) {
-      console.error('Error loading student data:', error);
+      console.error('Error loading user data:', error);
     }
+  };
+
+  // 🚌 Get route stops for the current bus
+  const loadRouteStops = () => {
+    const rawBusNumber = busIdFromParams || userInfo?.busNumber || userInfo?.busId;
+    console.log(`🗺️ [MAP] Loading route stops for bus:`, rawBusNumber);
+    
+    if (!rawBusNumber) {
+      console.log(`⚠️ [MAP] No bus number available yet`);
+      setRouteStops([]);
+      return;
+    }
+    
+    // ✅ Normalize bus number to handle variations (SIET--005 → SIET-005)
+    const busNumber = normalizeBusNumber(rawBusNumber);
+    console.log(`🔧 [MAP] Normalized bus number: "${rawBusNumber}" → "${busNumber}"`);
+    
+    const routeData = BUS_ROUTES[busNumber];
+    if (!routeData || !Array.isArray(routeData.stops)) {
+      console.log(`⚠️ [MAP] No route data found for bus:`, busNumber);
+      console.log(`📋 [MAP] Available routes:`, Object.keys(BUS_ROUTES));
+      setRouteStops([]);
+      return;
+    }
+    
+    // Convert to format expected by map (with latitude/longitude)
+    const stops = routeData.stops.map(stop => ({
+      name: stop.name,
+      latitude: stop.latitude,
+      longitude: stop.longitude,
+      time: stop.time
+    }));
+    
+    console.log(`✅ [MAP] Loaded ${stops.length} stops for bus ${busNumber}`);
+    setRouteStops(stops);
   };
 
   const getUserLocation = async () => {
@@ -214,7 +275,11 @@ const MapScreen = ({ route, navigation }) => {
       const locations = [];
       if (busLocation) locations.push(busLocation);
       if (studentLocation) locations.push(studentLocation);
-      locations.push(...SAMPLE_STOPS);
+      
+      // Add route stops for the bus (safety check for array)
+      if (Array.isArray(routeStops) && routeStops.length > 0) {
+        locations.push(...routeStops);
+      }
 
       if (locations.length > 0) {
         mapRef.fitToCoordinates(locations, {
@@ -253,8 +318,8 @@ const MapScreen = ({ route, navigation }) => {
         provider={PROVIDER_GOOGLE}
         style={styles.map}
         initialRegion={{
-          latitude: busLocation?.latitude || SAMPLE_STOPS[0].latitude,
-          longitude: busLocation?.longitude || SAMPLE_STOPS[0].longitude,
+          latitude: busLocation?.latitude || (Array.isArray(routeStops) && routeStops[0]?.latitude) || 11.0168,
+          longitude: busLocation?.longitude || (Array.isArray(routeStops) && routeStops[0]?.longitude) || 76.9558,
           latitudeDelta: 0.05,
           longitudeDelta: 0.05,
         }}
@@ -282,7 +347,7 @@ const MapScreen = ({ route, navigation }) => {
             </View>
             <Callout tooltip>
               <View style={styles.calloutContainer}>
-                <Text style={styles.calloutTitle}>Bus {studentInfo.busNumber?.replace(/-+/g, '-')}</Text>
+                <Text style={styles.calloutTitle}>Bus {(busIdFromParams || userInfo.busNumber || userInfo.busId)?.replace(/-+/g, '-')}</Text>
                 <Text style={styles.calloutText}>Driver: {busLocation.driverName}</Text>
                 <Text style={styles.calloutText}>Speed: {(busLocation.speed * 3.6).toFixed(1)} km/h</Text>
               </View>
@@ -304,28 +369,33 @@ const MapScreen = ({ route, navigation }) => {
           </Marker>
         )}
 
-        {/* Bus Stop Markers */}
-        {SAMPLE_STOPS.map((stop, index) => (
+        {/* Bus Stop Markers - Show only route stops for this bus */}
+        {routeStops && routeStops.length > 0 && routeStops.map((stop, index) => (
           <Marker
             key={index}
-            coordinate={stop}
+            coordinate={{ latitude: stop.latitude, longitude: stop.longitude }}
             title={stop.name}
-            description={`Stop ${index + 1}`}
-            pinColor={COLORS.secondary}
+            description={`Stop ${index + 1} - ${stop.time}`}
+            pinColor={index === 0 ? COLORS.success : COLORS.secondary}
           >
-            <View style={styles.stopMarker}>
+            <View style={[styles.stopMarker, index === 0 && styles.firstStopMarker]}>
               <Text style={styles.stopNumber}>{index + 1}</Text>
             </View>
           </Marker>
         ))}
 
-        {/* Route Line */}
-        <Polyline
-          coordinates={SAMPLE_STOPS}
-          strokeColor={COLORS.accent}
-          strokeWidth={3}
-          lineDashPattern={[5, 5]}
-        />
+        {/* Route Polyline - Connect all stops */}
+        {routeStops && routeStops.length > 0 && (
+          <Polyline
+            coordinates={routeStops.map(stop => ({
+              latitude: stop.latitude,
+              longitude: stop.longitude
+            }))}
+            strokeColor={COLORS.accent}
+            strokeWidth={4}
+            lineDashPattern={[1]}
+          />
+        )}
       </MapView>
 
       {/* Minimal Status Card - Only show when tracking */}
@@ -524,6 +594,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
+  },
+  firstStopMarker: {
+    backgroundColor: COLORS.success,
+    borderColor: COLORS.white,
+    borderWidth: 3,
   },
 });
 

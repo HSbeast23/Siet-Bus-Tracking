@@ -12,6 +12,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS, CONFIG } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Input } from '../components/ui';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const AUTH_TOKEN_KEY = 'authToken';
+const CURRENT_USER_KEY = 'currentUser';
 
 const ManagementLoginScreen = ({ navigation }) => {
   const [username, setUsername] = useState('');
@@ -37,22 +41,33 @@ const ManagementLoginScreen = ({ navigation }) => {
       if (username.trim() === CONFIG.MANAGEMENT_CREDENTIALS.username && 
           password.trim() === CONFIG.MANAGEMENT_CREDENTIALS.password) {
         
-        // Simulate API call delay
-        setTimeout(() => {
-          setLoading(false);
-          Alert.alert('Success', 'Login successful!', [
-            {
-              text: 'OK',
-              onPress: () => navigation.navigate('ManagementDashboard')
-            }
-          ]);
-        }, 1000);
+        // Create management user object
+        const managementUser = {
+          email: 'management@siet.edu',
+          role: 'management',
+          name: 'Administrator',
+          id: 'management-001',
+          uid: 'management-001',
+        };
+
+        // Store in AsyncStorage
+        await AsyncStorage.setItem(AUTH_TOKEN_KEY, 'management-token');
+        await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(managementUser));
+        
+        setLoading(false);
+        Alert.alert('Success', 'Login successful!', [
+          {
+            text: 'OK',
+            onPress: () => navigation.navigate('ManagementDashboard')
+          }
+        ]);
       } else {
         setLoading(false);
         Alert.alert('Error', 'Invalid credentials');
       }
     } catch (error) {
       setLoading(false);
+      console.error('Login error:', error);
       Alert.alert('Error', 'Login failed. Please try again.');
     }
   };

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,221 +6,66 @@ import {
   StyleSheet,
   SafeAreaView,
   ScrollView,
-  Dimensions
+  Dimensions,
+  ActivityIndicator,
+  Alert
 } from 'react-native';
-import { COLORS } from '../utils/constants';
+import { COLORS, BUS_ROUTES } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../services/firebaseConfig';
+import { normalizeBusNumber } from '../services/locationService';
 
 const { width } = Dimensions.get('window');
 
 const BusDetails = ({ route, navigation }) => {
   const { bus } = route.params;
+  const [loading, setLoading] = useState(true);
+  const [studentCount, setStudentCount] = useState(0);
 
-  // Real Coimbatore routes starting from Main Campus
+  useEffect(() => {
+    loadRealStudentCount();
+  }, []);
+
+  const loadRealStudentCount = async () => {
+    try {
+      setLoading(true);
+      // Fetch REAL student count from Firebase
+      const studentsRef = collection(db, 'students');
+      const studentsQuery = query(
+        studentsRef,
+        where('busNumber', '==', bus.number),
+        where('status', '==', 'Active')
+      );
+      const studentsSnapshot = await getDocs(studentsQuery);
+      const count = studentsSnapshot.size;
+      
+      console.log(`✅ [BUS DETAILS] Found ${count} students for bus ${bus.number}`);
+      setStudentCount(count);
+    } catch (error) {
+      console.error('❌ [BUS DETAILS] Error loading students:', error);
+      setStudentCount(0);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 🔥 Use centralized BUS_ROUTES from constants.js with normalization
   const getRouteStops = (busNumber) => {
-    const routes = {
-      'SIET-001': [
-        'Main Campus',
-        'Saravanampatti',
-        'Chinnapalayam',
-        'Ramanathapuram',
-        'Vadavalli',
-        'Thudiyalur'
-      ],
-      'SIET-002': [
-        'Main Campus',
-        'Gandhipuram',
-        'Sungam',
-        'RS Puram',
-        'Peelamedu',
-        'Hopes College'
-      ],
-      'SIET-003': [
-        'Main Campus',
-        'Kalapatti',
-        'Sulur',
-        'Neelambur',
-        'Coimbatore North',
-        'Singanallur'
-      ],
-      'SIET-004': [
-        'Main Campus',
-        'Ondipudur',
-        'Sarkar Periyapalayam',
-        'Kuniamuthur',
-        'Thaneerpandal',
-        'Pollachi Road'
-      ],
-      'SIET-005': [
-        'Main Campus',
-        'Uppilipalayam',
-        'Podanur',
-        'Pothanur',
-        'Madukkarai',
-        'Kinathukadavu'
-      ],
-      'SIET-006': [
-        'Main Campus',
-        'Ganapathy',
-        'Kavundampalayam',
-        'Lakshmi Mills',
-        'Town Hall',
-        'Central Bus Stand'
-      ],
-      'SIET-007': [
-        'Main Campus',
-        'Karamadai',
-        'Mettupalayam Road',
-        'Avinashi Road',
-        'Neelambur',
-        'IT Park Kalapatti'
-      ],
-      'SIET-008': [
-        'Main Campus',
-        'Vadavalli',
-        'Marudhamalai',
-        'Thondamuthur',
-        'Thadagam Road',
-        'Anaikatti'
-      ],
-      'SIET-009': [
-        'Main Campus',
-        'Siddhapudur',
-        'Ram Nagar',
-        'Ramanathapuram',
-        'Selvapuram',
-        'Ukkadam'
-      ],
-      'SIET-010': [
-        'Main Campus',
-        'Peelamedu',
-        'Brookefields Mall',
-        'Avinashi Road',
-        'Goldwins',
-        'Prozone Mall'
-      ],
-      'SIET-011': [
-        'Main Campus',
-        'Kovaipudur',
-        'Saibaba Colony',
-        'Race Course',
-        'Gandhipuram',
-        'TNSTC Bus Stand'
-      ],
-      'SIET-012': [
-        'Main Campus',
-        'Kuniyamuthur',
-        'Thudiyalur',
-        'Sarkar Periyapalayam',
-        'Vadavalli',
-        'Marudhamalai'
-      ],
-      'SIET-013': [
-        'Main Campus',
-        'Kurumbapalayam',
-        'Vilankurichi',
-        'Coimbatore Medical College',
-        'Variety Hall Road',
-        'Big Bazaar'
-      ],
-      'SIET-014': [
-        'Main Campus',
-        'Tidel Park',
-        'IT Park',
-        'Kalapatti',
-        'Fun Mall',
-        'Codissia'
-      ],
-      'SIET-015': [
-        'Main Campus',
-        'Singanallur',
-        'Hopes College',
-        'Peelamedu',
-        'Brookefields',
-        'Avinashi Road'
-      ],
-      'SIET-016': [
-        'Main Campus',
-        'Selvapuram',
-        'Siddhapudur',
-        'Gandhipuram',
-        'Cross Cut Road',
-        'Oppanakara Street'
-      ],
-      'SIET-017': [
-        'Main Campus',
-        'Vadavalli',
-        'Chinnapalayam',
-        'Marudhamalai Road',
-        'Thondamuthur',
-        'Siruvani'
-      ],
-      'SIET-018': [
-        'Main Campus',
-        'Karamadai',
-        'Mettupalayam',
-        'Coimbatore Junction',
-        'Railway Station',
-        'Central Bus Stand'
-      ],
-      'SIET-019': [
-        'Main Campus',
-        'Ramanathapuram',
-        'Saravanampatti',
-        'Thudiyalur',
-        'Vadavalli',
-        'IT Park'
-      ],
-      'SIET-020': [
-        'Main Campus',
-        'Kovaipudur',
-        'Saibaba Colony',
-        'PSG Tech',
-        'Peelamedu',
-        'Hopes College'
-      ],
-      'SIET-021': [
-        'Main Campus',
-        'Sulur',
-        'Neelambur',
-        'Kalapatti',
-        'IT Park',
-        'Codissia Trade Fair'
-      ],
-      'SIET-022': [
-        'Main Campus',
-        'Podanur',
-        'Pothanur',
-        'Madukkarai',
-        'Pollachi Road',
-        'Kinathukadavu'
-      ]
-    };
+    // Normalize bus number to handle variations (SIET--005 → SIET-005)
+    const normalizedBusNumber = normalizeBusNumber(busNumber);
+    console.log(`🔧 [BUS DETAILS] Normalized bus number: "${busNumber}" → "${normalizedBusNumber}"`);
     
-    return routes[busNumber] || [
-      'Main Campus',
-      'General Route Stop 1',
-      'General Route Stop 2',
-      'General Route Stop 3',
-      'General Route Stop 4',
-      'General Route Stop 5'
-    ];
+    const routeData = BUS_ROUTES[normalizedBusNumber];
+    if (!routeData) {
+      console.log(`⚠️ [BUS DETAILS] No route found for: ${normalizedBusNumber}`);
+      return []; // Return empty array if no route found
+    }
+    // Extract just the stop names from the route data
+    return routeData.stops.map(stop => stop.name);
   };
 
   const route_stops = getRouteStops(bus.number);
-
-  const students = [
-    { id: 1, name: 'Aadhya Sharma', rollNo: 'SIET2021001', pickup: 'City Center' },
-    { id: 2, name: 'Arjun Patel', rollNo: 'SIET2021002', pickup: 'Railway Station' },
-    { id: 3, name: 'Bhavya Singh', rollNo: 'SIET2021003', pickup: 'Bus Terminal' },
-    { id: 4, name: 'Chaitanya Verma', rollNo: 'SIET2021004', pickup: 'City Center' },
-    { id: 5, name: 'Diya Agarwal', rollNo: 'SIET2021005', pickup: 'Railway Station' },
-    { id: 6, name: 'Eshaan Gupta', rollNo: 'SIET2021006', pickup: 'Bus Terminal' },
-    { id: 7, name: 'Falguni Joshi', rollNo: 'SIET2021007', pickup: 'City Center' },
-    { id: 8, name: 'Gaurav Kumar', rollNo: 'SIET2021008', pickup: 'Railway Station' },
-    { id: 9, name: 'Harshita Yadav', rollNo: 'SIET2021009', pickup: 'Bus Terminal' },
-    { id: 10, name: 'Ishaan Mishra', rollNo: 'SIET2021010', pickup: 'City Center' },
-  ].slice(0, Math.min(bus.studentsCount, 10)); // Show first 10 students
 
   const getBusStatusColor = (status) => {
     return status === 'Active' ? COLORS.success : COLORS.danger;
@@ -257,7 +102,11 @@ const BusDetails = ({ route, navigation }) => {
         <View style={styles.statsContainer}>
           <View style={styles.statCard}>
             <Ionicons name="people" size={24} color={COLORS.primary} />
-            <Text style={styles.statNumber}>{bus.studentsCount}</Text>
+            {loading ? (
+              <ActivityIndicator size="small" color={COLORS.primary} style={{ marginVertical: 8 }} />
+            ) : (
+              <Text style={styles.statNumber}>{studentCount}</Text>
+            )}
             <Text style={styles.statLabel}>Students</Text>
           </View>
           <View style={styles.statCard}>
@@ -289,30 +138,32 @@ const BusDetails = ({ route, navigation }) => {
         {/* Students List */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Students ({bus.studentsCount})</Text>
-            {students.length < bus.studentsCount && (
-              <Text style={styles.viewAllText}>Showing {students.length} of {bus.studentsCount}</Text>
-            )}
+            <Text style={styles.sectionTitle}>
+              Students {loading ? '...' : `(${studentCount})`}
+            </Text>
           </View>
-          {students.map((student) => (
-            <View key={student.id} style={styles.studentItem}>
-              <View style={styles.studentAvatar}>
-                <Ionicons name="person" size={20} color={COLORS.white} />
-              </View>
-              <View style={styles.studentInfo}>
-                <Text style={styles.studentName}>{student.name}</Text>
-                <Text style={styles.studentRoll}>{student.rollNo}</Text>
-              </View>
-              <View style={styles.pickupInfo}>
-                <Ionicons name="location-outline" size={16} color={COLORS.gray} />
-                <Text style={styles.pickupText}>{student.pickup}</Text>
-              </View>
+          {loading ? (
+            <View style={{ padding: 20, alignItems: 'center' }}>
+              <ActivityIndicator size="large" color={COLORS.primary} />
+              <Text style={{ marginTop: 10, color: COLORS.gray }}>Loading students...</Text>
             </View>
-          ))}
-          {students.length < bus.studentsCount && (
-            <TouchableOpacity style={styles.viewAllButton}>
-              <Text style={styles.viewAllButtonText}>View All Students</Text>
-            </TouchableOpacity>
+          ) : studentCount === 0 ? (
+            <View style={{ padding: 20, alignItems: 'center' }}>
+              <Ionicons name="people-outline" size={48} color={COLORS.gray} />
+              <Text style={{ marginTop: 10, color: COLORS.gray, textAlign: 'center' }}>
+                No active students registered for this bus yet
+              </Text>
+            </View>
+          ) : (
+            <View style={{ padding: 20, alignItems: 'center' }}>
+              <Ionicons name="checkmark-circle" size={48} color={COLORS.success} />
+              <Text style={{ marginTop: 10, color: COLORS.secondary, fontSize: 16, fontWeight: '600' }}>
+                {studentCount} Active Students
+              </Text>
+              <Text style={{ marginTop: 5, color: COLORS.gray, textAlign: 'center' }}>
+                Registered and actively using this bus service
+              </Text>
+            </View>
           )}
         </View>
 
@@ -320,7 +171,10 @@ const BusDetails = ({ route, navigation }) => {
         <View style={styles.actionButtons}>
           <TouchableOpacity 
             style={styles.actionButton}
-            onPress={() => navigation.navigate('BusLiveTracking', { bus: bus })}
+            onPress={() => navigation.navigate('MapScreen', { 
+              busId: bus.number, 
+              role: 'management' 
+            })}
           >
             <Ionicons name="map" size={20} color={COLORS.white} />
             <Text style={styles.actionButtonText}>Track Live</Text>

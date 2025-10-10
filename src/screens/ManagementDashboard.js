@@ -137,7 +137,18 @@ const ManagementDashboard = ({ navigation }) => {
       description: 'Track all buses in real-time',
       icon: 'map',
       color: COLORS.danger,
-      onPress: () => navigation.navigate('MapScreen')
+      onPress: () => {
+        // Navigate to BusManagement to select which bus to track
+        navigation.navigate('BusManagement', { 
+          selectMode: true,
+          onBusSelect: (bus) => {
+            navigation.navigate('MapScreen', { 
+              busId: bus.number, 
+              role: 'management' 
+            });
+          }
+        });
+      }
     },
     {
       title: 'Student Management',

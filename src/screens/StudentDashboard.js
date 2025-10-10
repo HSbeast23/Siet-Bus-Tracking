@@ -9,7 +9,7 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { COLORS, SAMPLE_STOPS, FONTS, SPACING, RADIUS, SHADOWS } from '../utils/constants';
+import { COLORS, BUS_ROUTES, FONTS, SPACING, RADIUS, SHADOWS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui';
@@ -210,27 +210,27 @@ const StudentDashboard = ({ navigation }) => {
     },
     {
       title: 'Bus Route',
-      subtitle: 'View all stops',
-      icon: 'list',
+      subtitle: 'View route map with all stops',
+      icon: 'map-outline',
       color: COLORS.accent,
       onPress: () => {
-        const stopsList = SAMPLE_STOPS.map((stop, index) => `${index + 1}. ${stop.name}`).join('\n');
-        Alert.alert('Route Stops', stopsList);
+        // Navigate to MapScreen to show route visualization
+        navigation.navigate('MapScreen');
       }
     },
     {
-      title: 'Submit Feedback',
-      subtitle: 'Rate your experience',
-      icon: 'chatbubble',
-      color: COLORS.secondary,
-      onPress: () => Alert.alert('Feedback', 'Feedback feature coming soon!')
+      title: 'View Attendance',
+      subtitle: 'Check your attendance history',
+      icon: 'calendar-outline', // Changed to calendar-outline for better visibility
+      color: COLORS.info,
+      onPress: () => navigation.navigate('AttendanceHistoryScreen')
     },
     {
-      title: 'Notifications',
-      subtitle: 'View alerts and updates',
-      icon: 'notifications',
-      color: COLORS.warning,
-      onPress: () => Alert.alert('Notifications', 'No new notifications')
+      title: 'Submit Report',
+      subtitle: 'Send report to management',
+      icon: 'chatbubble',
+      color: COLORS.secondary,
+      onPress: () => navigation.navigate('StudentReportScreen')
     }
   ];
 

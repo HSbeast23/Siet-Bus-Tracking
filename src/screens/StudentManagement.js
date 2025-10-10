@@ -16,13 +16,17 @@ import { registeredUsersStorage } from '../services/registeredUsersStorage';
 
 const { width } = Dimensions.get('window');
 
-const StudentManagement = ({ navigation }) => {
+const StudentManagement = ({ navigation, route }) => {
   const [selectedYear, setSelectedYear] = useState('1st Year');
   const [selectedDepartment, setSelectedDepartment] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [studentStats, setStudentStats] = useState({ total: 0, byYear: {}, byDepartment: {}, active: 0 });
+
+  // Get params from navigation (for Co-Admin filtering)
+  const { busId: filterBusId, role } = route.params || {};
+  const isCoAdmin = role === 'coadmin';
 
   const years = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
   const departments = ['All', 'CSE', 'ECE', 'EEE', 'MECH', 'CIVIL', 'IT', 'AIDS', 'AIML'];
@@ -38,14 +42,38 @@ const StudentManagement = ({ navigation }) => {
   const loadStudentData = async () => {
     try {
       setLoading(true);
-      const allStudents = await registeredUsersStorage.getAllStudents();
+      console.log(`🔍 [STUDENT MGMT] Loading students... Role: ${role}, Filter Bus ID: ${filterBusId}, Is Co-Admin: ${isCoAdmin}`);
+      
+      let allStudents = await registeredUsersStorage.getAllStudents();
+      console.log(`📦 [STUDENT MGMT] Total students from Firebase: ${allStudents.length}`);
+      
+      // Log all student bus numbers to debug
+      if (allStudents.length > 0) {
+        const busNumbers = [...new Set(allStudents.map(s => s.busNumber))];
+        console.log(`🚌 [STUDENT MGMT] Unique student bus numbers:`, busNumbers);
+      }
+      
+      // 🔒 Filter for Co-Admin: Show ONLY their assigned bus students
+      if (isCoAdmin && filterBusId) {
+        console.log(`🔒 [STUDENT MGMT] Applying Co-Admin filter for bus: ${filterBusId}`);
+        const beforeFilter = allStudents.length;
+        allStudents = allStudents.filter(student => {
+          const match = student.busNumber === filterBusId;
+          if (match) {
+            console.log(`   ✅ Student ${student.name} (${student.busNumber}) matches ${filterBusId}`);
+          }
+          return match;
+        });
+        console.log(`✅ [STUDENT MGMT] Co-Admin filter result: ${allStudents.length}/${beforeFilter} student(s) for ${filterBusId}`);
+      }
+      
       const stats = await registeredUsersStorage.getStudentStats();
       
       setStudents(allStudents);
       setStudentStats(stats);
       setLoading(false);
     } catch (error) {
-      console.error('Error loading student data:', error);
+      console.error('❌ [STUDENT MGMT] Error loading student data:', error);
       setLoading(false);
     }
   };
@@ -58,6 +86,11 @@ const StudentManagement = ({ navigation }) => {
         filteredData = await registeredUsersStorage.getStudentsByYear(selectedYear);
       } else {
         filteredData = await registeredUsersStorage.getStudentsByYearAndDepartment(selectedYear, selectedDepartment);
+      }
+
+      // 🔒 Filter for Co-Admin: Show ONLY their assigned bus students
+      if (isCoAdmin && filterBusId) {
+        filteredData = filteredData.filter(student => student.busNumber === filterBusId);
       }
 
       if (searchQuery.trim()) {
@@ -89,7 +122,9 @@ const StudentManagement = ({ navigation }) => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={COLORS.secondary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Student Management</Text>
+        <Text style={styles.headerTitle}>
+          {isCoAdmin ? `Student Management - ${filterBusId}` : 'Student Management'}
+        </Text>
         <View style={styles.placeholder} />
       </View>
 

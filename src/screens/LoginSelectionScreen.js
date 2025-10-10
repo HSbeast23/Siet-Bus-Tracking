@@ -16,10 +16,17 @@ const LoginSelectionScreen = ({ navigation }) => {
   const loginOptions = [
     {
       title: 'Management',
-      subtitle: 'Admin Portal',
-      icon: 'business',
+      subtitle: 'Management Portal',
+      icon: 'briefcase',
       color: COLORS.secondary,
       onPress: () => navigation.navigate('ManagementLogin')
+    },
+    {
+      title: 'Co-Admin',
+      subtitle: 'Coordinator Portal',
+      icon: 'shield-checkmark',
+      color: '#8B4513',
+      onPress: () => navigation.navigate('CoAdminLogin')
     },
     {
       title: 'Driver',

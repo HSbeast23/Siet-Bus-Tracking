@@ -16,11 +16,15 @@ import { registeredUsersStorage } from '../services/registeredUsersStorage';
 
 const { width } = Dimensions.get('window');
 
-const DriverManagement = ({ navigation }) => {
+const DriverManagement = ({ navigation, route }) => {
   const [drivers, setDrivers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [driverStats, setDriverStats] = useState({ total: 0, active: 0, authenticated: 0 });
+
+  // Get params from navigation (for Co-Admin filtering)
+  const { busId: filterBusId, role } = route.params || {};
+  const isCoAdmin = role === 'coadmin';
 
   useEffect(() => {
     loadDriverData();
@@ -33,21 +37,51 @@ const DriverManagement = ({ navigation }) => {
   const loadDriverData = async () => {
     try {
       setLoading(true);
-      const allDrivers = await registeredUsersStorage.getAllDrivers();
+      console.log(`🔍 [DRIVER MGMT] Loading drivers... Role: ${role}, Filter Bus ID: ${filterBusId}, Is Co-Admin: ${isCoAdmin}`);
+      
+      let allDrivers = await registeredUsersStorage.getAllDrivers();
+      console.log(`📦 [DRIVER MGMT] Total drivers from Firebase: ${allDrivers.length}`);
+      
+      // Log all driver bus numbers to debug
+      if (allDrivers.length > 0) {
+        console.log(`� [DRIVER MGMT] Driver bus numbers:`, allDrivers.map(d => d.busNumber));
+      }
+      
+      // �🔒 Filter for Co-Admin: Show ONLY their assigned bus driver
+      if (isCoAdmin && filterBusId) {
+        console.log(`🔒 [DRIVER MGMT] Applying Co-Admin filter for bus: ${filterBusId}`);
+        allDrivers = allDrivers.filter(driver => {
+          const match = driver.busNumber === filterBusId;
+          if (!match) {
+            console.log(`   ❌ Driver ${driver.name} (${driver.busNumber}) doesn't match ${filterBusId}`);
+          } else {
+            console.log(`   ✅ Driver ${driver.name} (${driver.busNumber}) matches ${filterBusId}`);
+          }
+          return match;
+        });
+        console.log(`✅ [DRIVER MGMT] Co-Admin filter result: ${allDrivers.length} driver(s) for ${filterBusId}`);
+      }
+      
       const stats = await registeredUsersStorage.getDriverStats();
       
       setDrivers(allDrivers);
       setDriverStats(stats);
       setLoading(false);
     } catch (error) {
-      console.error('Error loading driver data:', error);
+      console.error('❌ [DRIVER MGMT] Error loading driver data:', error);
       setLoading(false);
     }
   };
 
   const filterDrivers = async () => {
     try {
-      const allDrivers = await registeredUsersStorage.getAllDrivers();
+      let allDrivers = await registeredUsersStorage.getAllDrivers();
+      
+      // 🔒 Filter for Co-Admin: Show ONLY their assigned bus driver
+      if (isCoAdmin && filterBusId) {
+        allDrivers = allDrivers.filter(driver => driver.busNumber === filterBusId);
+      }
+      
       const filtered = allDrivers.filter(driver => 
         driver.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         driver.busNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -77,7 +111,9 @@ const DriverManagement = ({ navigation }) => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={COLORS.secondary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Driver Management</Text>
+        <Text style={styles.headerTitle}>
+          {isCoAdmin ? `Driver Management - ${filterBusId}` : 'Driver Management'}
+        </Text>
         <View style={styles.placeholder} />
       </View>
 
