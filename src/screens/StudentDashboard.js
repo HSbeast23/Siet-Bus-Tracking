@@ -231,6 +231,13 @@ const StudentDashboard = ({ navigation }) => {
       icon: 'chatbubble',
       color: COLORS.secondary,
       onPress: () => navigation.navigate('StudentReportScreen')
+    },
+    {
+      title: 'Report History',
+      subtitle: 'View your report responses',
+      icon: 'document-text',
+      color: '#9C27B0',
+      onPress: () => navigation.navigate('StudentReportHistoryScreen')
     }
   ];
 

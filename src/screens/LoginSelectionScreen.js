@@ -73,15 +73,15 @@ const LoginSelectionScreen = ({ navigation }) => {
         ))}
       </View>
 
-      <View style={styles.footer}>
+      {/* <View style={styles.footer}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
           <Ionicons name="arrow-back" size={20} color={COLORS.secondary} />
-          <Text style={styles.backText}>Back to Welcome</Text>
+          <Text style={styles.backText}></Text>
         </TouchableOpacity>
-      </View>
+      </View> */}
     </SafeAreaView>
   );
 };
@@ -153,18 +153,18 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.xl,
     alignItems: 'center',
   },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.lg,
-  },
-  backText: {
-    fontSize: 16,
-    fontFamily: FONTS.medium,
-    color: COLORS.secondary,
-    marginLeft: SPACING.xs,
-  },
+  // backButton: {
+  //   flexDirection: 'row',
+  //   alignItems: 'center',
+  //   paddingVertical: SPACING.sm,
+  //   paddingHorizontal: SPACING.lg,
+  // },
+  // backText: {
+  //   fontSize: 16,
+  //   fontFamily: FONTS.medium,
+  //   color: COLORS.secondary,
+  //   marginLeft: SPACING.xs,
+  // },
 });
 
 export default LoginSelectionScreen;

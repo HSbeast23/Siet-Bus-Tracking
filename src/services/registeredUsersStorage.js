@@ -9,6 +9,7 @@ import {
   where,
 } from 'firebase/firestore';
 import { db } from './firebaseConfig';
+import { normalizeBusNumber } from './locationService';
 
 class RegisteredUsersStorage {
   constructor() {
@@ -20,13 +21,15 @@ class RegisteredUsersStorage {
   async addStudent(studentData) {
     try {
       const studentId = studentData.uid || studentData.id || doc(this.studentsCollection).id;
+      const normalizedBus = normalizeBusNumber(studentData.busNumber);
+
       const preparedStudent = {
         id: studentId,
         name: studentData.name,
         email: studentData.email.toLowerCase(),
         registerNumber: studentData.registerNumber,
         year: studentData.year,
-        busNumber: studentData.busNumber,
+        busNumber: normalizedBus,
         phone: studentData.phone || this.generatePhoneNumber(),
         department: this.extractDepartmentFromRegNumber(studentData.registerNumber),
         registeredAt: studentData.registeredAt || new Date().toISOString(),
@@ -47,7 +50,13 @@ class RegisteredUsersStorage {
   async getAllStudents() {
     try {
       const snapshot = await getDocs(this.studentsCollection);
-      return snapshot.docs.map((studentDoc) => studentDoc.data());
+        return snapshot.docs.map((studentDoc) => {
+          const data = studentDoc.data();
+          return {
+            ...data,
+            busNumber: normalizeBusNumber(data.busNumber),
+          };
+        });
     } catch (error) {
       console.error('Error getting students:', error);
       return [];
@@ -92,11 +101,13 @@ class RegisteredUsersStorage {
   async addDriver(driverData) {
     try {
       const driverId = driverData.uid || driverData.id || doc(this.driversCollection).id;
+      const normalizedBus = normalizeBusNumber(driverData.busNumber);
+
       const preparedDriver = {
         id: driverId,
         name: driverData.name,
         email: driverData.email.toLowerCase(),
-        busNumber: driverData.busNumber,
+        busNumber: normalizedBus,
         phone: driverData.phone || this.generatePhoneNumber(),
         licenseNumber: driverData.licenseNumber || this.generateLicenseNumber(),
         registeredAt: driverData.registeredAt || new Date().toISOString(),
@@ -118,7 +129,13 @@ class RegisteredUsersStorage {
   async getAllDrivers() {
     try {
       const snapshot = await getDocs(this.driversCollection);
-      return snapshot.docs.map((driverDoc) => driverDoc.data());
+        return snapshot.docs.map((driverDoc) => {
+          const data = driverDoc.data();
+          return {
+            ...data,
+            busNumber: normalizeBusNumber(data.busNumber),
+          };
+        });
     } catch (error) {
       console.error('Error getting drivers:', error);
       return [];
@@ -127,12 +144,17 @@ class RegisteredUsersStorage {
 
   async getDriverByBusNumber(busNumber) {
     try {
-      const driverQuery = query(this.driversCollection, where('busNumber', '==', busNumber));
+      const normalizedBus = normalizeBusNumber(busNumber);
+      const driverQuery = query(this.driversCollection, where('busNumber', '==', normalizedBus));
       const snapshot = await getDocs(driverQuery);
       if (snapshot.empty) {
         return null;
       }
-      return snapshot.docs[0].data();
+      const data = snapshot.docs[0].data();
+      return {
+        ...data,
+        busNumber: normalizeBusNumber(data.busNumber),
+      };
     } catch (error) {
       console.error('Error getting driver by bus number:', error);
       return null;

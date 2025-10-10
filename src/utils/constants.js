@@ -122,16 +122,27 @@ export const BUS_ROUTES = {
   'SIET-005': {
     name: 'SIET-005 Route',
     stops: [
-      // 🎯 ACCURATE GPS COORDINATES FROM GOOGLE MAPS
-      { name: 'Sri Shakthi Institute (Main Campus)', time: '7:00 AM', latitude: 11.0658, longitude: 77.0034 }, // L&T Bypass, Chinniyampalayam
-      { name: 'Chinnapalayam', time: '7:15 AM', latitude: 11.0789, longitude: 76.9956 }, // Chinnapalayam, Coimbatore
-      { name: 'SITRA', time: '7:28 AM', latitude: 11.0845, longitude: 76.9921 }, // SITRA College, Thondamuthur Road
-      { name: 'Hopes', time: '7:40 AM', latitude: 11.0412, longitude: 76.9856 }, // Hopes College Area
-      { name: 'Lakshmi Mills', time: '7:52 AM', latitude: 11.0086, longitude: 76.9631 }, // Lakshmi Mills, Coimbatore
-      { name: 'Nandipuram', time: '8:05 AM', latitude: 11.0251, longitude: 76.9435 }, // Nandipuram, Coimbatore
-      { name: 'Srivanadu Colony', time: '8:17 AM', latitude: 11.0389, longitude: 76.9278 }, // Srivanadu Colony
-      { name: 'Tudiyalur', time: '8:28 AM', latitude: 11.0598, longitude: 76.9123 }, // Tudiyalur, Coimbatore
-      { name: 'GN Mills', time: '8:40 AM', latitude: 11.0719, longitude: 76.9045 } // GN Mills, Coimbatore
+      // 🎯 CORRECTED ROUTE: Reverse order from destination to origin
+      // Stop 1: Final destination - SIET Campus
+      { name: 'SIET Campus (Sri Shakthi Institute)', time: '8:40 AM', latitude: 11.0658, longitude: 77.0034 },
+      // Stop 2: 100 Feet Road
+      { name: '100 Feet Road', time: '8:28 AM', latitude: 11.0598, longitude: 76.9123 },
+      // Stop 3: Sivanantha Colony
+      { name: 'Sivanantha Colony', time: '8:17 AM', latitude: 11.0389, longitude: 76.9278 },
+      // Stop 4: Puthu Palam (New Bridge)
+      { name: 'Puthu Palam', time: '8:05 AM', latitude: 11.0251, longitude: 76.9435 },
+      // Stop 5: Sai Baba Kovil
+      { name: 'Sai Baba Kovil', time: '7:52 AM', latitude: 11.0086, longitude: 76.9631 },
+      // Stop 6: Eri Company
+      { name: 'Eri Company', time: '7:40 AM', latitude: 11.0412, longitude: 76.9856 },
+      // Stop 7: Housing Unit
+      { name: 'Housing Unit', time: '7:28 AM', latitude: 11.0845, longitude: 76.9921 },
+      // Stop 8: Kavundampalayam
+      { name: 'Kavundampalayam', time: '7:15 AM', latitude: 11.0789, longitude: 76.9956 },
+      // Stop 9: Cheran Nagar
+      { name: 'Cheran Nagar', time: '7:10 AM', latitude: 11.0719, longitude: 76.9045 },
+      // Stop 10: GN Mills & Foot Tech Lab (Starting point)
+      { name: 'GN Mills (Foot Tech Lab)', time: '7:00 AM', latitude: 11.0719, longitude: 76.9045 }
     ],
     distance: '28.7 km',
     duration: '100 min',

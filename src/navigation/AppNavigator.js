@@ -27,6 +27,7 @@ import AttendanceHistoryScreen from '../screens/AttendanceHistoryScreen';
 import CoAdminAttendanceHistory from '../screens/CoAdminAttendanceHistory';
 import Reports from '../screens/Reports';
 import StudentReportScreen from '../screens/StudentReportScreen';
+import StudentReportHistoryScreen from '../screens/StudentReportHistoryScreen';
 import FeedbackScreen from '../screens/FeedbackScreen';
 
 const Stack = createStackNavigator();
@@ -185,6 +186,11 @@ const AppNavigator = () => {
         name="StudentReportScreen" 
         component={StudentReportScreen} 
         options={{ title: 'Submit Report', headerShown: false }}
+      />
+      <Stack.Screen 
+        name="StudentReportHistoryScreen" 
+        component={StudentReportHistoryScreen} 
+        options={{ title: 'Report History', headerShown: false }}
       />
     </Stack.Navigator>
   );

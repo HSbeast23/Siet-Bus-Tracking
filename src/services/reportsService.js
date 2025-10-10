@@ -8,12 +8,35 @@ import {
   Timestamp,
   updateDoc,
   doc,
+  getDoc,
 } from 'firebase/firestore';
 import { db } from './firebaseConfig';
 
 class ReportsService {
   constructor() {
     this.reportsCollection = collection(db, 'reports');
+    this.studentsCollection = collection(db, 'registeredUsers');
+  }
+
+  // Helper: Fetch user name from registeredUsers collection
+  async fetchUserName(email, role) {
+    try {
+      const q = query(
+        this.studentsCollection,
+        where('email', '==', email),
+        where('role', '==', role)
+      );
+      
+      const snapshot = await getDocs(q);
+      if (!snapshot.empty) {
+        const userData = snapshot.docs[0].data();
+        return userData.name || 'Unknown';
+      }
+      return 'Unknown';
+    } catch (error) {
+      console.error('Error fetching user name:', error);
+      return 'Unknown';
+    }
   }
 
   // Submit report to Management
@@ -63,15 +86,33 @@ class ReportsService {
         ...doc.data()
       }));
 
+      // ✅ Fetch names for each report dynamically
+      const reportsWithNames = await Promise.all(
+        allReports.map(async (report) => {
+          // If reportedBy exists, use it; otherwise fetch from registeredUsers
+          if (!report.reportedBy || report.reportedBy === 'Unknown') {
+            const fetchedName = await this.fetchUserName(report.reporterEmail, report.reporterRole);
+            return {
+              ...report,
+              reportedByName: fetchedName
+            };
+          }
+          return {
+            ...report,
+            reportedByName: report.reportedBy
+          };
+        })
+      );
+
       // Separate by source
-      const studentReports = allReports.filter(r => r.reporterRole === 'student');
-      const coadminReports = allReports.filter(r => r.reporterRole === 'coadmin');
+      const studentReports = reportsWithNames.filter(r => r.reporterRole === 'student');
+      const coadminReports = reportsWithNames.filter(r => r.reporterRole === 'coadmin');
 
       return {
         success: true,
         studentReports,
         coadminReports,
-        totalReports: allReports.length
+        totalReports: reportsWithNames.length
       };
     } catch (error) {
       console.error('Error fetching reports:', error);
@@ -87,17 +128,28 @@ class ReportsService {
   // Get reports by specific user
   async getReportsByUser(userEmail) {
     try {
+      console.log('🔍 [REPORTS] Fetching reports for user:', userEmail);
+      
+      // ✅ Query without orderBy to avoid index requirement
       const q = query(
         this.reportsCollection,
-        where('reporterEmail', '==', userEmail),
-        orderBy('timestamp', 'desc')
+        where('reporterEmail', '==', userEmail)
       );
       
       const snapshot = await getDocs(q);
-      const reports = snapshot.docs.map(doc => ({
+      let reports = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
+
+      // ✅ Sort in JavaScript instead of Firestore
+      reports.sort((a, b) => {
+        const timeA = a.timestamp?.toMillis() || 0;
+        const timeB = b.timestamp?.toMillis() || 0;
+        return timeB - timeA; // Descending order (newest first)
+      });
+
+      console.log(`✅ [REPORTS] Found ${reports.length} reports for user`);
 
       return {
         success: true,
@@ -202,22 +254,18 @@ class ReportsService {
         fromCoAdmins: allReports.filter(r => r.reporterRole === 'coadmin').length,
       };
 
-      return {
-        success: true,
-        stats
-      };
+      console.log('📊 [REPORT STATS] Calculated:', stats);
+
+      return stats; // ✅ Return stats directly (not wrapped in success object)
     } catch (error) {
       console.error('Error fetching report stats:', error);
       return {
-        success: false,
-        stats: {
-          total: 0,
-          pending: 0,
-          acknowledged: 0,
-          resolved: 0,
-          fromStudents: 0,
-          fromCoAdmins: 0
-        }
+        total: 0,
+        pending: 0,
+        acknowledged: 0,
+        resolved: 0,
+        fromStudents: 0,
+        fromCoAdmins: 0
       };
     }
   }

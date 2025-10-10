@@ -9,6 +9,7 @@ From your Student Management screenshot, I found **three different bus number fo
 3. ✅ **SIET-013** (correct - single dash)
 
 This caused **two major problems**:
+
 1. ❌ Map not showing route for students with `SIET--005`
 2. ❌ "Track Live" button not working in Bus Details
 
@@ -25,40 +26,49 @@ This caused **two major problems**:
 #### Files Modified:
 
 **1. `src/services/locationService.js`**
+
 ```javascript
 // ✅ EXPORTED the normalizeBusNumber function
 export const normalizeBusNumber = (busNumber) => {
-  if (!busNumber) return '';
+  if (!busNumber) return "";
   // Convert to uppercase, trim, and replace multiple hyphens with single hyphen
-  return busNumber.toString().trim().toUpperCase().replace(/-+/g, '-');
+  return busNumber.toString().trim().toUpperCase().replace(/-+/g, "-");
 };
 ```
 
 **Converts:**
+
 - `SIET--005` → `SIET-005` ✅
 - `SIET---005` → `SIET-005` ✅
 - `siet-005` → `SIET-005` ✅
 
 **2. `src/screens/MapScreen.js`**
+
 ```javascript
 // ✅ IMPORTED normalizeBusNumber
-import { subscribeToBusLocation, normalizeBusNumber } from '../services/locationService';
+import {
+  subscribeToBusLocation,
+  normalizeBusNumber,
+} from "../services/locationService";
 
 // ✅ UPDATED loadRouteStops function
 const loadRouteStops = () => {
-  const rawBusNumber = busIdFromParams || userInfo?.busNumber || userInfo?.busId;
+  const rawBusNumber =
+    busIdFromParams || userInfo?.busNumber || userInfo?.busId;
   console.log(`🗺️ [MAP] Loading route stops for bus:`, rawBusNumber);
-  
+
   if (!rawBusNumber) {
     console.log(`⚠️ [MAP] No bus number available yet`);
     setRouteStops([]);
     return;
   }
-  
+
   // ✅ Normalize bus number to handle variations (SIET--005 → SIET-005)
   const busNumber = normalizeBusNumber(rawBusNumber);
-  console.log(`🔧 [MAP] Normalized bus number: "${rawBusNumber}" → "${busNumber}"`);
-  
+  console.log(
+    `🔧 [MAP] Normalized bus number: "${rawBusNumber}" → "${busNumber}"`
+  );
+
   const routeData = BUS_ROUTES[busNumber];
   if (!routeData || !Array.isArray(routeData.stops)) {
     console.log(`⚠️ [MAP] No route data found for bus:`, busNumber);
@@ -66,38 +76,41 @@ const loadRouteStops = () => {
     setRouteStops([]);
     return;
   }
-  
+
   // Convert to format expected by map (with latitude/longitude)
-  const stops = routeData.stops.map(stop => ({
+  const stops = routeData.stops.map((stop) => ({
     name: stop.name,
     latitude: stop.latitude,
     longitude: stop.longitude,
-    time: stop.time
+    time: stop.time,
   }));
-  
+
   console.log(`✅ [MAP] Loaded ${stops.length} stops for bus ${busNumber}`);
   setRouteStops(stops);
 };
 ```
 
 **3. `src/screens/BusDetails.js`**
+
 ```javascript
 // ✅ IMPORTED normalizeBusNumber
-import { normalizeBusNumber } from '../services/locationService';
+import { normalizeBusNumber } from "../services/locationService";
 
 // ✅ UPDATED getRouteStops function
 const getRouteStops = (busNumber) => {
   // Normalize bus number to handle variations (SIET--005 → SIET-005)
   const normalizedBusNumber = normalizeBusNumber(busNumber);
-  console.log(`🔧 [BUS DETAILS] Normalized bus number: "${busNumber}" → "${normalizedBusNumber}"`);
-  
+  console.log(
+    `🔧 [BUS DETAILS] Normalized bus number: "${busNumber}" → "${normalizedBusNumber}"`
+  );
+
   const routeData = BUS_ROUTES[normalizedBusNumber];
   if (!routeData) {
     console.log(`⚠️ [BUS DETAILS] No route found for: ${normalizedBusNumber}`);
     return []; // Return empty array if no route found
   }
   // Extract just the stop names from the route data
-  return routeData.stops.map(stop => stop.name);
+  return routeData.stops.map((stop) => stop.name);
 };
 ```
 
@@ -112,15 +125,17 @@ const getRouteStops = (busNumber) => {
 #### File Modified: `src/screens/BusDetails.js`
 
 **BEFORE (❌ BROKEN):**
+
 ```javascript
 onPress={() => navigation.navigate('BusLiveTracking', { bus: bus })}
 ```
 
 **AFTER (✅ FIXED):**
+
 ```javascript
-onPress={() => navigation.navigate('MapScreen', { 
-  busId: bus.number, 
-  role: 'management' 
+onPress={() => navigation.navigate('MapScreen', {
+  busId: bus.number,
+  role: 'management'
 })}
 ```
 
@@ -131,6 +146,7 @@ onPress={() => navigation.navigate('MapScreen', {
 ### Test 1: Student with `SIET--005` (Lumin)
 
 **Steps:**
+
 1. Login as student "Lumin" (busNumber: `SIET--005`)
 2. Navigate to Student Dashboard → View Map
 3. **Expected Result:**
@@ -148,6 +164,7 @@ onPress={() => navigation.navigate('MapScreen', {
 ### Test 2: Management → Bus Management → Track Live
 
 **Steps:**
+
 1. Login as Management (Username: "SIET Bus Login", Password: "Sietbus2727")
 2. Navigate to Management Dashboard → Bus Management
 3. Tap on any bus card (e.g., SIET-005)
@@ -161,6 +178,7 @@ onPress={() => navigation.navigate('MapScreen', {
 ### Test 3: Management → Live Map View
 
 **Steps:**
+
 1. Login as Management
 2. Click "Live Map View" from dashboard
 3. Select any bus (SIET-005 or SIET-013)
@@ -172,6 +190,7 @@ onPress={() => navigation.navigate('MapScreen', {
 ### Test 4: Attendance History (Bonus Fix)
 
 **Steps:**
+
 1. Login as student "Lumin" (busNumber: `SIET--005`)
 2. Navigate to Student Dashboard → View Attendance
 3. **Expected Result:**
@@ -184,6 +203,7 @@ onPress={() => navigation.navigate('MapScreen', {
 ## 📋 Expected Console Logs
 
 ### ✅ Success Pattern (Student Login):
+
 ```
 LOG  ✅ [STUDENT] User data loaded: Lumin
 LOG  🔥 [STUDENT] Setting up real-time GPS tracking for bus: SIET--005
@@ -197,6 +217,7 @@ LOG  ✅ [MAP] Loaded 9 stops for bus SIET-005
 ```
 
 ### ✅ Success Pattern (Management Tracking):
+
 ```
 LOG  Admin user loaded: Administrator
 LOG  🔥 [BUS MGMT] Setting up real-time subscription to buses
@@ -207,6 +228,7 @@ LOG  ✅ [MAP] Loaded 9 stops for bus SIET-005
 ```
 
 ### ✅ Success Pattern (Bus Details):
+
 ```
 LOG  🔧 [BUS DETAILS] Normalized bus number: "SIET--005" → "SIET-005"
 LOG  ✅ [BUS DETAILS] Found 3 students for bus SIET-005
@@ -217,23 +239,27 @@ LOG  ✅ [BUS DETAILS] Found 3 students for bus SIET-005
 ## 🎯 What's Fixed Now
 
 ### ✅ Map Visualization
+
 - Student "Lumin" with `SIET--005` can now see route map
 - All 9 stops display correctly with numbered markers
 - Green polyline connects all stops in order
 - Bus real-time location visible
 
 ### ✅ Track Live Button
+
 - Works from Bus Details screen
 - Navigates to MapScreen correctly
 - Shows route with polyline
 - Real-time bus location updates
 
 ### ✅ Management Tracking
+
 - Live Map View → Select Bus → Map works perfectly
 - All buses trackable regardless of bus number format
 - Route visualization works for all buses
 
 ### ✅ Backward Compatibility
+
 - No database changes required
 - Works with existing data
 - Handles all bus number variations automatically
@@ -243,20 +269,24 @@ LOG  ✅ [BUS DETAILS] Found 3 students for bus SIET-005
 ## 🗂️ Files Modified Summary
 
 1. ✅ `src/services/locationService.js`
+
    - Exported `normalizeBusNumber` function
 
 2. ✅ `src/screens/MapScreen.js`
+
    - Imported `normalizeBusNumber`
    - Updated `loadRouteStops()` with normalization
    - Added detailed logging
 
 3. ✅ `src/screens/BusDetails.js`
+
    - Imported `normalizeBusNumber`
    - Updated `getRouteStops()` with normalization
    - Fixed "Track Live" button navigation
    - Added detailed logging
 
 4. ✅ `src/screens/BusManagement.js`
+
    - Already had comprehensive error handling (previous fix)
 
 5. ✅ `src/utils/constants.js`
@@ -282,14 +312,17 @@ LOG  ✅ [BUS DETAILS] Found 3 students for bus SIET-005
 While the app now handles inconsistent bus numbers, you should clean up Firebase:
 
 ### Students Collection:
+
 - Find: `busNumber: "SIET--005"`
 - Update to: `busNumber: "SIET-005"`
 
 ### Users Collection:
+
 - Find: `busNumber: "SIET--005"` or `busNumber: "SUET-005"`
 - Update to: `busNumber: "SIET-005"`
 
 ### Drivers Collection:
+
 - Verify all use single-dash format: `SIET-005`, `SIET-013`
 
 ---
@@ -310,12 +343,14 @@ While the app now handles inconsistent bus numbers, you should clean up Firebase
 **Last Updated**: October 10, 2025  
 **Fixed By**: AI Assistant  
 **Issues Resolved**:
+
 1. Map not showing route for double-dash bus numbers
 2. Track Live button navigation error
 3. Attendance history compatibility
 4. Bus Details route stops display
 
-**Next Steps**: 
+**Next Steps**:
+
 1. Restart Expo server
 2. Test all scenarios
 3. Verify console logs

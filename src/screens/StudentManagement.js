@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
 import { registeredUsersStorage } from '../services/registeredUsersStorage';
+import { normalizeBusNumber } from '../services/locationService';
 
 const { width } = Dimensions.get('window');
 
@@ -27,6 +28,7 @@ const StudentManagement = ({ navigation, route }) => {
   // Get params from navigation (for Co-Admin filtering)
   const { busId: filterBusId, role } = route.params || {};
   const isCoAdmin = role === 'coadmin';
+  const normalizedFilterBusId = filterBusId ? normalizeBusNumber(filterBusId) : null;
 
   const years = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
   const departments = ['All', 'CSE', 'ECE', 'EEE', 'MECH', 'CIVIL', 'IT', 'AIDS', 'AIML'];
@@ -42,7 +44,7 @@ const StudentManagement = ({ navigation, route }) => {
   const loadStudentData = async () => {
     try {
       setLoading(true);
-      console.log(`🔍 [STUDENT MGMT] Loading students... Role: ${role}, Filter Bus ID: ${filterBusId}, Is Co-Admin: ${isCoAdmin}`);
+  console.log(`🔍 [STUDENT MGMT] Loading students... Role: ${role}, Filter Bus ID: ${normalizedFilterBusId}, Is Co-Admin: ${isCoAdmin}`);
       
       let allStudents = await registeredUsersStorage.getAllStudents();
       console.log(`📦 [STUDENT MGMT] Total students from Firebase: ${allStudents.length}`);
@@ -54,17 +56,17 @@ const StudentManagement = ({ navigation, route }) => {
       }
       
       // 🔒 Filter for Co-Admin: Show ONLY their assigned bus students
-      if (isCoAdmin && filterBusId) {
-        console.log(`🔒 [STUDENT MGMT] Applying Co-Admin filter for bus: ${filterBusId}`);
+      if (isCoAdmin && normalizedFilterBusId) {
+        console.log(`🔒 [STUDENT MGMT] Applying Co-Admin filter for bus: ${normalizedFilterBusId}`);
         const beforeFilter = allStudents.length;
         allStudents = allStudents.filter(student => {
-          const match = student.busNumber === filterBusId;
+          const match = normalizeBusNumber(student.busNumber) === normalizedFilterBusId;
           if (match) {
-            console.log(`   ✅ Student ${student.name} (${student.busNumber}) matches ${filterBusId}`);
+            console.log(`   ✅ Student ${student.name} (${student.busNumber}) matches ${normalizedFilterBusId}`);
           }
           return match;
         });
-        console.log(`✅ [STUDENT MGMT] Co-Admin filter result: ${allStudents.length}/${beforeFilter} student(s) for ${filterBusId}`);
+        console.log(`✅ [STUDENT MGMT] Co-Admin filter result: ${allStudents.length}/${beforeFilter} student(s) for ${normalizedFilterBusId}`);
       }
       
       const stats = await registeredUsersStorage.getStudentStats();
@@ -90,7 +92,8 @@ const StudentManagement = ({ navigation, route }) => {
 
       // 🔒 Filter for Co-Admin: Show ONLY their assigned bus students
       if (isCoAdmin && filterBusId) {
-        filteredData = filteredData.filter(student => student.busNumber === filterBusId);
+        const normalizedFilter = normalizeBusNumber(filterBusId);
+        filteredData = filteredData.filter(student => normalizeBusNumber(student.busNumber) === normalizedFilter);
       }
 
       if (searchQuery.trim()) {
@@ -123,7 +126,7 @@ const StudentManagement = ({ navigation, route }) => {
           <Ionicons name="arrow-back" size={24} color={COLORS.secondary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>
-          {isCoAdmin ? `Student Management - ${filterBusId}` : 'Student Management'}
+          {isCoAdmin ? `Student Management - ${normalizedFilterBusId}` : 'Student Management'}
         </Text>
         <View style={styles.placeholder} />
       </View>
