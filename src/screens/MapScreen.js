@@ -29,6 +29,7 @@ const MapScreen = ({ route, navigation }) => {
   const [selectedBusId, setSelectedBusId] = useState(null); // For management to select bus
   const [routeStops, setRouteStops] = useState([]); // Add state for route stops
   const [busDisplayName, setBusDisplayName] = useState('');
+  const [hasCenteredOnBus, setHasCenteredOnBus] = useState(false);
   
   const busCoordinate = useRef(
     new AnimatedRegion({
@@ -144,11 +145,13 @@ const MapScreen = ({ route, navigation }) => {
             }
             
             console.log(`✅ [${userRole.toUpperCase()}] Bus location state updated successfully`);
+            setHasCenteredOnBus(false);
             setLoading(false);
           } else if (locationData && !locationData.isTracking) {
             console.log(`⚠️ [${userRole.toUpperCase()}] Bus stopped tracking - clearing map`);
             console.log(`🛑 [${userRole.toUpperCase()}] isTracking:`, locationData.isTracking);
             setBusLocation(null); // Clear location so marker disappears
+            setHasCenteredOnBus(false);
             if (mapRef && mapReady && studentLocation) {
               centerMapOnStudent();
             }
@@ -157,6 +160,7 @@ const MapScreen = ({ route, navigation }) => {
             console.log(`⚠️ [${userRole.toUpperCase()}] Bus not currently tracking`);
             console.log(`⚠️ [${userRole.toUpperCase()}] Full data:`, JSON.stringify(locationData));
             setBusLocation(null);
+            setHasCenteredOnBus(false);
             if (mapRef && mapReady) {
               if (studentLocation) {
                 centerMapOnStudent();
@@ -375,29 +379,35 @@ const MapScreen = ({ route, navigation }) => {
     }
   };
 
-  const centerMapOnBus = () => {
+  const centerMapOnBus = useCallback(() => {
     if (busLocation && mapRef) {
-      mapRef.animateToRegion({
-        latitude: busLocation.latitude,
-        longitude: busLocation.longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      }, 1000);
+      mapRef.animateToRegion(
+        {
+          latitude: busLocation.latitude,
+          longitude: busLocation.longitude,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        },
+        1000
+      );
     }
-  };
+  }, [busLocation, mapRef]);
 
-  const centerMapOnStudent = () => {
+  const centerMapOnStudent = useCallback(() => {
     if (studentLocation && mapRef) {
-      mapRef.animateToRegion({
-        latitude: studentLocation.latitude,
-        longitude: studentLocation.longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      }, 1000);
+      mapRef.animateToRegion(
+        {
+          latitude: studentLocation.latitude,
+          longitude: studentLocation.longitude,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        },
+        1000
+      );
     }
-  };
+  }, [studentLocation, mapRef]);
 
-  const showAllLocations = () => {
+  const showAllLocations = useCallback(() => {
     if (!mapRef || !mapReady) {
       return;
     }
@@ -437,7 +447,7 @@ const MapScreen = ({ route, navigation }) => {
         animated: true,
       }
     );
-  };
+  }, [busLocation, mapReady, mapRef, studentLocation]);
 
   const firstGeoStop = Array.isArray(routeStops)
     ? routeStops.find((stop) => Number.isFinite(stop.latitude) && Number.isFinite(stop.longitude))
@@ -453,6 +463,38 @@ const MapScreen = ({ route, navigation }) => {
       setIsStudentView(resolvedRole === 'student');
     }
   }, [resolvedRole]);
+
+  useEffect(() => {
+    if (!mapRef || !mapReady) {
+      return;
+    }
+
+    if (busLocation?.latitude && busLocation?.longitude && !hasCenteredOnBus) {
+      mapRef.animateCamera(
+        {
+          center: {
+            latitude: busLocation.latitude,
+            longitude: busLocation.longitude,
+          },
+          heading: busLocation.heading || 0,
+          pitch: 45,
+          zoom: 17,
+        },
+        { duration: 800 }
+      );
+      setHasCenteredOnBus(true);
+      return;
+    }
+
+    if (!busLocation && studentLocation && !hasCenteredOnBus) {
+      centerMapOnStudent();
+      setHasCenteredOnBus(true);
+    }
+  }, [busLocation, mapReady, mapRef, studentLocation, hasCenteredOnBus, centerMapOnStudent]);
+
+  useEffect(() => {
+    setHasCenteredOnBus(false);
+  }, [busIdFromParams]);
 
   if (loading) {
     return (
