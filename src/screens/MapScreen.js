@@ -4,10 +4,13 @@ import {
   Text,
   StyleSheet,
   SafeAreaView,
+  Alert,
   TouchableOpacity,
   ActivityIndicator,
+  ScrollView,
+  Animated
 } from 'react-native';
-import MapView, { Marker, AnimatedRegion, PROVIDER_GOOGLE, Polyline } from 'react-native-maps';
+import MapView, { Marker, AnimatedRegion, PROVIDER_GOOGLE, Callout, Polyline } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { COLORS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,12 +25,10 @@ const MapScreen = ({ route, navigation }) => {
   const [studentLocation, setStudentLocation] = useState(null);
   const [userInfo, setUserInfo] = useState({}); // Changed from studentInfo to userInfo
   const [loading, setLoading] = useState(true);
-  const mapRef = useRef(null);
-  const [isMapReady, setIsMapReady] = useState(false);
+  const [mapRef, setMapRef] = useState(null);
   const [selectedBusId, setSelectedBusId] = useState(null); // For management to select bus
   const [routeStops, setRouteStops] = useState([]); // Add state for route stops
   const [busDisplayName, setBusDisplayName] = useState('');
-  const hasCenteredOnStudent = useRef(false);
   
   const busCoordinate = useRef(
     new AnimatedRegion({
@@ -119,14 +120,14 @@ const MapScreen = ({ route, navigation }) => {
             }).start();
             
             // Auto-follow camera with rotation when tracking
-            if (locationData.isTracking && mapRef.current) {
-              mapRef.current.animateCamera({
+            if (locationData.isTracking && mapRef) {
+              mapRef.animateCamera({
                 center: {
                   latitude: newLocation.latitude,
                   longitude: newLocation.longitude,
                 },
                 heading: newLocation.heading,
-                pitch: 0,
+                pitch: 45,
                 zoom: 17,
               }, { duration: 1000 });
             }
@@ -346,8 +347,8 @@ const MapScreen = ({ route, navigation }) => {
   };
 
   const centerMapOnBus = () => {
-    if (busLocation && mapRef.current) {
-      mapRef.current.animateToRegion({
+    if (busLocation && mapRef) {
+      mapRef.animateToRegion({
         latitude: busLocation.latitude,
         longitude: busLocation.longitude,
         latitudeDelta: 0.01,
@@ -357,8 +358,8 @@ const MapScreen = ({ route, navigation }) => {
   };
 
   const centerMapOnStudent = () => {
-    if (studentLocation && mapRef.current) {
-      mapRef.current.animateToRegion({
+    if (studentLocation && mapRef) {
+      mapRef.animateToRegion({
         latitude: studentLocation.latitude,
         longitude: studentLocation.longitude,
         latitudeDelta: 0.01,
@@ -368,7 +369,7 @@ const MapScreen = ({ route, navigation }) => {
   };
 
   const showAllLocations = () => {
-    if (mapRef.current) {
+    if (mapRef) {
       const locations = [];
       if (busLocation) locations.push(busLocation);
       if (studentLocation) locations.push(studentLocation);
@@ -384,7 +385,7 @@ const MapScreen = ({ route, navigation }) => {
       }
 
       if (locations.length > 0) {
-        mapRef.current.fitToCoordinates(locations, {
+        mapRef.fitToCoordinates(locations, {
           edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
           animated: true,
         });
@@ -396,30 +397,9 @@ const MapScreen = ({ route, navigation }) => {
     ? routeStops.find((stop) => Number.isFinite(stop.latitude) && Number.isFinite(stop.longitude))
     : null;
 
-  const isTracking = Boolean(busLocation?.isTracking);
-
-  useEffect(() => {
-    if (!isMapReady || !studentLocation || !mapRef.current) {
-      return;
-    }
-
-    if (!hasCenteredOnStudent.current || !isTracking) {
-      mapRef.current.animateCamera(
-        {
-          center: {
-            latitude: studentLocation.latitude,
-            longitude: studentLocation.longitude,
-          },
-          zoom: 16,
-          heading: 0,
-          pitch: 0,
-        },
-        { duration: 800 }
-      );
-
-      hasCenteredOnStudent.current = true;
-    }
-  }, [isMapReady, studentLocation, isTracking]);
+  const resolvedBusLabel = (busDisplayName || busIdFromParams || userInfo.busNumber || userInfo.busId || 'Bus')
+    .toString()
+    .replace(/-+/g, '-');
 
   if (loading) {
     return (
@@ -447,30 +427,19 @@ const MapScreen = ({ route, navigation }) => {
       </View>
 
       <MapView
-        ref={(ref) => {
-          mapRef.current = ref;
-        }}
-        onMapReady={() => setIsMapReady(true)}
+        ref={setMapRef}
         provider={PROVIDER_GOOGLE}
         style={styles.map}
         initialRegion={{
-          latitude:
-            studentLocation?.latitude ||
-            busLocation?.latitude ||
-            firstGeoStop?.latitude ||
-            11.0168,
-          longitude:
-            studentLocation?.longitude ||
-            busLocation?.longitude ||
-            firstGeoStop?.longitude ||
-            76.9558,
+          latitude: busLocation?.latitude || firstGeoStop?.latitude || 11.0168,
+          longitude: busLocation?.longitude || firstGeoStop?.longitude || 76.9558,
           latitudeDelta: 0.05,
           longitudeDelta: 0.05,
         }}
         showsUserLocation={false}
-  showsMyLocationButton={false}
-  rotateEnabled={true}
-  pitchEnabled={false}
+        showsMyLocationButton={false}
+        rotateEnabled={true}
+        pitchEnabled={true}
       >
         
         {/* Bus Location Marker - Animated & Only show when actively tracking */}
@@ -479,16 +448,23 @@ const MapScreen = ({ route, navigation }) => {
             ref={markerRef}
             coordinate={busCoordinate}
             anchor={{ x: 0.5, y: 0.5 }}
-            flat
+            flat={true}
             rotation={busLocation.heading || 0}
           >
             <View style={styles.busMarkerContainer}>
-              <View
-                style={[styles.busMarker, { transform: [{ rotate: `${busLocation.heading || 0}deg` }] }]}
-              >
-                <Ionicons name="bus" size={22} color={COLORS.secondary} />
+              <View style={[styles.busMarker, { 
+                transform: [{ rotate: `${busLocation.heading || 0}deg` }] 
+              }]}>
+                <Ionicons name="bus" size={30} color={COLORS.white} />
               </View>
             </View>
+            <Callout tooltip>
+              <View style={styles.calloutContainer}>
+                <Text style={styles.calloutTitle}>{resolvedBusLabel}</Text>
+                <Text style={styles.calloutText}>Driver: {busLocation.driverName}</Text>
+                <Text style={styles.calloutText}>Speed: {(busLocation.speed * 3.6).toFixed(1)} km/h</Text>
+              </View>
+            </Callout>
           </Marker.Animated>
         )}
 
@@ -513,11 +489,12 @@ const MapScreen = ({ route, navigation }) => {
             <Marker
               key={stop.id || `${stop.name}-${index}`}
               coordinate={{ latitude: stop.latitude, longitude: stop.longitude }}
-              anchor={{ x: 0.5, y: 0.5 }}
-              tracksViewChanges={false}
+              title={stop.name}
+              description={stop.time ? stop.time : `Stop ${index + 1}`}
+              pinColor={index === 0 ? COLORS.success : COLORS.secondary}
             >
               <View style={[styles.stopMarker, index === 0 && styles.firstStopMarker]}>
-                <View style={styles.stopInnerDot} />
+                <Text style={styles.stopNumber}>{index + 1}</Text>
               </View>
             </Marker>
           ))}
@@ -538,7 +515,39 @@ const MapScreen = ({ route, navigation }) => {
         )}
       </MapView>
 
-      {/* Removed static timeline overlay to keep map view clean */}
+      {routeStops && routeStops.length > 0 && (
+        <View style={styles.timelineContainer}>
+          <Text style={styles.timelineTitle}>Route Timeline</Text>
+          <ScrollView
+            style={styles.timelineScroll}
+            contentContainerStyle={styles.timelineContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {routeStops.map((stop, index) => (
+              <View key={stop.id || `${stop.name}-${index}`} style={styles.timelineRow}>
+                <View style={styles.timelineMarkerColumn}>
+                  <View
+                    style={[
+                      styles.timelineDot,
+                      index === 0 && styles.timelineDotStart,
+                      index === routeStops.length - 1 && styles.timelineDotEnd,
+                    ]}
+                  >
+                    <Text style={styles.timelineDotLabel}>{index + 1}</Text>
+                  </View>
+                  {index < routeStops.length - 1 && <View style={styles.timelineConnector} />}
+                </View>
+                <View style={styles.timelineDetails}>
+                  <Text style={styles.timelineStopName}>{stop.name}</Text>
+                  <Text style={styles.timelineMeta}>
+                    {index === 0 ? 'Start • SIET Main Campus' : stop.time || `Stop ${index + 1}`}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      )}
 
       {/* Minimal Status Card - Only show when tracking */}
       {busLocation && busLocation.isTracking && (
@@ -609,19 +618,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   busMarker: {
-    backgroundColor: '#FFC107',
-    borderRadius: 14,
-    width: 28,
-    height: 28,
+    backgroundColor: COLORS.primary,
+    borderRadius: 20,
+    width: 40,
+    height: 40,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
+    borderWidth: 3,
     borderColor: COLORS.white,
-    shadowColor: '#FFC107',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
   },
   studentMarker: {
     backgroundColor: COLORS.accent,
@@ -634,20 +638,19 @@ const styles = StyleSheet.create({
     borderColor: COLORS.white,
   },
   stopMarker: {
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
-    width: 24,
-    height: 24,
+    backgroundColor: COLORS.secondary,
+    borderRadius: 15,
+    width: 30,
+    height: 30,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: COLORS.secondary,
+    borderColor: COLORS.white,
   },
-  stopInnerDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: COLORS.secondary,
+  stopNumber: {
+    color: COLORS.white,
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   minimalStatusCard: {
     position: 'absolute',
@@ -701,6 +704,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  calloutContainer: {
+    backgroundColor: COLORS.white,
+    borderRadius: 10,
+    padding: 12,
+    minWidth: 150,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  calloutTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: COLORS.secondary,
+    marginBottom: 5,
+  },
+  calloutText: {
+    fontSize: 13,
+    color: COLORS.text,
+    marginTop: 3,
+  },
   mapControls: {
     position: 'absolute',
     bottom: 30,
@@ -722,7 +747,9 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   firstStopMarker: {
-    borderColor: COLORS.success,
+    backgroundColor: COLORS.success,
+    borderColor: COLORS.white,
+    borderWidth: 3,
   },
 });
 

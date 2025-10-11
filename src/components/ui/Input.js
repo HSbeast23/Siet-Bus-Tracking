@@ -138,7 +138,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: COLORS.black,
     paddingVertical: SPACING.md,
-    minWidth: 0,
   },
   inputWithIcon: {
     paddingLeft: 0,
@@ -152,11 +151,9 @@ const styles = StyleSheet.create({
     paddingTop: SPACING.md,
   },
   secureButton: {
-    paddingVertical: SPACING.xs,
-    paddingHorizontal: SPACING.xs,
+    padding: SPACING.sm,
     flexDirection: 'row',
     alignItems: 'center',
-    marginLeft: SPACING.xs,
   },
   secureLabel: {
     marginLeft: SPACING.xs,
