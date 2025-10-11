@@ -27,19 +27,24 @@ const BusManagement = ({ navigation, route }) => {
   const normalizedFilterBusId = filterBusId ? normalizeBusNumber(filterBusId) : null;
 
   const resolveBusStatus = useCallback((busDoc) => {
-    if (busDoc.isTracking) {
-      return 'Active';
+    return busDoc.isTracking ? 'Active' : 'Inactive';
+  }, []);
+
+  const formatTime = useCallback((timestamp) => {
+    if (!timestamp) {
+      return null;
     }
-    if (busDoc.lastUpdate) {
-      const lastUpdateTime = new Date(busDoc.lastUpdate).getTime();
-      if (!Number.isNaN(lastUpdateTime)) {
-        const diffMinutes = (Date.now() - lastUpdateTime) / (1000 * 60);
-        if (diffMinutes <= 10) {
-          return 'Recently Active';
-        }
-      }
+
+    const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) {
+      return null;
     }
-    return 'Inactive';
+
+    return date.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
   }, []);
 
   const refreshStudentCounts = useCallback(async () => {
@@ -117,7 +122,7 @@ const BusManagement = ({ navigation, route }) => {
         studentsCount: activeStudentCounts[normalizedBus] ?? bus.studentsCount ?? bus.studentCount ?? 0,
         isRealData: true,
         lastUpdate: bus.lastUpdate || null,
-        speed: bus.speed ?? null,
+        stoppedAt: !bus.isTracking && bus.lastUpdate ? bus.lastUpdate : null,
       };
     });
 
@@ -238,9 +243,14 @@ const BusManagement = ({ navigation, route }) => {
                     <View style={styles.busDetails}>
                       <Text style={styles.busNumber}>{bus.displayName || bus.number}</Text>
                       <Text style={styles.driverName}>Driver: {bus.driver}</Text>
-                      {bus.lastUpdate && (
+                      {bus.status === 'Inactive' && formatTime(bus.stoppedAt) && (
                         <Text style={styles.updateTime}>
-                          LastUpdated {new Date(bus.lastUpdate).toLocaleTimeString()}
+                          Tracking stopped at {formatTime(bus.stoppedAt)}
+                        </Text>
+                      )}
+                      {bus.status === 'Active' && formatTime(bus.lastUpdate) && (
+                        <Text style={styles.updateTime}>
+                          Last updated at {formatTime(bus.lastUpdate)}
                         </Text>
                       )}
                     </View>
