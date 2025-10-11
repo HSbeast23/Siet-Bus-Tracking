@@ -131,10 +131,16 @@ const BusManagement = ({ navigation, route }) => {
     refreshStudentCounts();
   }, [rawBuses.length, refreshStudentCounts]);
 
-  const onRefresh = () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    refreshStudentCounts();
-  };
+    try {
+      await refreshStudentCounts();
+    } catch (error) {
+      console.error('❌ [BUS MGMT] Manual refresh failed:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshStudentCounts]);
 
   const handleBusPress = (bus) => {
     if (isSelectMode) {
@@ -234,7 +240,7 @@ const BusManagement = ({ navigation, route }) => {
                       <Text style={styles.driverName}>Driver: {bus.driver}</Text>
                       {bus.lastUpdate && (
                         <Text style={styles.updateTime}>
-                          Updated {new Date(bus.lastUpdate).toLocaleTimeString()}
+                          LastUpdated {new Date(bus.lastUpdate).toLocaleTimeString()}
                         </Text>
                       )}
                     </View>
@@ -254,12 +260,6 @@ const BusManagement = ({ navigation, route }) => {
                     <Ionicons name="people" size={16} color={COLORS.gray} />
                     <Text style={styles.studentCount}>{bus.studentsCount || 0} Students</Text>
                   </View>
-                  {bus.speed !== null && (
-                    <View style={styles.speedInfo}>
-                      <Ionicons name="speedometer" size={16} color={COLORS.success} />
-                      <Text style={styles.speedText}>{(bus.speed * 3.6).toFixed(1)} km/h</Text>
-                    </View>
-                  )}
                   <Ionicons name="chevron-forward" size={20} color={COLORS.gray} />
                 </View>
               </TouchableOpacity>
@@ -439,16 +439,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: FONTS.regular,
     color: COLORS.gray,
-    marginLeft: SPACING.xs,
-  },
-  speedInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  speedText: {
-    fontSize: 14,
-    fontFamily: FONTS.regular,
-    color: COLORS.success,
     marginLeft: SPACING.xs,
   },
 });

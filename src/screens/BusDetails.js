@@ -4,11 +4,11 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   ActivityIndicator
 } from 'react-native';
-import { COLORS } from '../utils/constants';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
@@ -105,7 +105,7 @@ const BusDetails = ({ route, navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={COLORS.secondary} />
@@ -265,18 +265,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.md,
     backgroundColor: COLORS.white,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.lightGray,
   },
   backButton: {
-    padding: 5,
+    padding: SPACING.sm,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: FONTS.sizes.xl,
+    fontFamily: FONTS.semiBold,
     color: COLORS.secondary,
   },
   placeholder: {
@@ -284,19 +285,15 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    padding: 20,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.lg,
   },
   busInfoCard: {
     backgroundColor: COLORS.white,
-    borderRadius: 15,
-    padding: 20,
-    marginBottom: 20,
-    marginVertical: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.lg,
+    marginBottom: SPACING.lg,
+    ...SHADOWS.md,
   },
   busHeader: {
     flexDirection: 'row',
@@ -309,109 +306,100 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 15,
+    marginRight: SPACING.md,
   },
   busMainInfo: {
     flex: 1,
   },
   busNumber: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontFamily: FONTS.bold,
     color: COLORS.secondary,
-    marginBottom: 5,
+    marginBottom: SPACING.xs,
   },
   driverName: {
-    fontSize: 16,
+    fontSize: 15,
+    fontFamily: FONTS.regular,
     color: COLORS.gray,
-    marginBottom: 10,
+    marginBottom: SPACING.sm,
   },
   statusBadge: {
     alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 15,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    borderRadius: RADIUS.md,
   },
   statusText: {
     color: COLORS.white,
     fontSize: 12,
-    fontWeight: 'bold',
+    fontFamily: FONTS.semiBold,
   },
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 20,
+    marginBottom: SPACING.lg,
   },
   statCard: {
     backgroundColor: COLORS.white,
-    borderRadius: 12,
-    padding: 15,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
     alignItems: 'center',
     flex: 1,
-    marginHorizontal: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 3,
+    marginHorizontal: SPACING.xs,
+    ...SHADOWS.sm,
   },
   statNumber: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontFamily: FONTS.bold,
     color: COLORS.secondary,
-    marginVertical: 5,
+    marginVertical: SPACING.xs,
   },
   statLabel: {
     fontSize: 12,
+    fontFamily: FONTS.regular,
     color: COLORS.gray,
   },
   sectionCard: {
     backgroundColor: COLORS.white,
-    borderRadius: 15,
-    padding: 20,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 3,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.lg,
+    marginBottom: SPACING.lg,
+    ...SHADOWS.sm,
   },
   loadingBlock: {
-    padding: 20,
+    padding: SPACING.lg,
     alignItems: 'center',
   },
   loadingBlockText: {
-    marginTop: 10,
+    marginTop: SPACING.sm,
     color: COLORS.gray,
     textAlign: 'center',
+    fontFamily: FONTS.regular,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 15,
+    marginBottom: SPACING.md,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontFamily: FONTS.bold,
     color: COLORS.secondary,
-    marginBottom: 15,
+    marginBottom: SPACING.md,
   },
   sectionAction: {
     color: COLORS.primary,
-    fontWeight: '600',
-  },
-  viewAllText: {
-    fontSize: 12,
-    color: COLORS.gray,
+    fontFamily: FONTS.medium,
   },
   routeItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 15,
+    marginBottom: SPACING.md,
   },
   routeIndicator: {
     alignItems: 'center',
-    marginRight: 15,
+    marginRight: SPACING.md,
   },
   routeDot: {
     width: 12,
@@ -422,39 +410,45 @@ const styles = StyleSheet.create({
     width: 2,
     height: 20,
     backgroundColor: COLORS.lightGray,
-    marginTop: 5,
+    marginTop: SPACING.sm,
   },
   routeStop: {
     fontSize: 16,
+    fontFamily: FONTS.semiBold,
     color: COLORS.secondary,
   },
   emptyRouteText: {
     textAlign: 'center',
     color: COLORS.gray,
-    marginTop: 8,
+    marginTop: SPACING.sm,
+    fontFamily: FONTS.regular,
   },
   viewAllButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    marginTop: 10,
-    borderRadius: 10,
-    backgroundColor: COLORS.primary100,
-    paddingHorizontal: 16,
+    paddingVertical: SPACING.md,
+    marginTop: SPACING.sm,
+    borderRadius: RADIUS.md,
+    backgroundColor: `${COLORS.primary}1A`,
+    paddingHorizontal: SPACING.lg,
   },
   viewAllButtonText: {
     fontSize: 14,
     color: COLORS.primary,
-    fontWeight: '600',
-    marginLeft: 6,
+    fontFamily: FONTS.medium,
+    marginLeft: SPACING.xs,
   },
-  studentItem: {
+  studentPreviewList: {
+    marginTop: SPACING.xs,
+  },
+  studentPreviewItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.lightGray,
+    backgroundColor: `${COLORS.primary}0F`,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
   },
   studentAvatar: {
     width: 40,
@@ -463,73 +457,41 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
-  },
-  studentPreviewList: {
-    marginTop: 4,
-  },
-  studentPreviewItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.primary100,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-  },
-  studentInfo: {
-    flex: 1,
+    marginRight: SPACING.md,
   },
   studentPreviewMeta: {
     flex: 1,
   },
-  studentName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.secondary,
-  },
   studentPreviewName: {
-    fontWeight: '600',
+    fontFamily: FONTS.semiBold,
     color: COLORS.secondary,
   },
   studentPreviewSub: {
     fontSize: 12,
+    fontFamily: FONTS.regular,
     color: COLORS.gray,
     marginTop: 2,
-  },
-  studentRoll: {
-    fontSize: 12,
-    color: COLORS.gray,
-    marginTop: 2,
-  },
-  pickupInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  pickupText: {
-    fontSize: 12,
-    color: COLORS.gray,
-    marginLeft: 4,
   },
   actionButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 20,
+    marginBottom: SPACING.lg,
   },
   actionButton: {
     backgroundColor: COLORS.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 12,
-    paddingVertical: 15,
+    borderRadius: RADIUS.md,
+    paddingVertical: SPACING.md,
     flex: 1,
-    marginHorizontal: 5,
+    marginHorizontal: SPACING.xs,
   },
   actionButtonText: {
     color: COLORS.white,
     fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: 8,
+    fontFamily: FONTS.semiBold,
+    marginLeft: SPACING.xs,
   },
 });
 
