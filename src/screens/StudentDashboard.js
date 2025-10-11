@@ -206,7 +206,7 @@ const StudentDashboard = ({ navigation }) => {
       subtitle: 'View bus location on map',
       icon: 'map',
       color: COLORS.primary,
-      onPress: () => navigation.navigate('MapScreen')
+      onPress: () => navigation.navigate('MapScreen', { role: 'student' })
     },
     {
       title: 'Bus Route',
@@ -215,7 +215,7 @@ const StudentDashboard = ({ navigation }) => {
       color: COLORS.accent,
       onPress: () => {
         // Navigate to MapScreen to show route visualization
-        navigation.navigate('MapScreen');
+        navigation.navigate('MapScreen', { role: 'student' });
       }
     },
     {

@@ -195,6 +195,26 @@ class RegisteredUsersStorage {
     }
   }
 
+  async getAllCoAdmins() {
+    try {
+      const coadminQuery = query(this.usersCollection, where('role', '==', 'coadmin'));
+      const snapshot = await getDocs(coadminQuery);
+      return snapshot.docs.map((coadminDoc) => {
+        const data = coadminDoc.data();
+        return {
+          id: coadminDoc.id,
+          ...data,
+          busNumber: normalizeBusNumber(data.busNumber || data.busNo || data.busId),
+          email: data.email || '',
+          phone: data.phone || '',
+        };
+      });
+    } catch (error) {
+      console.error('Error getting co-admins:', error);
+      return [];
+    }
+  }
+
   async getDriverByBusNumber(busNumber) {
     try {
       const normalizedBus = normalizeBusNumber(busNumber);

@@ -7,6 +7,7 @@ import {
   query,
   where,
   orderBy,
+  limit,
   Timestamp,
 } from 'firebase/firestore';
 import { db } from './firebaseConfig';
@@ -257,6 +258,25 @@ class AttendanceService {
     } catch (error) {
       console.error('Error fetching daily summary:', error);
       return null;
+    }
+  }
+
+  async getRecentAttendanceRecords(limitCount = 50) {
+    try {
+      const attendanceQuery = query(
+        this.attendanceCollection,
+        orderBy('timestamp', 'desc'),
+        limit(limitCount)
+      );
+
+      const snapshot = await getDocs(attendanceQuery);
+      return snapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
+      }));
+    } catch (error) {
+      console.error('Error fetching recent attendance records:', error);
+      return [];
     }
   }
 }

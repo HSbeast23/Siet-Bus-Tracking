@@ -10,14 +10,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
-import { Card, CardHeader, CardContent } from '../components/ui/Card';
-import { busStorage } from '../services/storage';
+import { Card, CardContent } from '../components/ui/Card';
 import { registeredUsersStorage } from '../services/registeredUsersStorage';
 import { authService } from '../services/authService';
+import { subscribeToAllBuses } from '../services/locationService';
 
 const ManagementDashboard = ({ navigation }) => {
   const [stats, setStats] = useState({
-    totalBuses: 22,
+    totalBuses: 0,
     activeBuses: 0,
     totalDrivers: 0,
     totalStudents: 0
@@ -25,15 +25,60 @@ const ManagementDashboard = ({ navigation }) => {
 
   const [adminInfo, setAdminInfo] = useState({
     name: 'Administrator',
-    role: 'Admin'
+    role: 'Management'
   });
 
   useEffect(() => {
     loadAdminInfo();
     loadRealStats();
-    checkActiveBuses();
-    const interval = setInterval(checkActiveBuses, 10000); // Check every 10 seconds
-    return () => clearInterval(interval);
+
+    const unsubscribe = subscribeToAllBuses(
+      (busesData) => {
+        try {
+          if (!Array.isArray(busesData)) {
+            setStats((prev) => ({ ...prev, totalBuses: 0, activeBuses: 0 }));
+            return;
+          }
+
+          const totalBuses = busesData.length;
+          const activeBuses = busesData.filter((bus) => {
+            if (bus.isTracking) {
+              return true;
+            }
+
+            const rawLastUpdate = bus.lastUpdate || bus.lastUpdatedAt || bus.updatedAt;
+            if (!rawLastUpdate) {
+              return false;
+            }
+
+            const lastUpdateTime = new Date(rawLastUpdate).getTime();
+            if (Number.isNaN(lastUpdateTime)) {
+              return false;
+            }
+
+            const diffMinutes = (Date.now() - lastUpdateTime) / (1000 * 60);
+            return diffMinutes <= 10;
+          }).length;
+
+          setStats((prev) => ({
+            ...prev,
+            totalBuses,
+            activeBuses,
+          }));
+        } catch (error) {
+          console.error('Error processing bus subscription data:', error);
+        }
+      },
+      (error) => {
+        console.error('Error subscribing to bus updates:', error);
+      }
+    );
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, []);
 
   const loadAdminInfo = async () => {
@@ -41,10 +86,20 @@ const ManagementDashboard = ({ navigation }) => {
       // Check if there's an authenticated user
       const currentUser = await authService.getCurrentUser();
       if (currentUser) {
+        const normalizedRole = (currentUser.role || '').toLowerCase();
+        const roleLabel = normalizedRole === 'management'
+          ? 'Management'
+          : normalizedRole === 'driver'
+            ? 'Driver Admin'
+            : normalizedRole === 'student'
+              ? 'Student Admin'
+              : 'Administrator';
+
+  const displayName = currentUser.name?.trim() || 'Administrator';
+
         setAdminInfo({
-          name: currentUser.name || 'Administrator',
-          role: currentUser.role === 'driver' ? 'Driver Admin' : 
-                currentUser.role === 'student' ? 'Student Admin' : 'Administrator'
+          name: displayName,
+          role: roleLabel
         });
         console.log('Admin user loaded:', currentUser.name);
       }
@@ -69,29 +124,6 @@ const ManagementDashboard = ({ navigation }) => {
     }
   };
 
-  const checkActiveBuses = async () => {
-    try {
-      // In real app, this would check all bus locations from API
-      const busLocationData = await busStorage.getLastLocation();
-      let activeBusCount = 0;
-      
-      if (busLocationData) {
-        // Check if location is recent (within last 5 minutes)
-        const lastUpdate = new Date(busLocationData.timestamp);
-        const now = new Date();
-        const diffMinutes = (now - lastUpdate) / (1000 * 60);
-        
-        if (diffMinutes <= 5) {
-          activeBusCount = 1; // In real app, count all active buses
-        }
-      }
-      
-      setStats(prev => ({ ...prev, activeBuses: activeBusCount }));
-    } catch (error) {
-      console.error('Error checking active buses:', error);
-    }
-  };
-
   const handleLogout = async () => {
     Alert.alert(
       'Logout',
@@ -110,13 +142,20 @@ const ManagementDashboard = ({ navigation }) => {
     );
   };
 
-    const menuItems = [
+  const menuItems = [
     {
       title: 'Bus Management',
       description: 'View and manage all buses',
       icon: 'bus',
       color: COLORS.primary,
       onPress: () => navigation.navigate('BusManagement')
+    },
+    {
+      title: 'Co-Admin Management',
+      description: 'Monitor co-admin assignments and bus coverage',
+      icon: 'shield-checkmark',
+      color: COLORS.info,
+      onPress: () => navigation.navigate('CoAdminManagement')
     },
     {
       title: 'Driver Management',
@@ -126,11 +165,11 @@ const ManagementDashboard = ({ navigation }) => {
       onPress: () => navigation.navigate('DriverManagement')
     },
     {
-      title: 'Reports & Analytics',
-      description: 'View performance reports and analytics',
-      icon: 'analytics',
-      color: COLORS.warning,
-      onPress: () => navigation.navigate('ReportsAnalytics')
+      title: 'Student Management',
+      description: 'Manage student registrations',
+      icon: 'school',
+      color: COLORS.secondary,
+      onPress: () => navigation.navigate('StudentManagement')
     },
     {
       title: 'Live Map View',
@@ -138,24 +177,16 @@ const ManagementDashboard = ({ navigation }) => {
       icon: 'map',
       color: COLORS.danger,
       onPress: () => {
-        // Navigate to BusManagement to select which bus to track
-        navigation.navigate('BusManagement', { 
+        navigation.navigate('BusManagement', {
           selectMode: true,
           onBusSelect: (bus) => {
-            navigation.navigate('MapScreen', { 
-              busId: bus.number, 
-              role: 'management' 
+            navigation.navigate('MapScreen', {
+              busId: bus.number,
+              role: 'management'
             });
           }
         });
       }
-    },
-    {
-      title: 'Student Management',
-      description: 'Manage student registrations',
-      icon: 'school',
-      color: COLORS.secondary,
-      onPress: () => navigation.navigate('StudentManagement')
     },
     {
       title: 'Route Management',
@@ -165,34 +196,18 @@ const ManagementDashboard = ({ navigation }) => {
       onPress: () => navigation.navigate('RouteManagement')
     },
     {
-      title: 'Settings',
-      description: 'App settings and configuration',
-      icon: 'settings',
-      color: COLORS.gray,
-      onPress: () => alert('Settings - Coming Soon!')
+      title: 'Attendance History',
+      description: 'Review daily attendance for every bus',
+      icon: 'calendar',
+      color: COLORS.accent,
+      onPress: () => navigation.navigate('ManagementAttendanceHistory')
     },
     {
-      title: 'Logout',
-      description: 'Sign out from management panel',
-      icon: 'log-out',
-      color: COLORS.danger,
-      onPress: async () => {
-        Alert.alert(
-          'Logout',
-          'Are you sure you want to sign out?',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { 
-              text: 'Logout', 
-              style: 'destructive',
-              onPress: async () => {
-                await authService.logout();
-                navigation.replace('Welcome');
-              }
-            }
-          ]
-        );
-      }
+      title: 'Reports',
+      description: 'Review submitted reports and follow-ups',
+      icon: 'document-text',
+      color: COLORS.warning,
+      onPress: () => navigation.navigate('Reports')
     }
   ];
 
@@ -202,7 +217,9 @@ const ManagementDashboard = ({ navigation }) => {
         <View>
           <Text style={styles.welcomeText}>Welcome,</Text>
           <Text style={styles.adminText}>{adminInfo.name}</Text>
-          <Text style={styles.roleText}>{adminInfo.role}</Text>
+          {adminInfo.role && adminInfo.role.toLowerCase() !== adminInfo.name.toLowerCase() && (
+            <Text style={styles.roleText}>{adminInfo.role}</Text>
+          )}
         </View>
         <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
           <Ionicons name="log-out" size={24} color={COLORS.danger} />
@@ -316,6 +333,8 @@ const styles = StyleSheet.create({
   },
   logoutButton: {
     padding: SPACING.sm,
+    marginTop: -SPACING.sm,
+    alignSelf: 'flex-start',
   },
   statsContainer: {
     padding: SPACING.lg,

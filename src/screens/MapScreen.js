@@ -7,10 +7,9 @@ import {
   Alert,
   TouchableOpacity,
   ActivityIndicator,
-  ScrollView,
   Animated
 } from 'react-native';
-import MapView, { Marker, AnimatedRegion, PROVIDER_GOOGLE, Callout, Polyline } from 'react-native-maps';
+import MapView, { Marker, AnimatedRegion, PROVIDER_GOOGLE, Callout } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { COLORS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,6 +25,7 @@ const MapScreen = ({ route, navigation }) => {
   const [userInfo, setUserInfo] = useState({}); // Changed from studentInfo to userInfo
   const [loading, setLoading] = useState(true);
   const [mapRef, setMapRef] = useState(null);
+  const [mapReady, setMapReady] = useState(false);
   const [selectedBusId, setSelectedBusId] = useState(null); // For management to select bus
   const [routeStops, setRouteStops] = useState([]); // Add state for route stops
   const [busDisplayName, setBusDisplayName] = useState('');
@@ -45,6 +45,13 @@ const MapScreen = ({ route, navigation }) => {
   const busIdFromParams = route?.params?.busId;
   const routeStopsFromParams = route?.params?.routeStops;
   const busDisplayNameFromParams = route?.params?.busDisplayName;
+  const roleFromParams = route?.params?.role;
+  const [isStudentView, setIsStudentView] = useState(() => {
+    if (typeof roleFromParams === 'string') {
+      return roleFromParams.toLowerCase() === 'student';
+    }
+    return true; // default to student-safe view until role resolved
+  });
 
   useEffect(() => {
     loadUserData();
@@ -73,7 +80,7 @@ const MapScreen = ({ route, navigation }) => {
     const busToTrack = busIdFromParams || userInfo.busNumber || userInfo.busId;
     
     if (busToTrack) {
-      const userRole = userInfo.role || 'management';
+      const userRole = roleFromParams || userInfo.role || 'management';
       console.log(`🔥 [${userRole.toUpperCase()}] Setting up real-time GPS tracking for bus:`, busToTrack);
       console.log(`🔍 [${userRole.toUpperCase()}] User info:`, JSON.stringify(userInfo));
       
@@ -110,6 +117,10 @@ const MapScreen = ({ route, navigation }) => {
             };
             
             setBusLocation(newLocation);
+
+            if (mapRef && mapReady) {
+              showAllLocations();
+            }
             
             // Smooth animation for marker
             busCoordinate.timing({
@@ -138,11 +149,29 @@ const MapScreen = ({ route, navigation }) => {
             console.log(`⚠️ [${userRole.toUpperCase()}] Bus stopped tracking - clearing map`);
             console.log(`🛑 [${userRole.toUpperCase()}] isTracking:`, locationData.isTracking);
             setBusLocation(null); // Clear location so marker disappears
+            if (mapRef && mapReady && studentLocation) {
+              centerMapOnStudent();
+            }
             setLoading(false);
           } else {
             console.log(`⚠️ [${userRole.toUpperCase()}] Bus not currently tracking`);
             console.log(`⚠️ [${userRole.toUpperCase()}] Full data:`, JSON.stringify(locationData));
             setBusLocation(null);
+            if (mapRef && mapReady) {
+              if (studentLocation) {
+                centerMapOnStudent();
+              } else {
+                mapRef.animateToRegion(
+                  {
+                    latitude: 11.0168,
+                    longitude: 76.9558,
+                    latitudeDelta: 0.15,
+                    longitudeDelta: 0.15,
+                  },
+                  800
+                );
+              }
+            }
             setLoading(false);
           }
         },
@@ -166,12 +195,12 @@ const MapScreen = ({ route, navigation }) => {
         clearTimeout(timeoutId);
       }
       if (unsubscribe) {
-        const userRole = userInfo.role || 'management';
+  const userRole = roleFromParams || userInfo.role || 'management';
         console.log(`🛑 [${userRole.toUpperCase()}] Unsubscribing from bus location updates`);
         unsubscribe();
       }
     };
-  }, [userInfo.busNumber, userInfo.busId, busIdFromParams]);
+  }, [userInfo.busNumber, userInfo.busId, busIdFromParams, roleFromParams]);
 
   // 🗺️ Load route stops when user info changes (for students/co-admin)
   useEffect(() => {
@@ -369,28 +398,45 @@ const MapScreen = ({ route, navigation }) => {
   };
 
   const showAllLocations = () => {
-    if (mapRef) {
-      const locations = [];
-      if (busLocation) locations.push(busLocation);
-      if (studentLocation) locations.push(studentLocation);
-      
-      // Add route stops with coordinates for the bus (if available)
-      if (Array.isArray(routeStops) && routeStops.length > 0) {
-        const geoStops = routeStops.filter(
-          (stop) => Number.isFinite(stop.latitude) && Number.isFinite(stop.longitude)
-        );
-        if (geoStops.length > 0) {
-          locations.push(...geoStops);
-        }
-      }
-
-      if (locations.length > 0) {
-        mapRef.fitToCoordinates(locations, {
-          edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
-          animated: true,
-        });
-      }
+    if (!mapRef || !mapReady) {
+      return;
     }
+
+    const locations = [];
+
+    if (busLocation?.isTracking) {
+      locations.push({ latitude: busLocation.latitude, longitude: busLocation.longitude });
+    }
+
+    if (studentLocation) {
+      locations.push({ latitude: studentLocation.latitude, longitude: studentLocation.longitude });
+    }
+
+    if (locations.length === 0) {
+      return;
+    }
+
+    if (locations.length === 1) {
+      const target = locations[0];
+      mapRef.animateToRegion(
+        {
+          latitude: target.latitude,
+          longitude: target.longitude,
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
+        },
+        800
+      );
+      return;
+    }
+
+    mapRef.fitToCoordinates(
+      locations,
+      {
+        edgePadding: { top: 80, right: 80, bottom: 80, left: 80 },
+        animated: true,
+      }
+    );
   };
 
   const firstGeoStop = Array.isArray(routeStops)
@@ -400,6 +446,13 @@ const MapScreen = ({ route, navigation }) => {
   const resolvedBusLabel = (busDisplayName || busIdFromParams || userInfo.busNumber || userInfo.busId || 'Bus')
     .toString()
     .replace(/-+/g, '-');
+
+  const resolvedRole = (roleFromParams || userInfo.role || '').toLowerCase();
+  useEffect(() => {
+    if (resolvedRole) {
+      setIsStudentView(resolvedRole === 'student');
+    }
+  }, [resolvedRole]);
 
   if (loading) {
     return (
@@ -429,6 +482,7 @@ const MapScreen = ({ route, navigation }) => {
       <MapView
         ref={setMapRef}
         provider={PROVIDER_GOOGLE}
+        onMapReady={() => setMapReady(true)}
         style={styles.map}
         initialRegion={{
           latitude: busLocation?.latitude || firstGeoStop?.latitude || 11.0168,
@@ -482,75 +536,11 @@ const MapScreen = ({ route, navigation }) => {
           </Marker>
         )}
 
-        {/* Bus Stop Markers - Show only route stops for this bus */}
-        {routeStops && routeStops.length > 0 && routeStops
-          .filter((stop) => Number.isFinite(stop.latitude) && Number.isFinite(stop.longitude))
-          .map((stop, index) => (
-            <Marker
-              key={stop.id || `${stop.name}-${index}`}
-              coordinate={{ latitude: stop.latitude, longitude: stop.longitude }}
-              title={stop.name}
-              description={stop.time ? stop.time : `Stop ${index + 1}`}
-              pinColor={index === 0 ? COLORS.success : COLORS.secondary}
-            >
-              <View style={[styles.stopMarker, index === 0 && styles.firstStopMarker]}>
-                <Text style={styles.stopNumber}>{index + 1}</Text>
-              </View>
-            </Marker>
-          ))}
-
-        {/* Route Polyline - Connect all stops */}
-        {routeStops && routeStops.length > 0 && routeStops.filter((stop) => Number.isFinite(stop.latitude) && Number.isFinite(stop.longitude)).length >= 2 && (
-          <Polyline
-            coordinates={routeStops
-              .filter((stop) => Number.isFinite(stop.latitude) && Number.isFinite(stop.longitude))
-              .map(stop => ({
-              latitude: stop.latitude,
-              longitude: stop.longitude
-            }))}
-            strokeColor={COLORS.accent}
-            strokeWidth={4}
-            lineDashPattern={[1]}
-          />
-        )}
+        {/* Route overlays intentionally omitted for full-screen map view */}
       </MapView>
 
-      {routeStops && routeStops.length > 0 && (
-        <View style={styles.timelineContainer}>
-          <Text style={styles.timelineTitle}>Route Timeline</Text>
-          <ScrollView
-            style={styles.timelineScroll}
-            contentContainerStyle={styles.timelineContent}
-            showsVerticalScrollIndicator={false}
-          >
-            {routeStops.map((stop, index) => (
-              <View key={stop.id || `${stop.name}-${index}`} style={styles.timelineRow}>
-                <View style={styles.timelineMarkerColumn}>
-                  <View
-                    style={[
-                      styles.timelineDot,
-                      index === 0 && styles.timelineDotStart,
-                      index === routeStops.length - 1 && styles.timelineDotEnd,
-                    ]}
-                  >
-                    <Text style={styles.timelineDotLabel}>{index + 1}</Text>
-                  </View>
-                  {index < routeStops.length - 1 && <View style={styles.timelineConnector} />}
-                </View>
-                <View style={styles.timelineDetails}>
-                  <Text style={styles.timelineStopName}>{stop.name}</Text>
-                  <Text style={styles.timelineMeta}>
-                    {index === 0 ? 'Start • SIET Main Campus' : stop.time || `Stop ${index + 1}`}
-                  </Text>
-                </View>
-              </View>
-            ))}
-          </ScrollView>
-        </View>
-      )}
-
       {/* Minimal Status Card - Only show when tracking */}
-      {busLocation && busLocation.isTracking && (
+      {!isStudentView && busLocation && busLocation.isTracking && (
         <View style={styles.minimalStatusCard}>
           <View style={styles.liveIndicator}>
             <View style={styles.livePulse} />
@@ -636,21 +626,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 2,
     borderColor: COLORS.white,
-  },
-  stopMarker: {
-    backgroundColor: COLORS.secondary,
-    borderRadius: 15,
-    width: 30,
-    height: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: COLORS.white,
-  },
-  stopNumber: {
-    color: COLORS.white,
-    fontSize: 12,
-    fontWeight: 'bold',
   },
   minimalStatusCard: {
     position: 'absolute',
@@ -745,11 +720,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
-  },
-  firstStopMarker: {
-    backgroundColor: COLORS.success,
-    borderColor: COLORS.white,
-    borderWidth: 3,
   },
 });
 
