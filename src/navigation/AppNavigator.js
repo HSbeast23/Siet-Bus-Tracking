@@ -9,6 +9,7 @@ import StudentDashboard from '../screens/StudentDashboard';
 import MapScreen from '../screens/MapScreen';
 import BusManagement from '../screens/BusManagement';
 import BusDetails from '../screens/BusDetails';
+import BusEditScreen from '../screens/BusEditScreen';
 import BusLiveTrackingScreen from '../screens/BusLiveTrackingScreen';
 import DriverManagement from '../screens/DriverManagement';
 import DriverDetails from '../screens/DriverDetails';
@@ -97,6 +98,11 @@ const AppNavigator = () => {
         name="BusDetails" 
         component={BusDetails} 
         options={{ title: 'Bus Details', headerShown: false }}
+      />
+      <Stack.Screen 
+        name="BusEdit" 
+        component={BusEditScreen} 
+        options={{ title: 'Edit Bus', headerShown: false }}
       />
       <Stack.Screen 
         name="BusLiveTracking" 

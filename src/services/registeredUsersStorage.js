@@ -185,6 +185,7 @@ class RegisteredUsersStorage {
       return snapshot.docs.map((driverDoc) => {
         const data = driverDoc.data();
         return {
+          id: driverDoc.id,
           ...data,
           busNumber: normalizeBusNumber(data.busNumber || data.busNo),
         };

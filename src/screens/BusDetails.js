@@ -246,7 +246,14 @@ const BusDetails = ({ route, navigation }) => {
             <Ionicons name="map" size={20} color={COLORS.white} />
             <Text style={styles.actionButtonText}>Track Live</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionButton, { backgroundColor: COLORS.warning }]}>
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: COLORS.warning }]}
+            onPress={() =>
+              navigation.navigate('BusEdit', {
+                busId: busNumber,
+              })
+            }
+          >
             <Ionicons name="settings" size={20} color={COLORS.white} />
             <Text style={styles.actionButtonText}>Edit Details</Text>
           </TouchableOpacity>
