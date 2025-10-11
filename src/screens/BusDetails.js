@@ -15,7 +15,7 @@ import { db } from '../services/firebaseConfig';
 import { normalizeBusNumber } from '../services/locationService';
 
 const BusDetails = ({ route, navigation }) => {
-  const { bus } = route.params;
+  const { bus, role: routeRole = 'management' } = route.params;
   const busNumber = bus.number || bus.busNumber || '';
   const driverName = bus.driverName || bus.driver || 'Not Assigned';
   const busStatus = bus.status || 'Inactive';
@@ -223,7 +223,12 @@ const BusDetails = ({ route, navigation }) => {
               {studentCount > topStudents.length && (
                 <TouchableOpacity
                   style={styles.viewAllButton}
-                  onPress={() => navigation.navigate('StudentManagement', { busId: busNumber })}
+                  onPress={() =>
+                    navigation.navigate('StudentManagement', {
+                      busId: busNumber,
+                      role: routeRole,
+                    })
+                  }
                   activeOpacity={0.7}
                 >
                   <Ionicons name="people" size={18} color={COLORS.primary} />
@@ -238,10 +243,12 @@ const BusDetails = ({ route, navigation }) => {
         <View style={styles.actionButtons}>
           <TouchableOpacity 
             style={styles.actionButton}
-            onPress={() => navigation.navigate('MapScreen', { 
-              busId: busNumber, 
-              role: 'management' 
-            })}
+            onPress={() =>
+              navigation.navigate('MapScreen', {
+                busId: busNumber,
+                role: routeRole,
+              })
+            }
           >
             <Ionicons name="map" size={20} color={COLORS.white} />
             <Text style={styles.actionButtonText}>Track Live</Text>
@@ -251,6 +258,7 @@ const BusDetails = ({ route, navigation }) => {
             onPress={() =>
               navigation.navigate('BusEdit', {
                 busId: busNumber,
+                role: routeRole,
               })
             }
           >

@@ -28,8 +28,8 @@ import { registeredUsersStorage } from '../services/registeredUsersStorage';
 const DEFAULT_STUDENT_FORM = {
   registerNumber: '',
   name: '',
-  year: '1st Year',
-  department: 'CSE',
+  year: '',
+  department: '',
   boardingPoint: '',
   password: '',
 };
@@ -49,8 +49,10 @@ const DEFAULT_COADMIN_FORM = {
 };
 
 const BusEditScreen = ({ navigation, route }) => {
-  const { busId: rawBusId } = route.params || {};
+  const { busId: rawBusId, role: routeRole = 'management' } = route.params || {};
   const resolvedBusNumber = normalizeBusNumber(rawBusId);
+
+  const isCoAdmin = routeRole === 'coadmin';
 
   const [busNumberInput, setBusNumberInput] = useState(resolvedBusNumber);
   const [displayNameInput, setDisplayNameInput] = useState(rawBusId || resolvedBusNumber);
@@ -619,41 +621,43 @@ const BusEditScreen = ({ navigation, route }) => {
             </View>
           ) : null}
 
-          <View style={styles.card}>
-            {renderSectionHeader('Bus Information')}
-            <Text style={styles.label}>Bus Number</Text>
-            <TextInput
-              style={styles.input}
-              value={busNumberInput}
-              autoCapitalize="characters"
-              onChangeText={setBusNumberInput}
-              placeholder="SIET-001"
-            />
-            <Text style={styles.label}>Display Name</Text>
-            <TextInput
-              style={styles.input}
-              value={displayNameInput}
-              onChangeText={setDisplayNameInput}
-              placeholder="SIET - 001"
-            />
-            <TouchableOpacity
-              style={[styles.primaryButton, saving && styles.primaryButtonDisabled]}
-              onPress={handleSaveBusInfo}
-              disabled={saving}
-            >
-              {saving ? (
-                <ActivityIndicator size="small" color={COLORS.white} />
-              ) : (
-                <>
-                  <Ionicons name="save" size={18} color={COLORS.white} />
-                  <Text style={styles.primaryButtonText}>Save Changes</Text>
-                </>
-              )}
-            </TouchableOpacity>
-            <Text style={styles.helperText}>
-              Updating the bus number will migrate all linked students, drivers, and co-admins to the new number.
-            </Text>
-          </View>
+          {!isCoAdmin && (
+            <View style={styles.card}>
+              {renderSectionHeader('Bus Information')}
+              <Text style={styles.label}>Bus Number</Text>
+              <TextInput
+                style={styles.input}
+                value={busNumberInput}
+                autoCapitalize="characters"
+                onChangeText={setBusNumberInput}
+                placeholder="SIET-001"
+              />
+              <Text style={styles.label}>Display Name</Text>
+              <TextInput
+                style={styles.input}
+                value={displayNameInput}
+                onChangeText={setDisplayNameInput}
+                placeholder="SIET - 001"
+              />
+              <TouchableOpacity
+                style={[styles.primaryButton, saving && styles.primaryButtonDisabled]}
+                onPress={handleSaveBusInfo}
+                disabled={saving}
+              >
+                {saving ? (
+                  <ActivityIndicator size="small" color={COLORS.white} />
+                ) : (
+                  <>
+                    <Ionicons name="save" size={18} color={COLORS.white} />
+                    <Text style={styles.primaryButtonText}>Save Changes</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+              <Text style={styles.helperText}>
+                Updating the bus number will migrate all linked students, drivers, and co-admins to the new number.
+              </Text>
+            </View>
+          )}
 
           <View style={styles.card}>
             {renderSectionHeader(
@@ -824,78 +828,80 @@ const BusEditScreen = ({ navigation, route }) => {
             )}
           </View>
 
-          <View style={styles.card}>
-            {renderSectionHeader(
-              `Co-Admins (${coAdmins.length})`,
-              <TouchableOpacity
-                style={styles.inlineAction}
-                onPress={() => setShowCoAdminForm((prev) => !prev)}
-              >
-                <Ionicons name={showCoAdminForm ? 'remove' : 'add'} size={18} color={COLORS.primary} />
-                <Text style={styles.inlineActionText}>{showCoAdminForm ? 'Cancel' : 'Add Co-Admin'}</Text>
-              </TouchableOpacity>
-            )}
-
-            {showCoAdminForm && (
-              <View style={styles.formBlock}>
-                <TextInput
-                  style={styles.input}
-                  value={coAdminForm.userId}
-                  placeholder="Co-Admin User ID"
-                  autoCapitalize="none"
-                  onChangeText={(value) => setCoAdminForm((prev) => ({ ...prev, userId: value }))}
-                />
-                <TextInput
-                  style={styles.input}
-                  value={coAdminForm.password}
-                  placeholder="Password"
-                  secureTextEntry
-                  onChangeText={(value) => setCoAdminForm((prev) => ({ ...prev, password: value }))}
-                />
-                <TextInput
-                  style={styles.input}
-                  value={coAdminForm.name}
-                  placeholder="Name (optional)"
-                  onChangeText={(value) => setCoAdminForm((prev) => ({ ...prev, name: value }))}
-                />
-                <TextInput
-                  style={styles.input}
-                  value={coAdminForm.phone}
-                  placeholder="Phone (optional)"
-                  keyboardType="phone-pad"
-                  onChangeText={(value) => setCoAdminForm((prev) => ({ ...prev, phone: value }))}
-                />
-                <TouchableOpacity style={styles.primaryButton} onPress={handleAddCoAdmin}>
-                  <Ionicons name="person-add" size={18} color={COLORS.white} />
-                  <Text style={styles.primaryButtonText}>Create Co-Admin Account</Text>
+          {!isCoAdmin && (
+            <View style={styles.card}>
+              {renderSectionHeader(
+                `Co-Admins (${coAdmins.length})`,
+                <TouchableOpacity
+                  style={styles.inlineAction}
+                  onPress={() => setShowCoAdminForm((prev) => !prev)}
+                >
+                  <Ionicons name={showCoAdminForm ? 'remove' : 'add'} size={18} color={COLORS.primary} />
+                  <Text style={styles.inlineActionText}>{showCoAdminForm ? 'Cancel' : 'Add Co-Admin'}</Text>
                 </TouchableOpacity>
-              </View>
-            )}
+              )}
 
-            {coAdmins.length === 0 ? (
-              <Text style={styles.emptyText}>No co-admins assigned yet.</Text>
-            ) : (
-              coAdmins.map((coAdmin) => (
-                <View key={coAdmin.id || coAdmin.userId} style={styles.listItem}>
-                  <View style={styles.listMeta}>
-                    <View style={[styles.avatar, { backgroundColor: COLORS.info }]}>
-                      <Ionicons name="shield" size={18} color={COLORS.white} />
-                    </View>
-                    <View style={styles.listTextBlock}>
-                      <Text style={styles.listTitle}>{coAdmin.name || coAdmin.userId}</Text>
-                      <Text style={styles.listSubtitle}>User ID: {coAdmin.userId}</Text>
-                      {coAdmin.phone ? (
-                        <Text style={styles.listSubtitle}>Phone: {coAdmin.phone}</Text>
-                      ) : null}
-                    </View>
-                  </View>
-                  <TouchableOpacity onPress={() => handleCoAdminRemoval(coAdmin)}>
-                    <Ionicons name="trash" size={20} color={COLORS.danger} />
+              {showCoAdminForm && (
+                <View style={styles.formBlock}>
+                  <TextInput
+                    style={styles.input}
+                    value={coAdminForm.userId}
+                    placeholder="Co-Admin User ID"
+                    autoCapitalize="none"
+                    onChangeText={(value) => setCoAdminForm((prev) => ({ ...prev, userId: value }))}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    value={coAdminForm.password}
+                    placeholder="Password"
+                    secureTextEntry
+                    onChangeText={(value) => setCoAdminForm((prev) => ({ ...prev, password: value }))}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    value={coAdminForm.name}
+                    placeholder="Name (optional)"
+                    onChangeText={(value) => setCoAdminForm((prev) => ({ ...prev, name: value }))}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    value={coAdminForm.phone}
+                    placeholder="Phone (optional)"
+                    keyboardType="phone-pad"
+                    onChangeText={(value) => setCoAdminForm((prev) => ({ ...prev, phone: value }))}
+                  />
+                  <TouchableOpacity style={styles.primaryButton} onPress={handleAddCoAdmin}>
+                    <Ionicons name="person-add" size={18} color={COLORS.white} />
+                    <Text style={styles.primaryButtonText}>Create Co-Admin Account</Text>
                   </TouchableOpacity>
                 </View>
-              ))
-            )}
-          </View>
+              )}
+
+              {coAdmins.length === 0 ? (
+                <Text style={styles.emptyText}>No co-admins assigned yet.</Text>
+              ) : (
+                coAdmins.map((coAdmin) => (
+                  <View key={coAdmin.id || coAdmin.userId} style={styles.listItem}>
+                    <View style={styles.listMeta}>
+                      <View style={[styles.avatar, { backgroundColor: COLORS.info }]}>
+                        <Ionicons name="shield" size={18} color={COLORS.white} />
+                      </View>
+                      <View style={styles.listTextBlock}>
+                        <Text style={styles.listTitle}>{coAdmin.name || coAdmin.userId}</Text>
+                        <Text style={styles.listSubtitle}>User ID: {coAdmin.userId}</Text>
+                        {coAdmin.phone ? (
+                          <Text style={styles.listSubtitle}>Phone: {coAdmin.phone}</Text>
+                        ) : null}
+                      </View>
+                    </View>
+                    <TouchableOpacity onPress={() => handleCoAdminRemoval(coAdmin)}>
+                      <Ionicons name="trash" size={20} color={COLORS.danger} />
+                    </TouchableOpacity>
+                  </View>
+                ))
+              )}
+            </View>
+          )}
         </ScrollView>
       )}
     </SafeAreaView>

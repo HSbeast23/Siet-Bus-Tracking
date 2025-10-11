@@ -147,15 +147,17 @@ const BusManagement = ({ navigation, route }) => {
     }
   }, [refreshStudentCounts]);
 
+  const effectiveRole = role || 'management';
+
   const handleBusPress = (bus) => {
     if (isSelectMode) {
       navigation.navigate('MapScreen', {
         busId: bus.number,
-        role: 'management',
+        role: effectiveRole,
       });
       return;
     }
-    navigation.navigate('BusDetails', { bus });
+    navigation.navigate('BusDetails', { bus, role: effectiveRole });
   };
 
   return (
