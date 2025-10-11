@@ -99,7 +99,7 @@ const StudentSignupScreen = ({ navigation }) => {
         [
           {
             text: 'Login Now',
-            onPress: () => navigation.navigate('StudentLogin')
+            onPress: () => navigation.navigate('Login')
           }
         ]
       );
@@ -242,7 +242,7 @@ const StudentSignupScreen = ({ navigation }) => {
               <Text style={styles.loginText}>Already have an account? </Text>
               <Button
                 title="Login here"
-                onPress={() => navigation.navigate('StudentLogin')}
+                onPress={() => navigation.navigate('Login')}
                 variant="outline"
                 size="sm"
               />

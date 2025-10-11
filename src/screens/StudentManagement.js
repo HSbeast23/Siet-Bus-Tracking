@@ -21,6 +21,7 @@ const StudentManagement = ({ navigation, route }) => {
   const [selectedYear, setSelectedYear] = useState('1st Year');
   const [selectedDepartment, setSelectedDepartment] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const [allStudents, setAllStudents] = useState([]);
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [studentStats, setStudentStats] = useState({ total: 0, byYear: {}, byDepartment: {}, active: 0 });
@@ -31,22 +32,22 @@ const StudentManagement = ({ navigation, route }) => {
   const normalizedFilterBusId = filterBusId ? normalizeBusNumber(filterBusId) : null;
 
   const years = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
-  const departments = ['All', 'CSE', 'ECE', 'EEE', 'MECH', 'CIVIL', 'IT', 'AIDS', 'AIML'];
+  const departments = ['All', 'CSE', 'ECE', 'EEE', 'MECH', 'CIVIL', 'IT', 'AIDS', 'AIML', 'BT'];
 
   useEffect(() => {
     loadStudentData();
   }, []);
 
   useEffect(() => {
-    filterStudents();
-  }, [selectedYear, selectedDepartment, searchQuery]);
+    filterStudents(allStudents);
+  }, [selectedYear, selectedDepartment, searchQuery, allStudents]);
 
   const loadStudentData = async () => {
     try {
       setLoading(true);
-  console.log(`🔍 [STUDENT MGMT] Loading students... Role: ${role}, Filter Bus ID: ${normalizedFilterBusId}, Is Co-Admin: ${isCoAdmin}`);
+      console.log(`🔍 [STUDENT MGMT] Loading students... Role: ${role}, Filter Bus ID: ${normalizedFilterBusId}, Is Co-Admin: ${isCoAdmin}`);
       
-      let allStudents = await registeredUsersStorage.getAllStudents();
+  let allStudents = await registeredUsersStorage.getAllStudents({ forceRefresh: true });
       console.log(`📦 [STUDENT MGMT] Total students from Firebase: ${allStudents.length}`);
       
       // Log all student bus numbers to debug
@@ -69,9 +70,9 @@ const StudentManagement = ({ navigation, route }) => {
         console.log(`✅ [STUDENT MGMT] Co-Admin filter result: ${allStudents.length}/${beforeFilter} student(s) for ${normalizedFilterBusId}`);
       }
       
-      const stats = await registeredUsersStorage.getStudentStats();
+  const stats = await registeredUsersStorage.getStudentStats(allStudents);
       
-      setStudents(allStudents);
+      setAllStudents(allStudents);
       setStudentStats(stats);
       setLoading(false);
     } catch (error) {
@@ -80,32 +81,32 @@ const StudentManagement = ({ navigation, route }) => {
     }
   };
 
-  const filterStudents = async () => {
+  const filterStudents = (source = []) => {
     try {
-      let filteredData = [];
-      
-      if (selectedDepartment === 'All') {
-        filteredData = await registeredUsersStorage.getStudentsByYear(selectedYear);
-      } else {
-        filteredData = await registeredUsersStorage.getStudentsByYearAndDepartment(selectedYear, selectedDepartment);
+      let workingSet = Array.isArray(source) && source.length ? [...source] : [...allStudents];
+
+      workingSet = workingSet.filter((student) => student.year === selectedYear);
+
+      if (selectedDepartment !== 'All') {
+        const normalizedDepartment = selectedDepartment.toUpperCase();
+        workingSet = workingSet.filter((student) => student.department === normalizedDepartment);
       }
 
-      // 🔒 Filter for Co-Admin: Show ONLY their assigned bus students
-      if (isCoAdmin && filterBusId) {
-        const normalizedFilter = normalizeBusNumber(filterBusId);
-        filteredData = filteredData.filter(student => normalizeBusNumber(student.busNumber) === normalizedFilter);
+      if (isCoAdmin && normalizedFilterBusId) {
+        workingSet = workingSet.filter((student) => normalizeBusNumber(student.busNumber) === normalizedFilterBusId);
       }
 
       if (searchQuery.trim()) {
-        filteredData = filteredData.filter(student =>
-          student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          student.registerNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          student.busNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          student.email.toLowerCase().includes(searchQuery.toLowerCase())
+        const queryLower = searchQuery.trim().toLowerCase();
+        workingSet = workingSet.filter((student) =>
+          student.name.toLowerCase().includes(queryLower) ||
+          (student.registerNumber || '').toLowerCase().includes(queryLower) ||
+          (student.busNumber || '').toLowerCase().includes(queryLower) ||
+          (student.email || '').toLowerCase().includes(queryLower)
         );
       }
 
-      setStudents(filteredData);
+      setStudents(workingSet);
     } catch (error) {
       console.error('Error filtering students:', error);
     }
@@ -229,9 +230,16 @@ const StudentManagement = ({ navigation, route }) => {
           </View>
         ) : (
           <>
-            {students.map((student) => (
+            {students.map((student) => {
+              const key = student.id || student.registerNumber || `${student.name}-${student.busNumber}`;
+              const registeredDate = student.registeredAt ? new Date(student.registeredAt) : null;
+              const formattedDate = registeredDate && !Number.isNaN(registeredDate.getTime())
+                ? registeredDate.toLocaleDateString()
+                : 'N/A';
+
+              return (
               <TouchableOpacity
-                key={student.id}
+                key={key}
                 style={styles.studentCard}
                 activeOpacity={0.7}
               >
@@ -254,12 +262,13 @@ const StudentManagement = ({ navigation, route }) => {
                       <Text style={styles.busNumberText}>{student.busNumber}</Text>
                     </View>
                     <Text style={styles.registeredDate}>
-                      Reg: {new Date(student.registeredAt).toLocaleDateString()}
+                      Reg: {formattedDate}
                     </Text>
                   </View>
                 </View>
               </TouchableOpacity>
-            ))}
+              );
+            })}
             
             {students.length === 0 && !loading && (
               <View style={styles.emptyState}>

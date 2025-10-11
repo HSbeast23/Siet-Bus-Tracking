@@ -20,8 +20,12 @@ const BUSES_COLLECTION = 'buses';
 // Normalize bus number to handle variations (SIET-005, SIET--005, siet-005, etc.)
 export const normalizeBusNumber = (busNumber) => {
   if (!busNumber) return '';
-  // Convert to uppercase, trim, and replace multiple hyphens with single hyphen
-  return busNumber.toString().trim().toUpperCase().replace(/-+/g, '-');
+  return busNumber
+    .toString()
+    .toUpperCase()
+    .replace(/\s+/g, '')
+    .replace(/-+/g, '-')
+    .trim();
 };
 
 // Update bus location in Firestore (called by Driver)

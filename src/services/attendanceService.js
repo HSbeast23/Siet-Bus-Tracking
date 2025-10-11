@@ -10,11 +10,12 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db } from './firebaseConfig';
+import { normalizeBusNumber } from './locationService';
 
 class AttendanceService {
   constructor() {
-    this.attendanceCollection = collection(db, 'attendance');
-    this.studentsCollection = collection(db, 'students');
+  this.attendanceCollection = collection(db, 'attendance');
+  this.studentsCollection = collection(db, 'users');
   }
 
   // Get current date in YYYY-MM-DD format
@@ -26,16 +27,30 @@ class AttendanceService {
   // Get students registered for a specific bus
   async getStudentsByBus(busNumber) {
     try {
-      const studentsQuery = query(
-        this.studentsCollection,
-        where('busNumber', '==', busNumber),
-        where('status', '==', 'Active')
-      );
-      const snapshot = await getDocs(studentsQuery);
-      return snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      const normalizedBus = normalizeBusNumber(busNumber);
+
+      const byBusNumberQuery = query(this.studentsCollection, where('busNumber', '==', normalizedBus));
+      let snapshot = await getDocs(byBusNumberQuery);
+
+      if (snapshot.empty) {
+        const byBusNoQuery = query(this.studentsCollection, where('busNo', '==', normalizedBus));
+        snapshot = await getDocs(byBusNoQuery);
+      }
+
+      return snapshot.docs
+        .map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }))
+        .filter(student => {
+          const role = (student.role || '').toLowerCase();
+          const status = (student.status || '').toLowerCase();
+          return role === 'student' && status !== 'inactive';
+        })
+        .map(student => ({
+          ...student,
+          busNumber: normalizeBusNumber(student.busNumber || student.busNo || busNumber),
+        }));
     } catch (error) {
       console.error('Error fetching students by bus:', error);
       return [];

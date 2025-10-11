@@ -1,250 +1,217 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signOut,
-} from 'firebase/auth';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { auth, db } from './firebaseConfig';
-import { registeredUsersStorage } from './registeredUsersStorage';
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  setDoc,
+  where,
+} from 'firebase/firestore';
+import { db } from './firebaseConfig';
+import { normalizeBusNumber } from './locationService';
 import { CONFIG } from '../utils/constants';
 
 const AUTH_TOKEN_KEY = 'authToken';
 const CURRENT_USER_KEY = 'currentUser';
 
-const formatFirebaseError = (error) => {
-  if (!error?.code) {
-    return 'Something went wrong. Please try again.';
-  }
+const USERS_COLLECTION = 'users';
 
-  const code = error.code.replace('auth/', '');
-  switch (code) {
-    case 'user-not-found':
-      return 'No account found with this email. Please register first.';
-    case 'wrong-password':
-      return 'Incorrect password. Please try again.';
-    case 'invalid-email':
-      return 'The email address is invalid. Please check and try again.';
-    case 'email-already-in-use':
-      return 'An account with this email already exists. Try logging in instead.';
-    case 'weak-password':
-      return 'Password is too weak. Please pick a stronger password (min 6 characters).';
-    case 'too-many-requests':
-      return 'Too many attempts. Please wait a moment and try again.';
-    default:
-      return 'Authentication error. Please try again.';
-  }
-};
+const buildLoginError = (message) => message || 'Invalid credentials. Please verify your details and try again.';
 
 class AuthService {
-  async registerStudent(studentData) {
-    try {
-      const { email, password, ...profileData } = studentData;
-      const credential = await createUserWithEmailAndPassword(auth, email, password);
-      const { uid } = credential.user;
-
-      await registeredUsersStorage.addStudent({
-        ...profileData,
-        email,
-        uid,
-        authenticated: true,
-        status: 'Active',
-      });
-
-      await signOut(auth);
-
-      return { success: true };
-    } catch (error) {
-      return {
-        success: false,
-        message: formatFirebaseError(error),
-      };
-    }
+  // Legacy registration methods are intentionally disabled with clear guidance
+  async registerStudent() {
+    return {
+      success: false,
+      message: 'Self-registration is disabled. Please contact management to be included in the latest CSV import.',
+    };
   }
 
-  async registerDriver(driverData) {
-    try {
-      const { email, password, ...profileData } = driverData;
-      const credential = await createUserWithEmailAndPassword(auth, email, password);
-      const { uid } = credential.user;
-
-      await registeredUsersStorage.addDriver({
-        ...profileData,
-        email,
-        uid,
-        authenticated: false,
-        status: 'Inactive',
-      });
-
-      await signOut(auth);
-
-      return { success: true };
-    } catch (error) {
-      return {
-        success: false,
-        message: formatFirebaseError(error),
-      };
-    }
+  async registerDriver() {
+    return {
+      success: false,
+      message: 'Driver accounts are provisioned by management. Please contact administration for access.',
+    };
   }
 
-  async loginStudent(email, password) {
-    try {
-      const credential = await signInWithEmailAndPassword(auth, email, password);
-      const { user } = credential;
+  // Legacy login helpers – keep for backward compatibility with old screens/debug tools
+  async loginStudent(userId, password) {
+    return this.login({ userId, password, role: 'student' });
+  }
 
-      const profileSnap = await getDoc(doc(db, 'students', user.uid));
-      if (!profileSnap.exists()) {
-        throw new Error('Student profile not found. Please contact support.');
+  async loginDriver(userId, password) {
+    return this.login({ userId, password, role: 'driver' });
+  }
+
+  async loginCoAdmin(userId, password) {
+    return this.login({ userId, password, role: 'coadmin' });
+  }
+
+  async fetchUserRecord(normalizedUserId) {
+    try {
+      const directDocRef = doc(db, USERS_COLLECTION, normalizedUserId);
+      const directSnap = await getDoc(directDocRef);
+      if (directSnap.exists()) {
+        return { id: directSnap.id, data: directSnap.data() };
       }
 
-      const profile = profileSnap.data();
-      const token = await user.getIdToken();
-
-      const currentUser = {
-        ...profile,
-        email: user.email,
-        role: 'student',
-        uid: user.uid,
-      };
-
-      await AsyncStorage.setItem(AUTH_TOKEN_KEY, token);
-      await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(currentUser));
-
-      await this.updateLastLogin(user.uid, 'student');
-
-      return {
-        success: true,
-        token,
-        user: currentUser,
-        message: 'Login successful!'
-      };
-    } catch (error) {
-      return {
-        success: false,
-        message: formatFirebaseError(error),
-      };
-    }
-  }
-
-  async loginDriver(email, password) {
-    try {
-      const credential = await signInWithEmailAndPassword(auth, email, password);
-      const { user } = credential;
-
-      const profileSnap = await getDoc(doc(db, 'drivers', user.uid));
-      if (!profileSnap.exists()) {
-        throw new Error('Driver profile not found. Please contact support.');
+      const usersRef = collection(db, USERS_COLLECTION);
+      const userQuery = query(usersRef, where('userId', '==', normalizedUserId));
+      const querySnapshot = await getDocs(userQuery);
+      if (!querySnapshot.empty) {
+        const matchedDoc = querySnapshot.docs[0];
+        return { id: matchedDoc.id, data: matchedDoc.data() };
       }
 
-      const profile = profileSnap.data();
-      const token = await user.getIdToken();
-
-      const currentUser = {
-        ...profile,
-        email: user.email,
-        role: 'driver',
-        uid: user.uid,
-      };
-
-      await AsyncStorage.setItem(AUTH_TOKEN_KEY, token);
-      await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(currentUser));
-
-      await this.updateLastLogin(user.uid, 'driver');
-      await this.updateDriverStatus(user.uid, true);
-
-      return {
-        success: true,
-        token,
-        user: currentUser,
-        message: 'Login successful!'
-      };
+      return null;
     } catch (error) {
-      return {
-        success: false,
-        message: formatFirebaseError(error),
-      };
+      console.error('Error fetching user record:', error);
+      return null;
     }
   }
 
-  async loginCoAdmin(email, password) {
+  async login({ userId, password, role, busNumber }) {
     try {
-      // Get Co-Admin credentials from environment variables
-      const COADMIN_EMAIL = CONFIG.COADMIN_CREDENTIALS.email;
-      const COADMIN_PASSWORD = CONFIG.COADMIN_CREDENTIALS.password;
-      const COADMIN_NAME = CONFIG.COADMIN_CREDENTIALS.name;
-      const COADMIN_BUS_ID = CONFIG.COADMIN_CREDENTIALS.busId;
+      const trimmedRole = role?.toLowerCase();
+      if (!userId || !password || !trimmedRole) {
+        return { success: false, message: buildLoginError('Please fill in all required fields.') };
+      }
 
-      // Validate credentials
-      if (email.trim().toLowerCase() !== COADMIN_EMAIL.toLowerCase() || password !== COADMIN_PASSWORD) {
+      if (trimmedRole === 'management') {
+        return this.loginManagement(userId, password);
+      }
+
+      const providedBus = normalizeBusNumber(busNumber || '');
+      if (!providedBus) {
+        return { success: false, message: buildLoginError('Please select your bus number.') };
+      }
+
+      const normalizedUserId = userId.trim();
+
+      const userRecord = await this.fetchUserRecord(normalizedUserId);
+
+      if (!userRecord) {
+        return { success: false, message: buildLoginError('Account not found. Please contact administration.') };
+      }
+
+      const { id: userDocId, data: userData } = userRecord;
+      const userRole = (userData.role || '').toLowerCase();
+      const storedPassword = (userData.password || '').trim();
+      const storedBus = normalizeBusNumber(userData.busNumber || userData.busNo || userData.busId || '');
+
+      if (userRole !== trimmedRole) {
+        return { success: false, message: buildLoginError('Role mismatch for this account.') };
+      }
+
+      if (storedPassword !== password.trim()) {
+        return { success: false, message: buildLoginError('Incorrect password. Please try again.') };
+      }
+
+      if (userData.status && userData.status.toLowerCase() === 'inactive') {
+        return { success: false, message: buildLoginError('Your account is inactive. Please contact management.') };
+      }
+
+      if (!storedBus) {
+        return { success: false, message: buildLoginError('Bus assignment missing. Please contact administration.') };
+      }
+
+      if (storedBus !== providedBus) {
         return {
           success: false,
-          message: 'Invalid Co-Admin credentials. Please contact administration.',
+          message: buildLoginError('Selected bus number does not match this account. Please verify your selection.'),
         };
       }
 
-      // Create Co-Admin user object
-      const currentUser = {
-        email: COADMIN_EMAIL,
-        role: 'coadmin',
-        name: COADMIN_NAME,
-        id: 'Coadmin-005',
-        busId: COADMIN_BUS_ID,
-        uid: 'coadmin-001',
+      const sessionUser = {
+        ...userData,
+        role: trimmedRole,
+        userId: normalizedUserId,
+        registerNumber: userData.registerNumber || normalizedUserId,
+        busNumber: storedBus,
+        busId: userData.busId || storedBus,
+        selectedBus: providedBus,
+        uid: userDocId,
+        id: userDocId,
+        authenticated: true,
+        email: userData.email || `${normalizedUserId}@siet.edu`,
       };
 
-      // Store in AsyncStorage
-      await AsyncStorage.setItem(AUTH_TOKEN_KEY, 'coadmin-token');
-      await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(currentUser));
+      const sessionToken = `session-${normalizedUserId}-${Date.now()}`;
+
+      await AsyncStorage.setItem(AUTH_TOKEN_KEY, sessionToken);
+      await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(sessionUser));
+
+      await this.updateLastLogin(userDocId);
 
       return {
         success: true,
-        token: 'coadmin-token',
-        user: currentUser,
-        message: `Welcome, ${COADMIN_NAME}!`
+        token: sessionToken,
+        user: sessionUser,
+        message: 'Login successful!'
       };
     } catch (error) {
+      console.error('Unified login error:', error);
       return {
         success: false,
-        message: 'Co-Admin login error. Please try again.',
+        message: buildLoginError('Unable to login right now. Please try again later.'),
       };
     }
   }
 
-  async updateLastLogin(userId, role) {
+  async loginManagement(username, password) {
     try {
-      const currentTime = new Date().toISOString();
-      const collectionName = role === 'student' ? 'students' : 'drivers';
-      await updateDoc(doc(db, collectionName, userId), {
-        lastLogin: currentTime,
-      });
+      const ADMIN_USERNAME = CONFIG.MANAGEMENT_CREDENTIALS.username;
+      const ADMIN_PASSWORD = CONFIG.MANAGEMENT_CREDENTIALS.password;
+
+      if (username.trim() !== ADMIN_USERNAME || password.trim() !== ADMIN_PASSWORD) {
+        return {
+          success: false,
+          message: buildLoginError('Invalid management credentials.'),
+        };
+      }
+
+      const managementUser = {
+        email: 'management@siet.edu',
+        role: 'management',
+        name: 'Administrator',
+        id: 'management-001',
+        uid: 'management-001',
+        authenticated: true,
+      };
+
+      await AsyncStorage.setItem(AUTH_TOKEN_KEY, 'management-session');
+      await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(managementUser));
+
+      return {
+        success: true,
+        token: 'management-session',
+        user: managementUser,
+        message: 'Login successful!'
+      };
     } catch (error) {
-      console.error('Error updating last login:', error);
+      console.error('Management login error:', error);
+      return {
+        success: false,
+        message: buildLoginError('Management login failed. Please try again.'),
+      };
     }
   }
 
-  async updateDriverStatus(driverId, authenticated) {
+  async updateLastLogin(userId) {
     try {
-      await registeredUsersStorage.updateDriver(driverId, {
-        authenticated,
-        status: authenticated ? 'Active' : 'Inactive',
-      });
+      const currentTime = new Date().toISOString();
+      const userDocRef = doc(db, USERS_COLLECTION, userId);
+      await setDoc(userDocRef, { lastLogin: currentTime }, { merge: true });
     } catch (error) {
-      console.error('Error updating driver status:', error);
+      console.error('Error updating last login:', error);
     }
   }
 
   async isAuthenticated() {
     try {
       const token = await AsyncStorage.getItem(AUTH_TOKEN_KEY);
-      const user = auth.currentUser;
-      const hasToken = !!token;
-      const hasCurrentUser = !!user;
-
-      if (hasCurrentUser) {
-        return true;
-      }
-
-      return hasToken;
+      return Boolean(token);
     } catch (error) {
       return false;
     }
@@ -257,13 +224,13 @@ class AuthService {
 
       return JSON.parse(userStr);
     } catch (error) {
+      console.error('Error reading current user from storage:', error);
       return null;
     }
   }
 
   async logout() {
     try {
-      await signOut(auth);
       await AsyncStorage.removeItem(AUTH_TOKEN_KEY);
       await AsyncStorage.removeItem(CURRENT_USER_KEY);
       return true;
@@ -273,19 +240,8 @@ class AuthService {
     }
   }
 
-  async verifyToken(forceRefresh = false) {
-    try {
-      const user = auth.currentUser;
-      if (!user) {
-        return null;
-      }
-
-      const token = await user.getIdToken(forceRefresh);
-      return token;
-    } catch (error) {
-      console.error('Error verifying token:', error);
-      return null;
-    }
+  async verifyToken() {
+    return null;
   }
 }
 

@@ -98,7 +98,7 @@ const DriverSignupScreen = ({ navigation }) => {
         [
           {
             text: 'Login Now',
-            onPress: () => navigation.navigate('DriverLogin')
+            onPress: () => navigation.navigate('Login')
           }
         ]
       );
@@ -219,7 +219,7 @@ const DriverSignupScreen = ({ navigation }) => {
               <Text style={styles.loginText}>Already have an account? </Text>
               <Button
                 title="Login here"
-                onPress={() => navigation.navigate('DriverLogin')}
+                onPress={() => navigation.navigate('Login')}
                 variant="outline"
                 size="sm"
               />

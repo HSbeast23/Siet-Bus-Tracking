@@ -1,30 +1,33 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   SafeAreaView,
-  Alert,
   TouchableOpacity,
   ActivityIndicator,
-  ScrollView,
-  Animated
 } from 'react-native';
-import MapView, { Marker, AnimatedRegion, PROVIDER_GOOGLE, Callout, Polyline } from 'react-native-maps';
+import MapView, { Marker, AnimatedRegion, PROVIDER_GOOGLE, Polyline } from 'react-native-maps';
 import * as Location from 'expo-location';
-import { COLORS, BUS_ROUTES } from '../utils/constants';
+import { COLORS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
 import { subscribeToBusLocation, normalizeBusNumber } from '../services/locationService';
 import { authService } from '../services/authService';
+import { db } from '../services/firebaseConfig';
+import { doc, getDoc } from 'firebase/firestore';
+import { registeredUsersStorage } from '../services/registeredUsersStorage';
 
 const MapScreen = ({ route, navigation }) => {
   const [busLocation, setBusLocation] = useState(null);
   const [studentLocation, setStudentLocation] = useState(null);
   const [userInfo, setUserInfo] = useState({}); // Changed from studentInfo to userInfo
   const [loading, setLoading] = useState(true);
-  const [mapRef, setMapRef] = useState(null);
+  const mapRef = useRef(null);
+  const [isMapReady, setIsMapReady] = useState(false);
   const [selectedBusId, setSelectedBusId] = useState(null); // For management to select bus
   const [routeStops, setRouteStops] = useState([]); // Add state for route stops
+  const [busDisplayName, setBusDisplayName] = useState('');
+  const hasCenteredOnStudent = useRef(false);
   
   const busCoordinate = useRef(
     new AnimatedRegion({
@@ -37,9 +40,10 @@ const MapScreen = ({ route, navigation }) => {
   
   const markerRef = useRef(null);
 
-  // Get bus from route params (for management) or from user info (for students)
-  const busFromParams = route?.params?.bus;
+  // Get bus details from route params (for management) or from user info (for students)
   const busIdFromParams = route?.params?.busId;
+  const routeStopsFromParams = route?.params?.routeStops;
+  const busDisplayNameFromParams = route?.params?.busDisplayName;
 
   useEffect(() => {
     loadUserData();
@@ -51,13 +55,13 @@ const MapScreen = ({ route, navigation }) => {
     };
   }, []);
 
-  // �️ Load route stops immediately if busIdFromParams is available
+  // 🗺️ Load route stops immediately if busIdFromParams is available
   useEffect(() => {
     if (busIdFromParams) {
       console.log(`🗺️ [MAP] Bus ID from params detected: ${busIdFromParams}, loading route stops immediately`);
-      loadRouteStops();
+      loadRouteStops(busIdFromParams);
     }
-  }, [busIdFromParams]);
+  }, [busIdFromParams, loadRouteStops]);
 
   // �🔥 Subscribe to real-time bus location updates from Firestore
   useEffect(() => {
@@ -115,14 +119,14 @@ const MapScreen = ({ route, navigation }) => {
             }).start();
             
             // Auto-follow camera with rotation when tracking
-            if (locationData.isTracking && mapRef) {
-              mapRef.animateCamera({
+            if (locationData.isTracking && mapRef.current) {
+              mapRef.current.animateCamera({
                 center: {
                   latitude: newLocation.latitude,
                   longitude: newLocation.longitude,
                 },
                 heading: newLocation.heading,
-                pitch: 45,
+                pitch: 0,
                 zoom: 17,
               }, { duration: 1000 });
             }
@@ -174,7 +178,7 @@ const MapScreen = ({ route, navigation }) => {
       console.log(`🗺️ [MAP] User info loaded, loading route stops for user's bus`);
       loadRouteStops();
     }
-  }, [userInfo.busNumber, userInfo.busId]);
+  }, [userInfo.busNumber, userInfo.busId, loadRouteStops]);
 
   const loadUserData = async () => {
     try {
@@ -190,40 +194,133 @@ const MapScreen = ({ route, navigation }) => {
     }
   };
 
+  const toTimelineStops = useCallback((stopsInput = []) => {
+    const seen = new Set();
+    const orderedStops = [];
+
+    stopsInput.forEach((rawStop, index) => {
+      if (!rawStop) {
+        return;
+      }
+
+      let label = '';
+      let latitude = null;
+      let longitude = null;
+      let time = '';
+
+      if (typeof rawStop === 'string') {
+        label = rawStop;
+      } else if (typeof rawStop === 'object') {
+        label = rawStop.label || rawStop.name || rawStop.stopName || rawStop.point || '';
+        latitude = typeof rawStop.latitude === 'number' ? rawStop.latitude :
+          typeof rawStop.lat === 'number' ? rawStop.lat : null;
+        longitude = typeof rawStop.longitude === 'number' ? rawStop.longitude :
+          typeof rawStop.lng === 'number' ? rawStop.lng : null;
+        time = rawStop.time || rawStop.arrival || rawStop.departure || '';
+      }
+
+      const cleaned = label.replace(/\s+/g, ' ').trim();
+      if (!cleaned) {
+        return;
+      }
+
+      const key = cleaned.toUpperCase();
+      if (seen.has(key)) {
+        return;
+      }
+      seen.add(key);
+
+      orderedStops.push({
+        id: `${key}-${index}`,
+        name: cleaned,
+        latitude: Number.isFinite(latitude) ? latitude : null,
+        longitude: Number.isFinite(longitude) ? longitude : null,
+        time,
+      });
+    });
+
+    return orderedStops;
+  }, []);
+
   // 🚌 Get route stops for the current bus
-  const loadRouteStops = () => {
-    const rawBusNumber = busIdFromParams || userInfo?.busNumber || userInfo?.busId;
+  const loadRouteStops = useCallback(async (overrideBusId) => {
+    const rawBusNumber = overrideBusId || busIdFromParams || userInfo?.busNumber || userInfo?.busId;
     console.log(`🗺️ [MAP] Loading route stops for bus:`, rawBusNumber);
-    
+
     if (!rawBusNumber) {
-      console.log(`⚠️ [MAP] No bus number available yet`);
+      console.log('⚠️ [MAP] No bus number available yet');
       setRouteStops([]);
       return;
     }
-    
-    // ✅ Normalize bus number to handle variations (SIET--005 → SIET-005)
-    const busNumber = normalizeBusNumber(rawBusNumber);
-    console.log(`🔧 [MAP] Normalized bus number: "${rawBusNumber}" → "${busNumber}"`);
-    
-    const routeData = BUS_ROUTES[busNumber];
-    if (!routeData || !Array.isArray(routeData.stops)) {
-      console.log(`⚠️ [MAP] No route data found for bus:`, busNumber);
-      console.log(`📋 [MAP] Available routes:`, Object.keys(BUS_ROUTES));
-      setRouteStops([]);
+
+    const normalizedBus = normalizeBusNumber(rawBusNumber);
+    const displayLabel = busDisplayNameFromParams || normalizedBus;
+    setBusDisplayName(displayLabel);
+
+    // 1️⃣ Use stops passed in navigation params when available
+    const paramStops = Array.isArray(routeStopsFromParams) ? toTimelineStops(routeStopsFromParams) : [];
+    if (paramStops.length) {
+      console.log(`✅ [MAP] Using ${paramStops.length} stops provided via navigation params`);
+      setRouteStops(paramStops);
       return;
     }
-    
-    // Convert to format expected by map (with latitude/longitude)
-    const stops = routeData.stops.map(stop => ({
-      name: stop.name,
-      latitude: stop.latitude,
-      longitude: stop.longitude,
-      time: stop.time
-    }));
-    
-    console.log(`✅ [MAP] Loaded ${stops.length} stops for bus ${busNumber}`);
-    setRouteStops(stops);
-  };
+
+    try {
+      // 2️⃣ Attempt to read from Firestore bus document
+      const busDocRef = doc(db, 'buses', normalizedBus);
+      const busSnap = await getDoc(busDocRef);
+
+      if (busSnap.exists()) {
+        const busData = busSnap.data() || {};
+        const docStops = toTimelineStops(busData.routeStops || []);
+        setBusDisplayName(busData.displayName || displayLabel);
+
+        if (docStops.length) {
+          console.log(`✅ [MAP] Loaded ${docStops.length} route stops from Firestore`);
+          setRouteStops(docStops);
+          return;
+        }
+      }
+
+      // 3️⃣ Fallback: derive stops from student boarding points (CSV order)
+      const allStudents = await registeredUsersStorage.getAllStudents({ forceRefresh: true });
+      const fallbackStops = [];
+      const seen = new Set();
+
+      allStudents
+        .filter((student) => normalizeBusNumber(student.busNumber) === normalizedBus)
+        .sort((a, b) => (a.order || 0) - (b.order || 0))
+        .forEach((student, index) => {
+          const stopName = (student.boardingPoint || '').replace(/\s+/g, ' ').trim();
+          if (!stopName) {
+            return;
+          }
+          const key = stopName.toUpperCase();
+          if (seen.has(key)) {
+            return;
+          }
+          seen.add(key);
+          fallbackStops.push({
+            id: `${key}-${index}`,
+            name: stopName,
+            latitude: null,
+            longitude: null,
+            time: '',
+          });
+        });
+
+      if (fallbackStops.length) {
+        console.log(`✅ [MAP] Derived ${fallbackStops.length} route stops from student boarding points`);
+        setRouteStops(fallbackStops);
+      } else {
+        console.log('⚠️ [MAP] No route stops could be determined');
+        setRouteStops([]);
+      }
+    } catch (error) {
+      console.error('❌ [MAP] Failed to load route stops:', error);
+      setRouteStops([]);
+    }
+  }, [busIdFromParams, busDisplayNameFromParams, routeStopsFromParams, toTimelineStops, userInfo?.busNumber, userInfo?.busId]);
 
   const getUserLocation = async () => {
     try {
@@ -249,8 +346,8 @@ const MapScreen = ({ route, navigation }) => {
   };
 
   const centerMapOnBus = () => {
-    if (busLocation && mapRef) {
-      mapRef.animateToRegion({
+    if (busLocation && mapRef.current) {
+      mapRef.current.animateToRegion({
         latitude: busLocation.latitude,
         longitude: busLocation.longitude,
         latitudeDelta: 0.01,
@@ -260,8 +357,8 @@ const MapScreen = ({ route, navigation }) => {
   };
 
   const centerMapOnStudent = () => {
-    if (studentLocation && mapRef) {
-      mapRef.animateToRegion({
+    if (studentLocation && mapRef.current) {
+      mapRef.current.animateToRegion({
         latitude: studentLocation.latitude,
         longitude: studentLocation.longitude,
         latitudeDelta: 0.01,
@@ -271,24 +368,58 @@ const MapScreen = ({ route, navigation }) => {
   };
 
   const showAllLocations = () => {
-    if (mapRef) {
+    if (mapRef.current) {
       const locations = [];
       if (busLocation) locations.push(busLocation);
       if (studentLocation) locations.push(studentLocation);
       
-      // Add route stops for the bus (safety check for array)
+      // Add route stops with coordinates for the bus (if available)
       if (Array.isArray(routeStops) && routeStops.length > 0) {
-        locations.push(...routeStops);
+        const geoStops = routeStops.filter(
+          (stop) => Number.isFinite(stop.latitude) && Number.isFinite(stop.longitude)
+        );
+        if (geoStops.length > 0) {
+          locations.push(...geoStops);
+        }
       }
 
       if (locations.length > 0) {
-        mapRef.fitToCoordinates(locations, {
+        mapRef.current.fitToCoordinates(locations, {
           edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
           animated: true,
         });
       }
     }
   };
+
+  const firstGeoStop = Array.isArray(routeStops)
+    ? routeStops.find((stop) => Number.isFinite(stop.latitude) && Number.isFinite(stop.longitude))
+    : null;
+
+  const isTracking = Boolean(busLocation?.isTracking);
+
+  useEffect(() => {
+    if (!isMapReady || !studentLocation || !mapRef.current) {
+      return;
+    }
+
+    if (!hasCenteredOnStudent.current || !isTracking) {
+      mapRef.current.animateCamera(
+        {
+          center: {
+            latitude: studentLocation.latitude,
+            longitude: studentLocation.longitude,
+          },
+          zoom: 16,
+          heading: 0,
+          pitch: 0,
+        },
+        { duration: 800 }
+      );
+
+      hasCenteredOnStudent.current = true;
+    }
+  }, [isMapReady, studentLocation, isTracking]);
 
   if (loading) {
     return (
@@ -307,26 +438,39 @@ const MapScreen = ({ route, navigation }) => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={COLORS.secondary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>🔥 Live GPS Tracking</Text>
+        <Text style={styles.headerTitle}>
+          {busDisplayName ? `${busDisplayName} • Live GPS` : '🔥 Live GPS Tracking'}
+        </Text>
         <View style={styles.refreshButton}>
           <Ionicons name="radio" size={24} color={COLORS.success} />
         </View>
       </View>
 
       <MapView
-        ref={setMapRef}
+        ref={(ref) => {
+          mapRef.current = ref;
+        }}
+        onMapReady={() => setIsMapReady(true)}
         provider={PROVIDER_GOOGLE}
         style={styles.map}
         initialRegion={{
-          latitude: busLocation?.latitude || (Array.isArray(routeStops) && routeStops[0]?.latitude) || 11.0168,
-          longitude: busLocation?.longitude || (Array.isArray(routeStops) && routeStops[0]?.longitude) || 76.9558,
+          latitude:
+            studentLocation?.latitude ||
+            busLocation?.latitude ||
+            firstGeoStop?.latitude ||
+            11.0168,
+          longitude:
+            studentLocation?.longitude ||
+            busLocation?.longitude ||
+            firstGeoStop?.longitude ||
+            76.9558,
           latitudeDelta: 0.05,
           longitudeDelta: 0.05,
         }}
         showsUserLocation={false}
-        showsMyLocationButton={false}
-        rotateEnabled={true}
-        pitchEnabled={true}
+  showsMyLocationButton={false}
+  rotateEnabled={true}
+  pitchEnabled={false}
       >
         
         {/* Bus Location Marker - Animated & Only show when actively tracking */}
@@ -335,23 +479,16 @@ const MapScreen = ({ route, navigation }) => {
             ref={markerRef}
             coordinate={busCoordinate}
             anchor={{ x: 0.5, y: 0.5 }}
-            flat={true}
+            flat
             rotation={busLocation.heading || 0}
           >
             <View style={styles.busMarkerContainer}>
-              <View style={[styles.busMarker, { 
-                transform: [{ rotate: `${busLocation.heading || 0}deg` }] 
-              }]}>
-                <Ionicons name="bus" size={30} color={COLORS.white} />
+              <View
+                style={[styles.busMarker, { transform: [{ rotate: `${busLocation.heading || 0}deg` }] }]}
+              >
+                <Ionicons name="bus" size={22} color={COLORS.secondary} />
               </View>
             </View>
-            <Callout tooltip>
-              <View style={styles.calloutContainer}>
-                <Text style={styles.calloutTitle}>Bus {(busIdFromParams || userInfo.busNumber || userInfo.busId)?.replace(/-+/g, '-')}</Text>
-                <Text style={styles.calloutText}>Driver: {busLocation.driverName}</Text>
-                <Text style={styles.calloutText}>Speed: {(busLocation.speed * 3.6).toFixed(1)} km/h</Text>
-              </View>
-            </Callout>
           </Marker.Animated>
         )}
 
@@ -370,24 +507,27 @@ const MapScreen = ({ route, navigation }) => {
         )}
 
         {/* Bus Stop Markers - Show only route stops for this bus */}
-        {routeStops && routeStops.length > 0 && routeStops.map((stop, index) => (
-          <Marker
-            key={index}
-            coordinate={{ latitude: stop.latitude, longitude: stop.longitude }}
-            title={stop.name}
-            description={`Stop ${index + 1} - ${stop.time}`}
-            pinColor={index === 0 ? COLORS.success : COLORS.secondary}
-          >
-            <View style={[styles.stopMarker, index === 0 && styles.firstStopMarker]}>
-              <Text style={styles.stopNumber}>{index + 1}</Text>
-            </View>
-          </Marker>
-        ))}
+        {routeStops && routeStops.length > 0 && routeStops
+          .filter((stop) => Number.isFinite(stop.latitude) && Number.isFinite(stop.longitude))
+          .map((stop, index) => (
+            <Marker
+              key={stop.id || `${stop.name}-${index}`}
+              coordinate={{ latitude: stop.latitude, longitude: stop.longitude }}
+              anchor={{ x: 0.5, y: 0.5 }}
+              tracksViewChanges={false}
+            >
+              <View style={[styles.stopMarker, index === 0 && styles.firstStopMarker]}>
+                <View style={styles.stopInnerDot} />
+              </View>
+            </Marker>
+          ))}
 
         {/* Route Polyline - Connect all stops */}
-        {routeStops && routeStops.length > 0 && (
+        {routeStops && routeStops.length > 0 && routeStops.filter((stop) => Number.isFinite(stop.latitude) && Number.isFinite(stop.longitude)).length >= 2 && (
           <Polyline
-            coordinates={routeStops.map(stop => ({
+            coordinates={routeStops
+              .filter((stop) => Number.isFinite(stop.latitude) && Number.isFinite(stop.longitude))
+              .map(stop => ({
               latitude: stop.latitude,
               longitude: stop.longitude
             }))}
@@ -397,6 +537,8 @@ const MapScreen = ({ route, navigation }) => {
           />
         )}
       </MapView>
+
+      {/* Removed static timeline overlay to keep map view clean */}
 
       {/* Minimal Status Card - Only show when tracking */}
       {busLocation && busLocation.isTracking && (
@@ -467,14 +609,19 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   busMarker: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 20,
-    width: 40,
-    height: 40,
+    backgroundColor: '#FFC107',
+    borderRadius: 14,
+    width: 28,
+    height: 28,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 3,
+    borderWidth: 2,
     borderColor: COLORS.white,
+    shadowColor: '#FFC107',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
   },
   studentMarker: {
     backgroundColor: COLORS.accent,
@@ -487,19 +634,20 @@ const styles = StyleSheet.create({
     borderColor: COLORS.white,
   },
   stopMarker: {
-    backgroundColor: COLORS.secondary,
-    borderRadius: 15,
-    width: 30,
-    height: 30,
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    width: 24,
+    height: 24,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: COLORS.white,
+    borderColor: COLORS.secondary,
   },
-  stopNumber: {
-    color: COLORS.white,
-    fontSize: 12,
-    fontWeight: 'bold',
+  stopInnerDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: COLORS.secondary,
   },
   minimalStatusCard: {
     position: 'absolute',
@@ -553,28 +701,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  calloutContainer: {
-    backgroundColor: COLORS.white,
-    borderRadius: 10,
-    padding: 12,
-    minWidth: 150,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  calloutTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: COLORS.secondary,
-    marginBottom: 5,
-  },
-  calloutText: {
-    fontSize: 13,
-    color: COLORS.text,
-    marginTop: 3,
-  },
   mapControls: {
     position: 'absolute',
     bottom: 30,
@@ -596,9 +722,7 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   firstStopMarker: {
-    backgroundColor: COLORS.success,
-    borderColor: COLORS.white,
-    borderWidth: 3,
+    borderColor: COLORS.success,
   },
 });
 

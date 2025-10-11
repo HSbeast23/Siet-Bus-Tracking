@@ -12,13 +12,11 @@ import { Ionicons } from '@expo/vector-icons';
 
 const NavigationTestScreen = ({ navigation }) => {
   const testNavigations = [
-    { name: 'StudentLogin', title: 'Student Login' },
+    { name: 'Login', title: 'Unified Login' },
     { name: 'StudentDashboard', title: 'Student Dashboard' },
-    { name: 'DriverLogin', title: 'Driver Login' },
     { name: 'DriverDashboard', title: 'Driver Dashboard' },
+    { name: 'CoAdminDashboard', title: 'Co-Admin Dashboard' },
     { name: 'ManagementDashboard', title: 'Management Dashboard' },
-    { name: 'StudentSignup', title: 'Student Signup' },
-    { name: 'DriverSignup', title: 'Driver Signup' },
   ];
 
   const testNavigation = (screenName, title) => {

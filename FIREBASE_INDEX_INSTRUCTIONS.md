@@ -7,8 +7,9 @@ The Report History feature requires a composite index in Firebase Firestore to w
 ### Option 1: Click the Auto-Generated Link (RECOMMENDED)
 
 1. When you see this error in the console:
+
    ```
-   ERROR  Error fetching user reports: [FirebaseError: The query requires an index. 
+   ERROR  Error fetching user reports: [FirebaseError: The query requires an index.
    You can create it here: https://console.firebase.google.com/v1/r/project/...
    ```
 
@@ -35,6 +36,7 @@ The Report History feature requires a composite index in Firebase Firestore to w
 4. Click **"Create Index"**
 
 5. Configure the index:
+
    - **Collection ID**: `reports`
    - **Field 1**: `reporterEmail` → **Ascending**
    - **Field 2**: `timestamp` → **Descending**
@@ -63,10 +65,12 @@ After creating the index:
 ## 🆘 Troubleshooting
 
 **Still seeing errors after creating index?**
+
 - Wait 5 minutes (index building takes time)
 - Hard refresh: Stop Metro bundler and clear cache: `npx expo start --clear`
 - Check Firebase Console → Indexes tab → Verify status is "Enabled"
 
 **"Unknown" appearing in Management Reports?**
+
 - This is now fixed! The system fetches names dynamically from `registeredUsers` collection
 - Refresh the Reports & Analytics page to see updated names

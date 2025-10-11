@@ -267,7 +267,7 @@ const AttendanceHistoryScreen = ({ navigation }) => {
           {/* Attendance Records */}
           <View style={styles.recordsSection}>
             <Text style={styles.sectionTitle}>
-              📅 Recent Attendance ({attendanceRecords.length} records)
+               Recent Attendance ({attendanceRecords.length} records)
             </Text>
 
             {attendanceRecords.length === 0 ? (

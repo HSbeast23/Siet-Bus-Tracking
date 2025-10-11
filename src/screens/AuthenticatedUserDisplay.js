@@ -158,14 +158,14 @@ const AuthenticatedUserDisplay = ({ navigation }) => {
           <View style={styles.loginButtons}>
             <TouchableOpacity 
               style={styles.loginButton} 
-              onPress={() => navigation.navigate('StudentLogin')}
+                onPress={() => navigation.navigate('Login')}
             >
               <Text style={styles.buttonText}>Student Login</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
               style={styles.loginButton} 
-              onPress={() => navigation.navigate('DriverLogin')}
+                onPress={() => navigation.navigate('Login')}
             >
               <Text style={styles.buttonText}>Driver Login</Text>
             </TouchableOpacity>

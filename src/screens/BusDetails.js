@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,22 +6,23 @@ import {
   StyleSheet,
   SafeAreaView,
   ScrollView,
-  Dimensions,
-  ActivityIndicator,
-  Alert
+  ActivityIndicator
 } from 'react-native';
-import { COLORS, BUS_ROUTES } from '../utils/constants';
+import { COLORS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
 import { normalizeBusNumber } from '../services/locationService';
 
-const { width } = Dimensions.get('window');
-
 const BusDetails = ({ route, navigation }) => {
   const { bus } = route.params;
+  const busNumber = bus.number || bus.busNumber || '';
+  const driverName = bus.driverName || bus.driver || 'Not Assigned';
+  const busStatus = bus.status || 'Inactive';
   const [loading, setLoading] = useState(true);
   const [studentCount, setStudentCount] = useState(0);
+  const [topStudents, setTopStudents] = useState([]);
+  const [routeStops, setRouteStops] = useState([]);
 
   useEffect(() => {
     loadRealStudentCount();
@@ -30,42 +31,74 @@ const BusDetails = ({ route, navigation }) => {
   const loadRealStudentCount = async () => {
     try {
       setLoading(true);
-      // Fetch REAL student count from Firebase
-      const studentsRef = collection(db, 'students');
-      const studentsQuery = query(
-        studentsRef,
-        where('busNumber', '==', bus.number),
-        where('status', '==', 'Active')
-      );
-      const studentsSnapshot = await getDocs(studentsQuery);
-      const count = studentsSnapshot.size;
-      
-      console.log(`✅ [BUS DETAILS] Found ${count} students for bus ${bus.number}`);
-      setStudentCount(count);
+      const normalizedBus = normalizeBusNumber(busNumber);
+      const usersRef = collection(db, 'users');
+
+      let studentsSnapshot = await getDocs(query(usersRef, where('busNumber', '==', normalizedBus)));
+
+      if (studentsSnapshot.empty) {
+        studentsSnapshot = await getDocs(query(usersRef, where('busNo', '==', normalizedBus)));
+      }
+
+      const studentsData = studentsSnapshot.docs
+        .map((studentDoc) => studentDoc.data())
+        .filter((data) => (data.role || '').toLowerCase() === 'student' && (data.status || '').toLowerCase() !== 'inactive')
+        .map((data, index) => ({
+          name: data.name || data.fullName || data.studentName || 'Unnamed Student',
+          registerNumber: data.registerNumber || data.rollNumber || `REG-${index + 1}`,
+          boardingPoint: data.boardingPoint || data.boardingSite || 'Not Assigned',
+          department: data.department || 'General',
+          year: data.year,
+          order: data.order || index + 1,
+        }))
+        .sort((a, b) => a.order - b.order);
+
+      console.log(`✅ [BUS DETAILS] Found ${studentsData.length} students for bus ${normalizedBus}`);
+      setStudentCount(studentsData.length);
+      setTopStudents(studentsData.slice(0, 5));
+
+      const busDocRef = doc(db, 'buses', normalizedBus);
+      const busDocSnap = await getDoc(busDocRef);
+      const stopsFromDoc = busDocSnap.exists() ? busDocSnap.data().routeStops || [] : [];
+
+      if (stopsFromDoc.length > 0) {
+        const dedupedStops = [];
+        stopsFromDoc.forEach((stop) => {
+          let stopName = '';
+          if (typeof stop === 'string') {
+            stopName = stop.trim();
+          } else if (stop) {
+            stopName = (stop.name || stop.stopName || stop.point || '').trim();
+          }
+
+          if (stopName && !dedupedStops.includes(stopName)) {
+            dedupedStops.push(stopName);
+          }
+        });
+
+        setRouteStops(dedupedStops);
+      } else {
+        const uniqueStops = [];
+        studentsData.forEach((student) => {
+          const stop = (student.boardingPoint || '').trim();
+          if (stop && !uniqueStops.includes(stop)) {
+            uniqueStops.push(stop);
+          }
+        });
+        setRouteStops(uniqueStops);
+      }
     } catch (error) {
       console.error('❌ [BUS DETAILS] Error loading students:', error);
       setStudentCount(0);
+      setTopStudents([]);
+      setRouteStops([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // 🔥 Use centralized BUS_ROUTES from constants.js with normalization
-  const getRouteStops = (busNumber) => {
-    // Normalize bus number to handle variations (SIET--005 → SIET-005)
-    const normalizedBusNumber = normalizeBusNumber(busNumber);
-    console.log(`🔧 [BUS DETAILS] Normalized bus number: "${busNumber}" → "${normalizedBusNumber}"`);
-    
-    const routeData = BUS_ROUTES[normalizedBusNumber];
-    if (!routeData) {
-      console.log(`⚠️ [BUS DETAILS] No route found for: ${normalizedBusNumber}`);
-      return []; // Return empty array if no route found
-    }
-    // Extract just the stop names from the route data
-    return routeData.stops.map(stop => stop.name);
-  };
-
-  const route_stops = getRouteStops(bus.number);
+  const previewRouteStops = useMemo(() => routeStops.slice(0, 8), [routeStops]);
+  const hasMoreStops = routeStops.length > previewRouteStops.length;
 
   const getBusStatusColor = (status) => {
     return status === 'Active' ? COLORS.success : COLORS.danger;
@@ -89,10 +122,10 @@ const BusDetails = ({ route, navigation }) => {
               <Ionicons name="bus" size={40} color={COLORS.primary} />
             </View>
             <View style={styles.busMainInfo}>
-              <Text style={styles.busNumber}>{bus.number}</Text>
-              <Text style={styles.driverName}>Driver: {bus.driver}</Text>
-              <View style={[styles.statusBadge, { backgroundColor: getBusStatusColor(bus.status) }]}>
-                <Text style={styles.statusText}>{bus.status}</Text>
+              <Text style={styles.busNumber}>{busNumber}</Text>
+              <Text style={styles.driverName}>Driver: {driverName}</Text>
+              <View style={[styles.statusBadge, { backgroundColor: getBusStatusColor(busStatus) }]}>
+                <Text style={styles.statusText}>{busStatus}</Text>
               </View>
             </View>
           </View>
@@ -111,7 +144,7 @@ const BusDetails = ({ route, navigation }) => {
           </View>
           <View style={styles.statCard}>
             <Ionicons name="location" size={24} color={COLORS.success} />
-            <Text style={styles.statNumber}>{route_stops.length}</Text>
+            <Text style={styles.statNumber}>{routeStops.length}</Text>
             <Text style={styles.statLabel}>Stops</Text>
           </View>
           <View style={styles.statCard}>
@@ -124,15 +157,28 @@ const BusDetails = ({ route, navigation }) => {
         {/* Route Information */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Route Information</Text>
-          {route_stops.map((stop, index) => (
+          {previewRouteStops.map((stop, index) => (
             <View key={index} style={styles.routeItem}>
               <View style={styles.routeIndicator}>
                 <View style={[styles.routeDot, { backgroundColor: index === 0 ? COLORS.success : COLORS.gray }]} />
-                {index < route_stops.length - 1 && <View style={styles.routeLine} />}
+                {index < previewRouteStops.length - 1 && <View style={styles.routeLine} />}
               </View>
               <Text style={styles.routeStop}>{stop}</Text>
             </View>
           ))}
+          {!loading && routeStops.length === 0 && (
+            <Text style={styles.emptyRouteText}>No stops registered for this bus yet.</Text>
+          )}
+          {hasMoreStops && (
+            <TouchableOpacity
+              style={styles.viewAllButton}
+              onPress={() => navigation.navigate('RouteManagement', { busId: busNumber })}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="chevron-forward" size={18} color={COLORS.primary} />
+              <Text style={styles.viewAllButtonText}>View full route</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Students List */}
@@ -141,28 +187,49 @@ const BusDetails = ({ route, navigation }) => {
             <Text style={styles.sectionTitle}>
               Students {loading ? '...' : `(${studentCount})`}
             </Text>
+            {!loading && studentCount > 5 && (
+              <TouchableOpacity
+                onPress={() => navigation.navigate('StudentManagement', { busId: busNumber })}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.sectionAction}>View all</Text>
+              </TouchableOpacity>
+            )}
           </View>
           {loading ? (
-            <View style={{ padding: 20, alignItems: 'center' }}>
+            <View style={styles.loadingBlock}>
               <ActivityIndicator size="large" color={COLORS.primary} />
-              <Text style={{ marginTop: 10, color: COLORS.gray }}>Loading students...</Text>
+              <Text style={styles.loadingBlockText}>Loading students...</Text>
             </View>
-          ) : studentCount === 0 ? (
-            <View style={{ padding: 20, alignItems: 'center' }}>
+          ) : topStudents.length === 0 ? (
+            <View style={styles.loadingBlock}>
               <Ionicons name="people-outline" size={48} color={COLORS.gray} />
-              <Text style={{ marginTop: 10, color: COLORS.gray, textAlign: 'center' }}>
-                No active students registered for this bus yet
-              </Text>
+              <Text style={styles.loadingBlockText}>No active students registered yet.</Text>
             </View>
           ) : (
-            <View style={{ padding: 20, alignItems: 'center' }}>
-              <Ionicons name="checkmark-circle" size={48} color={COLORS.success} />
-              <Text style={{ marginTop: 10, color: COLORS.secondary, fontSize: 16, fontWeight: '600' }}>
-                {studentCount} Active Students
-              </Text>
-              <Text style={{ marginTop: 5, color: COLORS.gray, textAlign: 'center' }}>
-                Registered and actively using this bus service
-              </Text>
+            <View style={styles.studentPreviewList}>
+              {topStudents.map((student) => (
+                <View key={student.registerNumber} style={styles.studentPreviewItem}>
+                  <View style={styles.studentAvatar}>
+                    <Ionicons name="person" size={18} color={COLORS.white} />
+                  </View>
+                  <View style={styles.studentPreviewMeta}>
+                    <Text style={styles.studentPreviewName}>{student.name}</Text>
+                    <Text style={styles.studentPreviewSub}>Reg: {student.registerNumber}</Text>
+                    <Text style={styles.studentPreviewSub}>Boarding: {student.boardingPoint}</Text>
+                  </View>
+                </View>
+              ))}
+              {studentCount > topStudents.length && (
+                <TouchableOpacity
+                  style={styles.viewAllButton}
+                  onPress={() => navigation.navigate('StudentManagement', { busId: busNumber })}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="people" size={18} color={COLORS.primary} />
+                  <Text style={styles.viewAllButtonText}>View all {studentCount} students</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
         </View>
@@ -172,7 +239,7 @@ const BusDetails = ({ route, navigation }) => {
           <TouchableOpacity 
             style={styles.actionButton}
             onPress={() => navigation.navigate('MapScreen', { 
-              busId: bus.number, 
+              busId: busNumber, 
               role: 'management' 
             })}
           >
@@ -224,6 +291,7 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     padding: 20,
     marginBottom: 20,
+    marginVertical: 6,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -307,6 +375,15 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 3,
   },
+  loadingBlock: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  loadingBlockText: {
+    marginTop: 10,
+    color: COLORS.gray,
+    textAlign: 'center',
+  },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -318,6 +395,10 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: COLORS.secondary,
     marginBottom: 15,
+  },
+  sectionAction: {
+    color: COLORS.primary,
+    fontWeight: '600',
   },
   viewAllText: {
     fontSize: 12,
@@ -347,6 +428,27 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.secondary,
   },
+  emptyRouteText: {
+    textAlign: 'center',
+    color: COLORS.gray,
+    marginTop: 8,
+  },
+  viewAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    marginTop: 10,
+    borderRadius: 10,
+    backgroundColor: COLORS.primary100,
+    paddingHorizontal: 16,
+  },
+  viewAllButtonText: {
+    fontSize: 14,
+    color: COLORS.primary,
+    fontWeight: '600',
+    marginLeft: 6,
+  },
   studentItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -363,13 +465,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 12,
   },
+  studentPreviewList: {
+    marginTop: 4,
+  },
+  studentPreviewItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary100,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+  },
   studentInfo: {
+    flex: 1,
+  },
+  studentPreviewMeta: {
     flex: 1,
   },
   studentName: {
     fontSize: 16,
     fontWeight: '600',
     color: COLORS.secondary,
+  },
+  studentPreviewName: {
+    fontWeight: '600',
+    color: COLORS.secondary,
+  },
+  studentPreviewSub: {
+    fontSize: 12,
+    color: COLORS.gray,
+    marginTop: 2,
   },
   studentRoll: {
     fontSize: 12,
@@ -384,16 +509,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.gray,
     marginLeft: 4,
-  },
-  viewAllButton: {
-    alignItems: 'center',
-    paddingVertical: 12,
-    marginTop: 10,
-  },
-  viewAllButtonText: {
-    fontSize: 14,
-    color: COLORS.primary,
-    fontWeight: '600',
   },
   actionButtons: {
     flexDirection: 'row',

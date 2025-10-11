@@ -1,42 +1,162 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  Dimensions
+  Dimensions,
+  ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { COLORS, FONTS, SPACING, RADIUS, SHADOWS, BUS_ROUTES } from '../utils/constants';
+import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
+import { subscribeToAllBuses, normalizeBusNumber } from '../services/locationService';
+import { registeredUsersStorage } from '../services/registeredUsersStorage';
 
 const { width } = Dimensions.get('window');
 
 const RouteManagement = ({ navigation, route }) => {
   const [selectedBus, setSelectedBus] = useState(null);
+  const [rawBuses, setRawBuses] = useState([]);
+  const [activeStudentCounts, setActiveStudentCounts] = useState({});
+  const [loading, setLoading] = useState(true);
 
   // Get params from navigation (for Co-Admin filtering)
   const { busId: filterBusId, role } = route.params || {};
   const isCoAdmin = role === 'coadmin';
+  const normalizedFilterBusId = filterBusId ? normalizeBusNumber(filterBusId) : null;
 
-  // 🔥 Use centralized BUS_ROUTES from constants.js
-  const busRoutes = BUS_ROUTES;
+  useEffect(() => {
+    const unsubscribe = subscribeToAllBuses(
+      (busesData) => {
+        try {
+          if (!Array.isArray(busesData)) {
+            setRawBuses([]);
+            setLoading(false);
+            return;
+          }
 
-  const getAllBuses = () => {
-    let allBuses = Object.keys(busRoutes).map(busNumber => ({
-      busNumber,
-      ...busRoutes[busNumber]
-    }));
-    
-    // 🔒 Filter for Co-Admin: Show ONLY their assigned bus route
-    if (isCoAdmin && filterBusId) {
-      allBuses = allBuses.filter(bus => bus.busNumber === filterBusId);
-      console.log(`🔒 [ROUTE MGMT] Co-Admin filter: ${allBuses.length} route(s) for ${filterBusId}`);
+          const byBus = new Map();
+          busesData.forEach((busDoc) => {
+            const normalized = normalizeBusNumber(busDoc.busNumber || busDoc.id);
+            if (!normalized) {
+              return;
+            }
+
+            if (isCoAdmin && normalizedFilterBusId && normalized !== normalizedFilterBusId) {
+              return;
+            }
+
+            const current = byBus.get(normalized);
+            const routeStops = Array.isArray(busDoc.routeStops) ? busDoc.routeStops : [];
+
+            if (!current || routeStops.length > current.routeStops.length) {
+              byBus.set(normalized, {
+                id: normalized,
+                busNumber: normalized,
+                displayName: busDoc.displayName || normalized,
+                routeStops,
+                studentsCount: busDoc.studentsCount || busDoc.studentCount || 0,
+                updatedAt: busDoc.updatedAt || busDoc.lastUpdate || null,
+                driverName: busDoc.driverName || busDoc.driver || 'Not Assigned',
+              });
+            }
+          });
+
+          setRawBuses(Array.from(byBus.values()));
+          setLoading(false);
+        } catch (error) {
+          console.error('❌ [ROUTE MGMT] Failed to process buses:', error);
+          setRawBuses([]);
+          setLoading(false);
+        }
+      },
+      (error) => {
+        console.error('❌ [ROUTE MGMT] Subscription error:', error);
+        setRawBuses([]);
+        setLoading(false);
+      }
+    );
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [isCoAdmin, normalizedFilterBusId]);
+
+  useEffect(() => {
+    const refreshCounts = async () => {
+      try {
+        const counts = await registeredUsersStorage.getActiveStudentCountsByBus();
+        setActiveStudentCounts(counts);
+      } catch (error) {
+        console.error('❌ [ROUTE MGMT] Failed to load student counts:', error);
+      }
+    };
+
+    refreshCounts();
+  }, []);
+
+  const CAMPUS_KEYWORDS = useMemo(() => ['SIET', 'SRI SHAKTHI', 'MAIN CAMPUS'], []);
+
+  const formatRouteStops = (stops = []) => {
+    const uniqueStops = [];
+    const seen = new Set();
+
+    stops.forEach((stopRaw) => {
+      if (!stopRaw) {
+        return;
+      }
+      const label = stopRaw.toString().replace(/\s+/g, ' ').trim();
+      const key = label.toUpperCase();
+      if (!label || seen.has(key)) {
+        return;
+      }
+      seen.add(key);
+      uniqueStops.push({ label });
+    });
+
+    if (!uniqueStops.length) {
+      return [{ label: 'SIET Main Campus' }];
     }
-    
-    return allBuses;
+
+    const campusIndex = uniqueStops.findIndex(({ label }) =>
+      CAMPUS_KEYWORDS.some((keyword) => label.toUpperCase().includes(keyword))
+    );
+
+    if (campusIndex === -1) {
+      return [{ label: 'SIET Main Campus' }, ...uniqueStops];
+    }
+
+    const [campusStop] = uniqueStops.splice(campusIndex, 1);
+    return [campusStop, ...uniqueStops];
   };
+
+  const buses = useMemo(() => {
+    if (!rawBuses.length) {
+      return [];
+    }
+
+    const activeBusNumbers = new Set(Object.keys(activeStudentCounts || {}));
+    const includeFilterBus = isCoAdmin && normalizedFilterBusId;
+
+    return rawBuses
+      .filter((bus) =>
+        activeBusNumbers.has(bus.busNumber) || (includeFilterBus && bus.busNumber === normalizedFilterBusId)
+      )
+      .map((bus) => {
+        const formattedStops = formatRouteStops(bus.routeStops);
+        return {
+          ...bus,
+          routeStops: formattedStops,
+          totalStops: formattedStops.length,
+          activeStudents: activeStudentCounts[bus.busNumber] || 0,
+        };
+      })
+      .sort((a, b) => a.busNumber.localeCompare(b.busNumber, undefined, { numeric: true }));
+  }, [rawBuses, activeStudentCounts, isCoAdmin, normalizedFilterBusId]);
 
   const handleBusPress = (busNumber) => {
     setSelectedBus(selectedBus === busNumber ? null : busNumber);
@@ -71,30 +191,44 @@ const RouteManagement = ({ navigation, route }) => {
         <View style={styles.summaryCard}>
           <View style={styles.summaryItem}>
             <Ionicons name="bus" size={24} color={COLORS.primary} />
-            <Text style={styles.summaryNumber}>{getAllBuses().length}</Text>
+            <Text style={styles.summaryNumber}>{buses.length}</Text>
             <Text style={styles.summaryLabel}>Total Routes</Text>
           </View>
           <View style={styles.summaryItem}>
             <Ionicons name="location" size={24} color={COLORS.success} />
             <Text style={styles.summaryNumber}>
-              {getAllBuses().reduce((total, bus) => total + bus.stops.length, 0)}
+              {buses.reduce((total, bus) => total + (bus.totalStops || 0), 0)}
             </Text>
             <Text style={styles.summaryLabel}>Total Stops</Text>
           </View>
           <View style={styles.summaryItem}>
             <Ionicons name="time" size={24} color={COLORS.warning} />
             <Text style={styles.summaryNumber}>
-              {Math.round(getAllBuses().reduce((total, bus) => 
-                total + parseInt(bus.duration), 0) / getAllBuses().length)}
+              {buses.length ? Math.max(...buses.map((bus) => bus.activeStudents || 0)) : 0}
             </Text>
-            <Text style={styles.summaryLabel}>Avg Time (min)</Text>
+            <Text style={styles.summaryLabel}>Max Students</Text>
           </View>
         </View>
 
         {/* Routes List */}
         <View style={styles.routesSection}>
           <Text style={styles.sectionTitle}>All Bus Routes</Text>
-          {getAllBuses().map((bus) => (
+          {loading && (
+            <View style={styles.loadingState}>
+              <ActivityIndicator size="small" color={COLORS.primary} />
+              <Text style={styles.loadingText}>Loading routes...</Text>
+            </View>
+          )}
+          {!loading && buses.length === 0 && (
+            <View style={styles.emptyState}>
+              <Ionicons name="bus-outline" size={64} color={COLORS.gray} />
+              <Text style={styles.emptyStateTitle}>No authenticated routes</Text>
+              <Text style={styles.emptyStateSubtitle}>
+                Import a CSV to register bus boarding points and try again.
+              </Text>
+            </View>
+          )}
+          {buses.map((bus) => (
             <View key={bus.busNumber} style={styles.routeCard}>
               <TouchableOpacity
                 style={styles.routeHeader}
@@ -107,20 +241,20 @@ const RouteManagement = ({ navigation, route }) => {
                   </View>
                   <View style={styles.routeDetails}>
                     <Text style={styles.busNumber}>{bus.busNumber}</Text>
-                    <Text style={styles.routeName}>{bus.name}</Text>
+                    <Text style={styles.routeName}>
+                      {bus.displayName} • {bus.activeStudents} students
+                    </Text>
                     <View style={styles.routeStats}>
                       <Text style={styles.routeStat}>
                         <Ionicons name="location" size={12} color={COLORS.gray} /> 
-                        {bus.stops.length} stops
+                        {bus.totalStops} stops
                       </Text>
-                      <Text style={styles.routeStat}>
-                        <Ionicons name="speedometer" size={12} color={COLORS.gray} /> 
-                        {bus.distance}
-                      </Text>
-                      <Text style={styles.routeStat}>
-                        <Ionicons name="time" size={12} color={COLORS.gray} /> 
-                        {bus.duration}
-                      </Text>
+                      {bus.updatedAt && (
+                        <Text style={styles.routeStat}>
+                          <Ionicons name="time" size={12} color={COLORS.gray} /> 
+                          Updated {new Date(bus.updatedAt).toLocaleDateString()}
+                        </Text>
+                      )}
                     </View>
                   </View>
                 </View>
@@ -133,27 +267,29 @@ const RouteManagement = ({ navigation, route }) => {
 
               {selectedBus === bus.busNumber && (
                 <View style={styles.routeStopsContainer}>
-                  <Text style={styles.stopsTitle}>Route Stops</Text>
-                  {bus.stops.map((stop, index) => (
+                  <Text style={styles.stopsTitle}>Route Boarding Points</Text>
+                  {bus.routeStops.map((stop, index) => (
                     <View key={index} style={styles.stopItem}>
                       <View style={styles.stopIndicator}>
                         <View style={[
                           styles.stopDot, 
-                          { backgroundColor: getStopColor(index, bus.stops.length) }
+                          { backgroundColor: getStopColor(index, bus.totalStops) }
                         ]}>
                           <Ionicons 
-                            name={getStopIcon(index, bus.stops.length)} 
+                            name={getStopIcon(index, bus.totalStops)} 
                             size={12} 
                             color={COLORS.white} 
                           />
                         </View>
-                        {index < bus.stops.length - 1 && (
+                        {index < bus.totalStops - 1 && (
                           <View style={styles.stopLine} />
                         )}
                       </View>
                       <View style={styles.stopDetails}>
-                        <Text style={styles.stopName}>{stop.name}</Text>
-                        <Text style={styles.stopTime}>{stop.time}</Text>
+                        <Text style={styles.stopName}>{stop.label}</Text>
+                        <Text style={styles.stopTime}>
+                          {index === 0 ? 'Start • SIET Main Campus' : `Boarding Point ${index}`}
+                        </Text>
                       </View>
                     </View>
                   ))}
@@ -162,14 +298,14 @@ const RouteManagement = ({ navigation, route }) => {
                   <View style={styles.routeActions}>
                     <TouchableOpacity 
                       style={styles.actionButton}
-                      onPress={() => navigation.navigate('MapScreen', { selectedBus: bus.busNumber })}
+                      onPress={() => navigation.navigate('MapScreen', {
+                        busId: bus.busNumber,
+                        routeStops: bus.routeStops,
+                        busDisplayName: bus.displayName,
+                      })}
                     >
                       <Ionicons name="map" size={16} color={COLORS.white} />
                       <Text style={styles.actionButtonText}>View on Map</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.actionButton, { backgroundColor: COLORS.warning }]}>
-                      <Ionicons name="create" size={16} color={COLORS.white} />
-                      <Text style={styles.actionButtonText}>Edit Route</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -235,6 +371,36 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.regular,
     color: COLORS.gray,
     textAlign: 'center',
+  },
+  loadingState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: SPACING.xl,
+  },
+  loadingText: {
+    fontSize: 12,
+    fontFamily: FONTS.regular,
+    color: COLORS.gray,
+    marginTop: SPACING.xs,
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: SPACING.xl,
+  },
+  emptyStateTitle: {
+    fontSize: 16,
+    fontFamily: FONTS.semiBold,
+    color: COLORS.secondary,
+    marginTop: SPACING.md,
+  },
+  emptyStateSubtitle: {
+    fontSize: 12,
+    fontFamily: FONTS.regular,
+    color: COLORS.gray,
+    marginTop: SPACING.xs,
+    textAlign: 'center',
+    paddingHorizontal: SPACING.xl,
   },
   routesSection: {
     flex: 1,

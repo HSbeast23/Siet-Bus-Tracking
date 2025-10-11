@@ -20,6 +20,7 @@ export const Input = ({
   inputStyle,
   onFocus,
   onBlur,
+  showToggleLabel = false,
 }) => {
   const [isFocused, setIsFocused] = useState(false);
   const [isSecure, setIsSecure] = useState(secureTextEntry);
@@ -84,6 +85,11 @@ export const Input = ({
               size={20}
               color={COLORS.gray}
             />
+            {showToggleLabel && (
+              <Text style={styles.secureLabel}>
+                {isSecure ? 'Show' : 'Hide'}
+              </Text>
+            )}
           </TouchableOpacity>
         )}
       </View>
@@ -132,6 +138,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: COLORS.black,
     paddingVertical: SPACING.md,
+    minWidth: 0,
   },
   inputWithIcon: {
     paddingLeft: 0,
@@ -145,7 +152,17 @@ const styles = StyleSheet.create({
     paddingTop: SPACING.md,
   },
   secureButton: {
-    padding: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    paddingHorizontal: SPACING.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: SPACING.xs,
+  },
+  secureLabel: {
+    marginLeft: SPACING.xs,
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: COLORS.gray,
   },
   errorText: {
     fontFamily: FONTS.regular,

@@ -1,13 +1,7 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import WelcomeScreen from '../screens/WelcomeScreen';
-import LoginSelectionScreen from '../screens/LoginSelectionScreen';
-import ManagementLoginScreen from '../screens/ManagementLoginScreen';
-import CoAdminLoginScreen from '../screens/CoAdminLoginScreen';
-import DriverLoginScreen from '../screens/DriverLoginScreen';
-import StudentLoginScreen from '../screens/StudentLoginScreen';
-import DriverSignupScreen from '../screens/DriverSignupScreen';
-import StudentSignupScreen from '../screens/StudentSignupScreen';
+import UnifiedLoginScreen from '../screens/UnifiedLoginScreen';
 import ManagementDashboard from '../screens/ManagementDashboard';
 import CoAdminDashboard from '../screens/CoAdminDashboard';
 import DriverDashboard from '../screens/DriverDashboard';
@@ -53,39 +47,9 @@ const AppNavigator = () => {
         options={{ headerShown: false }}
       />
       <Stack.Screen 
-        name="LoginSelection" 
-        component={LoginSelectionScreen} 
-        options={{ title: 'Select Login Type' }}
-      />
-      <Stack.Screen 
-        name="ManagementLogin" 
-        component={ManagementLoginScreen} 
-        options={{ title: 'Management Login' }}
-      />
-      <Stack.Screen 
-        name="CoAdminLogin" 
-        component={CoAdminLoginScreen} 
-        options={{ title: 'Co-Admin Login' }}
-      />
-      <Stack.Screen 
-        name="DriverLogin" 
-        component={DriverLoginScreen} 
-        options={{ title: 'Driver Login' }}
-      />
-      <Stack.Screen 
-        name="StudentLogin" 
-        component={StudentLoginScreen} 
-        options={{ title: 'Student Login' }}
-      />
-      <Stack.Screen 
-        name="DriverSignup" 
-        component={DriverSignupScreen} 
-        options={{ title: 'Driver Registration' }}
-      />
-      <Stack.Screen 
-        name="StudentSignup" 
-        component={StudentSignupScreen} 
-        options={{ title: 'Student Registration' }}
+        name="Login" 
+        component={UnifiedLoginScreen} 
+        options={{ title: 'Login', headerShown: false }}
       />
       <Stack.Screen 
         name="ManagementDashboard" 

@@ -114,7 +114,7 @@ const DriverDashboard = ({ navigation }) => {
           [
             {
               text: 'Login',
-              onPress: () => navigation.navigate('DriverLogin')
+              onPress: () => navigation.navigate('Login')
             }
           ]
         );

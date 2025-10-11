@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
   Animated
 } from 'react-native';
-import MapView, { Marker, AnimatedRegion, PROVIDER_GOOGLE, Callout, Polyline } from 'react-native-maps';
+import MapView, { Marker, AnimatedRegion, PROVIDER_GOOGLE, Polyline } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { COLORS, SAMPLE_STOPS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
@@ -91,7 +91,7 @@ const BusLiveTrackingScreen = ({ route, navigation }) => {
                 longitude: newLocation.longitude,
               },
               heading: newLocation.heading,
-              pitch: 45,
+              pitch: 0,
               zoom: 17,
             }, { duration: 1000 });
           }
@@ -203,7 +203,7 @@ const BusLiveTrackingScreen = ({ route, navigation }) => {
         showsUserLocation={false}
         showsMyLocationButton={false}
         rotateEnabled={true}
-        pitchEnabled={true}
+  pitchEnabled={false}
       >
         
         {/* Bus Location Marker - Animated & Only show when actively tracking */}
@@ -212,24 +212,16 @@ const BusLiveTrackingScreen = ({ route, navigation }) => {
             ref={markerRef}
             coordinate={busCoordinate}
             anchor={{ x: 0.5, y: 0.5 }}
-            flat={true}
+            flat
             rotation={busLocation.heading || 0}
           >
             <View style={styles.busMarkerContainer}>
-              <View style={[styles.busMarker, {
-                transform: [{ rotate: `${busLocation.heading || 0}deg` }]
-              }]}>
-                <Ionicons name="bus" size={32} color={COLORS.white} />
+              <View
+                style={[styles.busMarker, { transform: [{ rotate: `${busLocation.heading || 0}deg` }] }]}
+              >
+                <Ionicons name="bus" size={22} color={COLORS.secondary} />
               </View>
             </View>
-            <Callout tooltip>
-              <View style={styles.calloutContainer}>
-                <Text style={styles.calloutTitle}>Bus {bus.number.replace(/-+/g, '-')}</Text>
-                <Text style={styles.calloutText}>Driver: {busLocation.driverName}</Text>
-                <Text style={styles.calloutText}>Speed: {(busLocation.speed * 3.6).toFixed(1)} km/h</Text>
-                <Text style={styles.calloutText}>Accuracy: {busLocation.accuracy?.toFixed(1)}m</Text>
-              </View>
-            </Callout>
           </Marker.Animated>
         )}
 
@@ -238,12 +230,11 @@ const BusLiveTrackingScreen = ({ route, navigation }) => {
           <Marker
             key={index}
             coordinate={stop}
-            title={stop.name}
-            description={`Stop ${index + 1}`}
-            pinColor={COLORS.secondary}
+            tracksViewChanges={false}
+            anchor={{ x: 0.5, y: 0.5 }}
           >
             <View style={styles.stopMarker}>
-              <Text style={styles.stopNumber}>{index + 1}</Text>
+              <View style={styles.stopInnerDot} />
             </View>
           </Marker>
         ))}
@@ -357,34 +348,40 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   busMarker: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 24,
-    width: 48,
-    height: 48,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 3,
-    borderColor: COLORS.white,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.4,
-    shadowRadius: 6,
-    elevation: 8,
-  },
-  stopMarker: {
-    backgroundColor: COLORS.secondary,
-    borderRadius: 15,
-    width: 30,
-    height: 30,
+    backgroundColor: '#FFC107',
+    borderRadius: 16,
+    width: 32,
+    height: 32,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
     borderColor: COLORS.white,
+    shadowColor: '#FFC107',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
   },
-  stopNumber: {
-    color: COLORS.white,
-    fontSize: 12,
-    fontWeight: 'bold',
+  stopMarker: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: COLORS.white,
+    borderWidth: 2,
+    borderColor: COLORS.secondary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: COLORS.secondary,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
+  },
+  stopInnerDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: COLORS.secondary,
   },
   minimalStatusCard: {
     position: 'absolute',
@@ -411,28 +408,6 @@ const styles = StyleSheet.create({
   busMarkerContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  calloutContainer: {
-    backgroundColor: COLORS.white,
-    borderRadius: 10,
-    padding: 12,
-    minWidth: 180,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  calloutTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: COLORS.secondary,
-    marginBottom: 5,
-  },
-  calloutText: {
-    fontSize: 13,
-    color: COLORS.text,
-    marginTop: 3,
   },
   liveIndicator: {
     backgroundColor: COLORS.success,

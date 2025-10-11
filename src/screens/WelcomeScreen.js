@@ -45,7 +45,7 @@ const WelcomeScreen = ({ navigation }) => {
       <View style={styles.footer}>
         <TouchableOpacity
           style={styles.getStartedButton}
-          onPress={() => navigation.navigate('LoginSelection')}
+          onPress={() => navigation.navigate('Login')}
         >
           <Text style={styles.buttonText}>Get Started</Text>
           <Ionicons name="arrow-forward" size={20} color={COLORS.white} />

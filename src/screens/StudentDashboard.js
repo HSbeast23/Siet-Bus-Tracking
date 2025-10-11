@@ -87,7 +87,7 @@ const StudentDashboard = ({ navigation }) => {
           [
             {
               text: 'Login',
-              onPress: () => navigation.navigate('StudentLogin')
+              onPress: () => navigation.navigate('Login')
             }
           ]
         );

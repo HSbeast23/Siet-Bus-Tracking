@@ -15,6 +15,7 @@ import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../utils/constants';
 import { authService } from '../services/authService';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
+import { normalizeBusNumber } from '../services/locationService';
 
 const CoAdminDashboard = ({ navigation }) => {
   const [user, setUser] = useState(null);
@@ -51,14 +52,23 @@ const CoAdminDashboard = ({ navigation }) => {
         return;
       }
       
-      const busId = currentUser.busId; // Dynamic busId from user login
+      const busId = normalizeBusNumber(currentUser.busId || currentUser.busNumber || '');
       console.log(`🔥 [CO-ADMIN] Loading stats for bus: ${busId}`);
 
       // Get students count for this specific bus only
-      const studentsRef = collection(db, 'students');
-      const studentsQuery = query(studentsRef, where('busNumber', '==', busId), where('status', '==', 'Active'));
-      const studentsSnapshot = await getDocs(studentsQuery);
-      const totalStudents = studentsSnapshot.size;
+      const usersRef = collection(db, 'users');
+      let studentsSnapshot = await getDocs(query(usersRef, where('busNumber', '==', busId)));
+
+      if (studentsSnapshot.empty) {
+        studentsSnapshot = await getDocs(query(usersRef, where('busNo', '==', busId)));
+      }
+
+      const totalStudents = studentsSnapshot.docs.filter((docSnap) => {
+        const data = docSnap.data();
+        const role = (data.role || '').toLowerCase();
+        const status = (data.status || '').toLowerCase();
+        return role === 'student' && status !== 'inactive';
+      }).length;
 
       console.log(`✅ [CO-ADMIN] Found ${totalStudents} students for bus ${busId}`);
 
