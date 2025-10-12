@@ -13,73 +13,25 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../utils/constants';
 import { authService } from '../services/authService';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '../services/firebaseConfig';
-import { normalizeBusNumber } from '../services/locationService';
 
 const CoAdminDashboard = ({ navigation }) => {
   const [user, setUser] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
-    totalStudents: 0,
-    presentToday: 0,
-    busStatus: 'Inactive'
-  });
-
   useEffect(() => {
     loadUserData();
-    loadBusStats();
   }, []);
 
   const loadUserData = async () => {
-    const currentUser = await authService.getCurrentUser();
-    if (currentUser) {
-      setUser(currentUser);
-    }
-  };
-
-  const loadBusStats = async () => {
     try {
       setLoading(true);
-      
-      // 🔥 Get busId from logged-in user (NOT HARDCODED)
       const currentUser = await authService.getCurrentUser();
-      if (!currentUser || !currentUser.busId) {
-        console.error('❌ [CO-ADMIN] No busId found in user profile');
-        Alert.alert('Error', 'Bus information not found. Please contact management.');
-        setLoading(false);
-        return;
+      if (currentUser) {
+        setUser(currentUser);
       }
-      
-      const busId = normalizeBusNumber(currentUser.busId || currentUser.busNumber || '');
-      console.log(`🔥 [CO-ADMIN] Loading stats for bus: ${busId}`);
-
-      // Get students count for this specific bus only
-      const usersRef = collection(db, 'users');
-      let studentsSnapshot = await getDocs(query(usersRef, where('busNumber', '==', busId)));
-
-      if (studentsSnapshot.empty) {
-        studentsSnapshot = await getDocs(query(usersRef, where('busNo', '==', busId)));
-      }
-
-      const totalStudents = studentsSnapshot.docs.filter((docSnap) => {
-        const data = docSnap.data();
-        const role = (data.role || '').toLowerCase();
-        const status = (data.status || '').toLowerCase();
-        return role === 'student' && status !== 'inactive';
-      }).length;
-
-      console.log(`✅ [CO-ADMIN] Found ${totalStudents} students for bus ${busId}`);
-
-      setStats({
-        totalStudents,
-        presentToday: 0, // Will be updated with today's attendance
-        busStatus: 'Inactive'
-      });
     } catch (error) {
-      console.error('Error loading bus stats:', error);
-      Alert.alert('Error', 'Failed to load bus statistics');
+      console.error('❌ [CO-ADMIN] Failed to load user profile:', error);
+      Alert.alert('Error', 'Unable to load your profile. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -88,7 +40,6 @@ const CoAdminDashboard = ({ navigation }) => {
   const onRefresh = async () => {
     setRefreshing(true);
     await loadUserData();
-    await loadBusStats();
     setRefreshing(false);
   };
 
@@ -194,8 +145,8 @@ const CoAdminDashboard = ({ navigation }) => {
               {user?.userId || 'Coadmin'} • Bus: {user?.busId || 'N/A'}
             </Text>
           </View>
-          <TouchableOpacity style={styles.profileIcon}>
-            <Ionicons name="shield-checkmark" size={32} color={COLORS.white} />
+          <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
+            <Ionicons name="log-out" size={24} color={COLORS.danger} />
           </TouchableOpacity>
         </View>
 
@@ -210,7 +161,7 @@ const CoAdminDashboard = ({ navigation }) => {
         {/* Navigation Grid */}
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#8B4513" />
+            <ActivityIndicator size="large" color={COLORS.primary} />
           </View>
         ) : (
           <View style={styles.toolsContainer}>
@@ -234,42 +185,6 @@ const CoAdminDashboard = ({ navigation }) => {
           </View>
         )}
 
-        {/* Quick Stats */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Quick Overview</Text>
-          <View style={styles.statsContainer}>
-            <View style={styles.statCard}>
-              <Ionicons name="bus" size={24} color="#8B4513" />
-              <Text style={styles.statValue}>{user?.busId || 'N/A'}</Text>
-              <Text style={styles.statLabel}>Assigned Bus</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Ionicons name="people" size={24} color={COLORS.secondary} />
-              <Text style={styles.statValue}>{stats.totalStudents}</Text>
-              <Text style={styles.statLabel}>Active Students</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Ionicons name="checkmark-circle" size={24} color={COLORS.success} />
-              <Text style={styles.statValue}>{stats.presentToday}</Text>
-              <Text style={styles.statLabel}>Present Today</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Info Card */}
-        <View style={styles.infoCard}>
-          <Ionicons name="information-circle" size={20} color="#8B4513" />
-          <Text style={styles.infoText}>
-            You have access to manage Bus {user?.busId || 'N/A'} only. All management features are restricted to your assigned bus.
-          </Text>
-        </View>
-
-        {/* Logout Button */}
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Ionicons name="log-out" size={20} color={COLORS.error} />
-          <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
-
         <View style={{ height: SPACING.xl }} />
       </ScrollView>
     </SafeAreaView>
@@ -285,37 +200,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#8B4513',
+    backgroundColor: COLORS.white,
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.lg,
-    borderBottomLeftRadius: RADIUS.xl,
-    borderBottomRightRadius: RADIUS.xl,
-    ...SHADOWS.lg,
+    ...SHADOWS.sm,
   },
   welcomeText: {
     fontSize: 14,
     fontFamily: FONTS.regular,
-    color: COLORS.white + 'CC',
+    color: COLORS.textSecondary,
   },
   userName: {
     fontSize: 22,
     fontFamily: FONTS.bold,
-    color: COLORS.white,
+    color: COLORS.textPrimary,
     marginTop: SPACING.xs,
   },
   userRole: {
     fontSize: 12,
     fontFamily: FONTS.medium,
-    color: COLORS.white + 'EE',
+    color: COLORS.secondary,
     marginTop: SPACING.xs,
   },
-  profileIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: RADIUS.round,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
+  logoutButton: {
+    padding: SPACING.sm,
+    marginTop: -SPACING.sm,
+    alignSelf: 'flex-start',
   },
   section: {
     paddingHorizontal: SPACING.lg,
@@ -370,70 +280,6 @@ const styles = StyleSheet.create({
   loadingContainer: {
     paddingVertical: SPACING.xxl,
     alignItems: 'center',
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: SPACING.md,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: COLORS.white,
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
-    marginHorizontal: SPACING.xs,
-    alignItems: 'center',
-    ...SHADOWS.sm,
-  },
-  statValue: {
-    fontSize: 20,
-    fontFamily: FONTS.bold,
-    color: COLORS.textPrimary,
-    marginTop: SPACING.sm,
-  },
-  statLabel: {
-    fontSize: 10,
-    fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
-    marginTop: SPACING.xs,
-    textAlign: 'center',
-  },
-  infoCard: {
-    flexDirection: 'row',
-    backgroundColor: '#8B451315',
-    marginHorizontal: SPACING.lg,
-    marginTop: SPACING.lg,
-    padding: SPACING.md,
-    borderRadius: RADIUS.md,
-    borderLeftWidth: 4,
-    borderLeftColor: '#8B4513',
-  },
-  infoText: {
-    flex: 1,
-    fontSize: 11,
-    fontFamily: FONTS.regular,
-    color: '#666',
-    marginLeft: SPACING.sm,
-    lineHeight: 16,
-  },
-  logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.white,
-    borderRadius: RADIUS.md,
-    paddingVertical: SPACING.md,
-    marginHorizontal: SPACING.lg,
-    marginTop: SPACING.xl,
-    borderWidth: 1,
-    borderColor: COLORS.error + '30',
-    ...SHADOWS.sm,
-  },
-  logoutText: {
-    fontSize: 16,
-    fontFamily: FONTS.bold,
-    color: COLORS.error,
-    marginLeft: SPACING.sm,
   },
 });
 

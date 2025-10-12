@@ -1,23 +1,156 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   SafeAreaView,
-  Alert,
   TouchableOpacity,
   ActivityIndicator,
-  Animated
+  FlatList,
 } from 'react-native';
-import MapView, { Marker, AnimatedRegion, PROVIDER_GOOGLE, Callout } from 'react-native-maps';
+import MapView, { Marker, AnimatedRegion, PROVIDER_GOOGLE, Callout, Polyline } from 'react-native-maps';
 import * as Location from 'expo-location';
-import { COLORS } from '../utils/constants';
+import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
 import { subscribeToBusLocation, normalizeBusNumber } from '../services/locationService';
 import { authService } from '../services/authService';
-import { db } from '../services/firebaseConfig';
-import { doc, getDoc } from 'firebase/firestore';
-import { registeredUsersStorage } from '../services/registeredUsersStorage';
+import { ORS_API_KEY } from '@env';
+import {
+  DEFAULT_ROUTE_STOPS,
+  ORS_ROUTE_COORDINATES,
+  ROUTE_POLYLINE_FIT_COORDINATES,
+} from '../utils/routePolylineConfig';
+
+const ORS_ENDPOINT = 'https://api.openrouteservice.org/v2/directions/driving-car/geojson';
+
+const normalizeShapingPoints = (points = [], contextId = 'point') => {
+  if (!Array.isArray(points)) {
+    return [];
+  }
+
+  return points
+    .map((point, index) => {
+      if (!point || typeof point !== 'object') {
+        return null;
+      }
+
+      const latitude = Number(point.latitude ?? point.lat);
+      const longitude = Number(point.longitude ?? point.lng);
+
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+        console.warn(`⚠️ [MAP] Ignoring invalid shaping point (${contextId}:${index})`, point);
+        return null;
+      }
+
+      return { latitude, longitude };
+    })
+    .filter(Boolean);
+};
+
+const normalizeRouteStops = (rawStops = []) => {
+  return rawStops
+    .map((stop, index) => {
+      if (!stop || typeof stop !== 'object') {
+        return null;
+      }
+
+      const latitude = Number(stop.latitude ?? stop.lat);
+      const longitude = Number(stop.longitude ?? stop.lng);
+
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+        return null;
+      }
+
+      const label = (stop.name || stop.label || stop.stopName || `Stop ${index + 1}`).trim();
+      const pathToNext = normalizeShapingPoints(stop.pathToNext, stop.id || `stop-${index}`);
+
+      return {
+        id: stop.id || `param-stop-${index}`,
+        name: label,
+        latitude,
+        longitude,
+        pathToNext,
+      };
+    })
+    .filter(Boolean);
+};
+
+const areCoordinatesClose = (a, b, epsilon = 0.0001) => {
+  if (!a || !b) {
+    return false;
+  }
+
+  return (
+    Math.abs(a.latitude - b.latitude) <= epsilon &&
+    Math.abs(a.longitude - b.longitude) <= epsilon
+  );
+};
+
+const includeEndpoint = (points, coordinate, position) => {
+  if (!Array.isArray(points) || points.length === 0 || !Array.isArray(coordinate) || coordinate.length !== 2) {
+    return points;
+  }
+
+  const candidate = {
+    latitude: coordinate[1],
+    longitude: coordinate[0],
+  };
+
+  const alreadyPresent = points.some((existing) => areCoordinatesClose(existing, candidate));
+
+  if (alreadyPresent) {
+    return points;
+  }
+
+  if (position === 'start') {
+    return [candidate, ...points];
+  }
+
+  if (position === 'end') {
+    return [...points, candidate];
+  }
+
+  return points;
+};
+
+const mergeStopsIntoPolyline = (polylinePoints, stops) => {
+  if (!Array.isArray(polylinePoints) || !Array.isArray(stops)) {
+    return polylinePoints;
+  }
+
+  let merged = [...polylinePoints];
+
+  stops.forEach((stop) => {
+    if (!stop || !Number.isFinite(stop.latitude) || !Number.isFinite(stop.longitude)) {
+      return;
+    }
+
+    const exists = merged.some((point) => areCoordinatesClose(point, stop));
+    if (exists) {
+      return;
+    }
+
+    // Insert stop at the nearest segment in the existing polyline
+    let insertIndex = merged.length;
+    let shortestDistance = Number.POSITIVE_INFINITY;
+
+    for (let i = 0; i < merged.length; i++) {
+      const point = merged[i];
+      const distance = Math.hypot(point.latitude - stop.latitude, point.longitude - stop.longitude);
+      if (distance < shortestDistance) {
+        shortestDistance = distance;
+        insertIndex = i;
+      }
+    }
+
+    merged.splice(insertIndex, 0, {
+      latitude: stop.latitude,
+      longitude: stop.longitude,
+    });
+  });
+
+  return merged;
+};
 
 const MapScreen = ({ route, navigation }) => {
   const [busLocation, setBusLocation] = useState(null);
@@ -26,9 +159,9 @@ const MapScreen = ({ route, navigation }) => {
   const [loading, setLoading] = useState(true);
   const [mapRef, setMapRef] = useState(null);
   const [mapReady, setMapReady] = useState(false);
-  const [selectedBusId, setSelectedBusId] = useState(null); // For management to select bus
-  const [routeStops, setRouteStops] = useState([]); // Add state for route stops
-  const [busDisplayName, setBusDisplayName] = useState('');
+  const [routePolyline, setRoutePolyline] = useState([]);
+  const [isRouteLoading, setIsRouteLoading] = useState(false);
+  const [routeFetchError, setRouteFetchError] = useState('');
   const [hasCenteredOnBus, setHasCenteredOnBus] = useState(false);
   
   const busCoordinate = useRef(
@@ -41,18 +174,155 @@ const MapScreen = ({ route, navigation }) => {
   ).current;
   
   const markerRef = useRef(null);
+  const routeKeyRef = useRef('');
+  const hasFittedRouteRef = useRef(false);
+
+  const fetchRoutePolyline = useCallback(
+  async (coordinates, stopsForRoute) => {
+      if (!Array.isArray(coordinates) || coordinates.length < 2) {
+        setRoutePolyline([]);
+        return;
+      }
+
+      if (!ORS_API_KEY) {
+        console.warn('⚠️ [MAP] ORS API key missing. Skipping route fetch.');
+        const straightLineFallback = coordinates.map(([lng, lat]) => ({ latitude: lat, longitude: lng }));
+        const enforcedRoute = mergeStopsIntoPolyline(straightLineFallback, stopsForRoute);
+        setRoutePolyline(enforcedRoute);
+        return;
+      }
+
+      try {
+        setIsRouteLoading(true);
+        setRouteFetchError('');
+
+        console.log('🗺️ [MAP] Requesting ORS route with coordinates:', JSON.stringify(coordinates));
+        console.log('🚌 [MAP] Route stops provided:', JSON.stringify(stopsForRoute));
+
+        const response = await fetch(ORS_ENDPOINT, {
+          method: 'POST',
+          headers: {
+            Authorization: ORS_API_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ coordinates }),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`ORS request failed: ${response.status} ${errorText}`);
+        }
+
+        const data = await response.json();
+        const geometry = data?.features?.[0]?.geometry?.coordinates ?? [];
+
+        console.log(`🛰️ [MAP] ORS response geometry points: ${geometry.length}`);
+        console.log('📍 [MAP] First ORS point:', geometry[0]);
+        console.log('📍 [MAP] Last ORS point:', geometry[geometry.length - 1]);
+
+        if (!geometry.length) {
+          throw new Error('No geometry data returned from ORS response.');
+        }
+
+        let formatted = geometry.map(([lng, lat]) => ({ latitude: lat, longitude: lng }));
+        formatted = includeEndpoint(formatted, coordinates[0], 'start');
+        formatted = includeEndpoint(formatted, coordinates[coordinates.length - 1], 'end');
+        formatted = mergeStopsIntoPolyline(formatted, stopsForRoute);
+
+        console.log(`✅ [MAP] Final polyline points after enforcement: ${formatted.length}`);
+
+        setRoutePolyline(formatted);
+      } catch (error) {
+        console.error('❌ [MAP] Failed to fetch ORS route polyline:', error);
+        setRouteFetchError('Unable to load optimized route. Showing straight-line preview.');
+        const straightLine = coordinates.map(([lng, lat]) => ({ latitude: lat, longitude: lng }));
+        const enforcedRoute = mergeStopsIntoPolyline(straightLine, stopsForRoute);
+        setRoutePolyline(enforcedRoute);
+      } finally {
+        setIsRouteLoading(false);
+      }
+    },
+    [ORS_API_KEY]
+  );
 
   // Get bus details from route params (for management) or from user info (for students)
   const busIdFromParams = route?.params?.busId;
   const routeStopsFromParams = route?.params?.routeStops;
   const busDisplayNameFromParams = route?.params?.busDisplayName;
   const roleFromParams = route?.params?.role;
+  const busDisplayName = useMemo(() => {
+    const candidateStrings = [
+      typeof busDisplayNameFromParams === 'string' ? busDisplayNameFromParams : null,
+      typeof userInfo.busDisplayName === 'string' ? userInfo.busDisplayName : null,
+      typeof userInfo.busName === 'string' ? userInfo.busName : null,
+      typeof userInfo.busLabel === 'string' ? userInfo.busLabel : null,
+      typeof userInfo.busNumber === 'string' ? userInfo.busNumber : null,
+      userInfo.busId ? String(userInfo.busId) : null,
+    ];
+
+    const resolved = candidateStrings.find((value) => value && value.trim().length > 0);
+    return resolved ? resolved.trim() : null;
+  }, [busDisplayNameFromParams, userInfo.busDisplayName, userInfo.busName, userInfo.busLabel, userInfo.busNumber, userInfo.busId]);
   const [isStudentView, setIsStudentView] = useState(() => {
     if (typeof roleFromParams === 'string') {
       return roleFromParams.toLowerCase() === 'student';
     }
     return true; // default to student-safe view until role resolved
   });
+
+  const resolvedRouteStops = useMemo(() => {
+    const parsedStops = Array.isArray(routeStopsFromParams)
+      ? normalizeRouteStops(routeStopsFromParams)
+      : [];
+
+    if (parsedStops.length >= 2) {
+      return parsedStops;
+    }
+
+    return DEFAULT_ROUTE_STOPS;
+  }, [routeStopsFromParams]);
+
+  const routeFitCoordinates = useMemo(
+    () =>
+      resolvedRouteStops.map((stop) => ({
+        latitude: stop.latitude,
+        longitude: stop.longitude,
+      })),
+    [resolvedRouteStops]
+  );
+
+  const orsCoordinatePayload = useMemo(() => {
+    const payload = resolvedRouteStops.flatMap((stop, stopIndex) => {
+      const baseCoordinate = [[stop.longitude, stop.latitude]];
+
+      if (!Array.isArray(stop.pathToNext) || stop.pathToNext.length === 0) {
+        return baseCoordinate;
+      }
+
+      const shapingCoordinates = stop.pathToNext
+        .map((point, pointIndex) => {
+          if (!Number.isFinite(point.latitude) || !Number.isFinite(point.longitude)) {
+            console.warn(
+              `⚠️ [MAP] Ignoring invalid shaping point at stop index ${stopIndex} (segment ${pointIndex})`,
+              point
+            );
+            return null;
+          }
+          return [point.longitude, point.latitude];
+        })
+        .filter(Boolean);
+
+      return [...baseCoordinate, ...shapingCoordinates];
+    });
+
+    console.log('🧭 [MAP] ORS payload coordinates:', JSON.stringify(payload));
+
+    return payload;
+  }, [resolvedRouteStops]);
+
+  useEffect(() => {
+    console.log('🧭 [MAP] Resolved route stops:', JSON.stringify(resolvedRouteStops));
+  }, [resolvedRouteStops]);
 
   useEffect(() => {
     loadUserData();
@@ -64,13 +334,21 @@ const MapScreen = ({ route, navigation }) => {
     };
   }, []);
 
-  // 🗺️ Load route stops immediately if busIdFromParams is available
   useEffect(() => {
-    if (busIdFromParams) {
-      console.log(`🗺️ [MAP] Bus ID from params detected: ${busIdFromParams}, loading route stops immediately`);
-      loadRouteStops(busIdFromParams);
+    const coordinates =
+      Array.isArray(orsCoordinatePayload) && orsCoordinatePayload.length >= 2
+        ? orsCoordinatePayload
+        : ORS_ROUTE_COORDINATES;
+
+    const coordinateKey = JSON.stringify(coordinates);
+    if (coordinateKey === routeKeyRef.current) {
+      return;
     }
-  }, [busIdFromParams, loadRouteStops]);
+
+    routeKeyRef.current = coordinateKey;
+    hasFittedRouteRef.current = false;
+    fetchRoutePolyline(coordinates, resolvedRouteStops);
+  }, [fetchRoutePolyline, orsCoordinatePayload, resolvedRouteStops]);
 
   // �🔥 Subscribe to real-time bus location updates from Firestore
   useEffect(() => {
@@ -206,14 +484,6 @@ const MapScreen = ({ route, navigation }) => {
     };
   }, [userInfo.busNumber, userInfo.busId, busIdFromParams, roleFromParams]);
 
-  // 🗺️ Load route stops when user info changes (for students/co-admin)
-  useEffect(() => {
-    if (userInfo.busNumber || userInfo.busId) {
-      console.log(`🗺️ [MAP] User info loaded, loading route stops for user's bus`);
-      loadRouteStops();
-    }
-  }, [userInfo.busNumber, userInfo.busId, loadRouteStops]);
-
   const loadUserData = async () => {
     try {
       const userData = await authService.getCurrentUser();
@@ -227,134 +497,6 @@ const MapScreen = ({ route, navigation }) => {
       console.error('Error loading user data:', error);
     }
   };
-
-  const toTimelineStops = useCallback((stopsInput = []) => {
-    const seen = new Set();
-    const orderedStops = [];
-
-    stopsInput.forEach((rawStop, index) => {
-      if (!rawStop) {
-        return;
-      }
-
-      let label = '';
-      let latitude = null;
-      let longitude = null;
-      let time = '';
-
-      if (typeof rawStop === 'string') {
-        label = rawStop;
-      } else if (typeof rawStop === 'object') {
-        label = rawStop.label || rawStop.name || rawStop.stopName || rawStop.point || '';
-        latitude = typeof rawStop.latitude === 'number' ? rawStop.latitude :
-          typeof rawStop.lat === 'number' ? rawStop.lat : null;
-        longitude = typeof rawStop.longitude === 'number' ? rawStop.longitude :
-          typeof rawStop.lng === 'number' ? rawStop.lng : null;
-        time = rawStop.time || rawStop.arrival || rawStop.departure || '';
-      }
-
-      const cleaned = label.replace(/\s+/g, ' ').trim();
-      if (!cleaned) {
-        return;
-      }
-
-      const key = cleaned.toUpperCase();
-      if (seen.has(key)) {
-        return;
-      }
-      seen.add(key);
-
-      orderedStops.push({
-        id: `${key}-${index}`,
-        name: cleaned,
-        latitude: Number.isFinite(latitude) ? latitude : null,
-        longitude: Number.isFinite(longitude) ? longitude : null,
-        time,
-      });
-    });
-
-    return orderedStops;
-  }, []);
-
-  // 🚌 Get route stops for the current bus
-  const loadRouteStops = useCallback(async (overrideBusId) => {
-    const rawBusNumber = overrideBusId || busIdFromParams || userInfo?.busNumber || userInfo?.busId;
-    console.log(`🗺️ [MAP] Loading route stops for bus:`, rawBusNumber);
-
-    if (!rawBusNumber) {
-      console.log('⚠️ [MAP] No bus number available yet');
-      setRouteStops([]);
-      return;
-    }
-
-    const normalizedBus = normalizeBusNumber(rawBusNumber);
-    const displayLabel = busDisplayNameFromParams || normalizedBus;
-    setBusDisplayName(displayLabel);
-
-    // 1️⃣ Use stops passed in navigation params when available
-    const paramStops = Array.isArray(routeStopsFromParams) ? toTimelineStops(routeStopsFromParams) : [];
-    if (paramStops.length) {
-      console.log(`✅ [MAP] Using ${paramStops.length} stops provided via navigation params`);
-      setRouteStops(paramStops);
-      return;
-    }
-
-    try {
-      // 2️⃣ Attempt to read from Firestore bus document
-      const busDocRef = doc(db, 'buses', normalizedBus);
-      const busSnap = await getDoc(busDocRef);
-
-      if (busSnap.exists()) {
-        const busData = busSnap.data() || {};
-        const docStops = toTimelineStops(busData.routeStops || []);
-        setBusDisplayName(busData.displayName || displayLabel);
-
-        if (docStops.length) {
-          console.log(`✅ [MAP] Loaded ${docStops.length} route stops from Firestore`);
-          setRouteStops(docStops);
-          return;
-        }
-      }
-
-      // 3️⃣ Fallback: derive stops from student boarding points (CSV order)
-      const allStudents = await registeredUsersStorage.getAllStudents({ forceRefresh: true });
-      const fallbackStops = [];
-      const seen = new Set();
-
-      allStudents
-        .filter((student) => normalizeBusNumber(student.busNumber) === normalizedBus)
-        .sort((a, b) => (a.order || 0) - (b.order || 0))
-        .forEach((student, index) => {
-          const stopName = (student.boardingPoint || '').replace(/\s+/g, ' ').trim();
-          if (!stopName) {
-            return;
-          }
-          const key = stopName.toUpperCase();
-          if (seen.has(key)) {
-            return;
-          }
-          seen.add(key);
-          fallbackStops.push({
-            id: `${key}-${index}`,
-            name: stopName,
-            latitude: null,
-            longitude: null,
-            time: '',
-          });
-        });
-
-      if (fallbackStops.length) {
-        console.log(`✅ [MAP] Derived ${fallbackStops.length} route stops from student boarding points`);
-        setRouteStops(fallbackStops);
-      } else {
-        console.log('⚠️ [MAP] No route stops could be determined');
-        setRouteStops([]);
-      }
-    } catch (error) {
-      console.error('❌ [MAP] Failed to load route stops:', error);
-      setRouteStops([]);
-    }
-  }, [busIdFromParams, busDisplayNameFromParams, routeStopsFromParams, toTimelineStops, userInfo?.busNumber, userInfo?.busId]);
 
   const getUserLocation = async () => {
     try {
@@ -422,6 +564,16 @@ const MapScreen = ({ route, navigation }) => {
       locations.push({ latitude: studentLocation.latitude, longitude: studentLocation.longitude });
     }
 
+    const routePoints = routePolyline.length
+      ? routePolyline
+      : routeFitCoordinates.length
+      ? routeFitCoordinates
+      : ROUTE_POLYLINE_FIT_COORDINATES;
+
+    if (routePoints.length) {
+      locations.push(...routePoints);
+    }
+
     if (locations.length === 0) {
       return;
     }
@@ -447,11 +599,13 @@ const MapScreen = ({ route, navigation }) => {
         animated: true,
       }
     );
-  }, [busLocation, mapReady, mapRef, studentLocation]);
+  }, [busLocation, mapReady, mapRef, routeFitCoordinates, routePolyline, studentLocation]);
 
-  const firstGeoStop = Array.isArray(routeStops)
-    ? routeStops.find((stop) => Number.isFinite(stop.latitude) && Number.isFinite(stop.longitude))
-    : null;
+  const firstGeoStop =
+    routePolyline[0] ||
+    routeFitCoordinates[0] ||
+    resolvedRouteStops.find((stop) => Number.isFinite(stop.latitude) && Number.isFinite(stop.longitude)) ||
+    null;
 
   const resolvedBusLabel = (busDisplayName || busIdFromParams || userInfo.busNumber || userInfo.busId || 'Bus')
     .toString()
@@ -466,6 +620,21 @@ const MapScreen = ({ route, navigation }) => {
 
   useEffect(() => {
     if (!mapRef || !mapReady) {
+      return;
+    }
+
+    const routePoints = routePolyline.length
+      ? routePolyline
+      : routeFitCoordinates.length
+      ? routeFitCoordinates
+      : ROUTE_POLYLINE_FIT_COORDINATES;
+
+    if (!hasFittedRouteRef.current && routePoints.length >= 2) {
+      mapRef.fitToCoordinates(routePoints, {
+        edgePadding: { top: 100, right: 60, bottom: 140, left: 60 },
+        animated: true,
+      });
+      hasFittedRouteRef.current = true;
       return;
     }
 
@@ -490,7 +659,7 @@ const MapScreen = ({ route, navigation }) => {
       centerMapOnStudent();
       setHasCenteredOnBus(true);
     }
-  }, [busLocation, mapReady, mapRef, studentLocation, hasCenteredOnBus, centerMapOnStudent]);
+  }, [busLocation, mapReady, mapRef, routeFitCoordinates, routePolyline, studentLocation, hasCenteredOnBus, centerMapOnStudent]);
 
   useEffect(() => {
     setHasCenteredOnBus(false);
@@ -537,6 +706,42 @@ const MapScreen = ({ route, navigation }) => {
         rotateEnabled={true}
         pitchEnabled={true}
       >
+        {routePolyline.length > 0 && (
+          <Polyline
+            coordinates={routePolyline}
+            strokeWidth={6}
+            strokeColor={COLORS.secondary}
+            lineCap="round"
+            lineJoin="round"
+          />
+        )}
+
+        {resolvedRouteStops.map((stop, index) => {
+          console.log('📌 [MAP] Rendering stop marker:', stop.name, stop.latitude, stop.longitude);
+          return (
+          <Marker
+            key={stop.id || `route-stop-${index}`}
+            coordinate={{ latitude: stop.latitude, longitude: stop.longitude }}
+            tracksViewChanges={false}
+          >
+            <View style={styles.stopMarkerWrapper}>
+              <View style={styles.stopMarker}>
+                <Text style={styles.stopMarkerText}>{index + 1}</Text>
+              </View>
+              <View style={styles.stopMarkerLabelContainer}>
+                <Text style={styles.stopMarkerLabel} numberOfLines={1}>
+                  {stop.name || `Stop ${index + 1}`}
+                </Text>
+              </View>
+            </View>
+            <Callout tooltip>
+              <View style={styles.stopCallout}>
+                <Text style={styles.stopCalloutTitle}>{stop.name || `Stop ${index + 1}`}</Text>
+                <Text style={styles.stopCalloutSubtitle}>Lat: {stop.latitude.toFixed(5)} • Lng: {stop.longitude.toFixed(5)}</Text>
+              </View>
+            </Callout>
+          </Marker>
+        );})}
         
         {/* Bus Location Marker - Animated & Only show when actively tracking */}
         {busLocation && busLocation.isTracking && (
@@ -580,6 +785,20 @@ const MapScreen = ({ route, navigation }) => {
 
         {/* Route overlays intentionally omitted for full-screen map view */}
       </MapView>
+
+      {isRouteLoading && (
+        <View style={styles.routeLoadingBadge}>
+          <ActivityIndicator size="small" color={COLORS.primary} />
+          <Text style={styles.routeLoadingText}>Loading route…</Text>
+        </View>
+      )}
+
+      {routeFetchError ? (
+        <View style={styles.routeErrorBanner}>
+          <Ionicons name="information-circle" size={16} color={COLORS.warning} />
+          <Text style={styles.routeErrorText}>{routeFetchError}</Text>
+        </View>
+      ) : null}
 
       {/* Minimal Status Card - Only show when tracking */}
       {!isStudentView && busLocation && busLocation.isTracking && (
@@ -658,6 +877,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 3,
     borderColor: COLORS.white,
+  },
+  stopMarkerWrapper: {
+    alignItems: 'center',
   },
   studentMarker: {
     backgroundColor: COLORS.accent,
@@ -762,6 +984,101 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
+  },
+  stopMarker: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: COLORS.secondary,
+    borderWidth: 2,
+    borderColor: COLORS.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stopMarkerText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.white,
+  },
+  stopMarkerLabelContainer: {
+    marginTop: 4,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+    maxWidth: 140,
+  },
+  stopMarkerLabel: {
+    color: COLORS.white,
+    fontSize: 12,
+    fontFamily: FONTS.medium,
+    textAlign: 'center',
+  },
+  stopCallout: {
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 4,
+  },
+  stopCalloutTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.secondary,
+  },
+  stopCalloutSubtitle: {
+    fontSize: 11,
+    color: COLORS.gray,
+    marginTop: 2,
+  },
+  routeLoadingBadge: {
+    position: 'absolute',
+    top: 92,
+    right: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 4,
+  },
+  routeLoadingText: {
+    marginLeft: 8,
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.secondary,
+  },
+  routeErrorBanner: {
+    position: 'absolute',
+    top: 92,
+    left: 16,
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 193, 7, 0.12)',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  routeErrorText: {
+    marginLeft: 8,
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.warning,
   },
 });
 

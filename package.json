@@ -34,7 +34,8 @@
     "react-native-worklets-core": "^1.6.2"
   },
   "devDependencies": {
-    "@babel/core": "^7.20.0"
+    "@babel/core": "^7.20.0",
+    "babel-plugin-dotenv-import": "^3.0.1"
   },
   "private": true
 }
