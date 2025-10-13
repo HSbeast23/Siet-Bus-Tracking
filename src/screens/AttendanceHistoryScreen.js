@@ -162,6 +162,12 @@ const AttendanceHistoryScreen = ({ navigation }) => {
     }
   };
 
+  const getStatusLabel = (status) => {
+    if (status === 'present') return 'Boarded';
+    if (status === 'absent') return 'Not Boarded';
+    return 'Awaiting';
+  };
+
   const getAttendanceGrade = (percentage) => {
     if (percentage >= 90) return { grade: 'Excellent', color: COLORS.success };
     if (percentage >= 75) return { grade: 'Good', color: COLORS.info };
@@ -225,7 +231,7 @@ const AttendanceHistoryScreen = ({ navigation }) => {
               <Text style={[styles.statNumber, { color: COLORS.success }]}>
                 {stats.presentDays}
               </Text>
-              <Text style={styles.statLabel}>Present</Text>
+              <Text style={styles.statLabel}>Boarded</Text>
             </View>
 
             <View style={[styles.statCard, { backgroundColor: COLORS.danger + '15' }]}>
@@ -233,7 +239,7 @@ const AttendanceHistoryScreen = ({ navigation }) => {
               <Text style={[styles.statNumber, { color: COLORS.danger }]}>
                 {stats.absentDays}
               </Text>
-              <Text style={styles.statLabel}>Absent</Text>
+              <Text style={styles.statLabel}>Not Boarded</Text>
             </View>
           </View>
 
@@ -259,7 +265,7 @@ const AttendanceHistoryScreen = ({ navigation }) => {
                 />
               </View>
               <Text style={styles.percentageInfo}>
-                {stats.presentDays} present out of {stats.totalDays} days recorded
+                {stats.presentDays} boarded out of {stats.totalDays} recorded days
               </Text>
             </View>
           </View>
@@ -299,11 +305,13 @@ const AttendanceHistoryScreen = ({ navigation }) => {
                     <View
                       style={[
                         styles.statusBadge,
-                        { backgroundColor: getStatusColor(record.status) }
+                        { backgroundColor: getStatusColor(record.status) + '20' }
                       ]}
                     >
-                      <Text style={styles.statusText}>
-                        {record.status.toUpperCase()}
+                      <Text
+                        style={[styles.statusText, { color: getStatusColor(record.status) }]}
+                      >
+                        {getStatusLabel(record.status)}
                       </Text>
                     </View>
                   </View>

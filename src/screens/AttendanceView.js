@@ -22,7 +22,6 @@ const AttendanceView = ({ navigation }) => {
   const [students, setStudents] = useState([]);
   const [busId, setBusId] = useState('');
   const [currentUser, setCurrentUser] = useState(null);
-  const [attendanceData, setAttendanceData] = useState({});
   const [isSubmitted, setIsSubmitted] = useState(false);
 
   useEffect(() => {
@@ -63,16 +62,17 @@ const AttendanceView = ({ navigation }) => {
 
       // Fetch today's attendance data
       const todayAttendance = await attendanceService.getTodayAttendance(busId);
-      setAttendanceData(todayAttendance.students || {});
+  const todayStudents = todayAttendance.students || {};
       setIsSubmitted(todayAttendance.submitted || false);
 
       // Merge students with their attendance status
       const studentsWithStatus = fetchedStudents.map(student => {
-        const attendance = todayAttendance.students?.[student.id];
+        const attendance = todayStudents?.[student.id];
         return {
           ...student,
           attendanceStatus: attendance?.status || 'unmarked',
-          markedAt: attendance?.markedAt || null
+          markedAt: attendance?.markedAt || null,
+          markedBy: attendance?.markedBy || null,
         };
       });
 
@@ -102,18 +102,20 @@ const AttendanceView = ({ navigation }) => {
         busId,
         studentId,
         status,
-        currentUser.name
+        currentUser?.name || currentUser?.email || 'Co-Admin'
       );
 
       if (result.success) {
-        // Update local state
+        const markedAt = new Date();
+
         setStudents(prevStudents =>
           prevStudents.map(student =>
             student.id === studentId
-              ? { ...student, attendanceStatus: status, markedAt: new Date() }
+              ? { ...student, attendanceStatus: status, markedAt, markedBy: currentUser.name }
               : student
           )
         );
+
       } else {
         Alert.alert('Error', 'Failed to mark attendance');
       }
@@ -147,10 +149,14 @@ const AttendanceView = ({ navigation }) => {
       // Prepare attendance data
       const attendanceMap = {};
       students.forEach(student => {
+        const resolvedStatus = student.attendanceStatus === 'unmarked' ? 'absent' : student.attendanceStatus;
+        const resolvedMarkedAt = student.markedAt || new Date();
+        const resolvedMarkedBy = student.markedBy || currentUser?.name || currentUser?.email || 'Co-Admin';
+
         attendanceMap[student.id] = {
-          status: student.attendanceStatus,
-          markedAt: student.markedAt || new Date(),
-          markedBy: currentUser.name
+          status: resolvedStatus,
+          markedAt: resolvedMarkedAt,
+          markedBy: resolvedMarkedBy
         };
       });
 
@@ -161,6 +167,18 @@ const AttendanceView = ({ navigation }) => {
       );
 
       if (result.success) {
+        setStudents(prev =>
+          prev.map(student =>
+            student.attendanceStatus === 'unmarked'
+              ? {
+                  ...student,
+                  attendanceStatus: 'absent',
+                  markedAt: new Date(),
+                  markedBy: currentUser?.name || currentUser?.email || 'Co-Admin',
+                }
+              : student
+          )
+        );
         setIsSubmitted(true);
         Alert.alert('Success', result.message);
       } else {
@@ -174,16 +192,21 @@ const AttendanceView = ({ navigation }) => {
 
   const calculateAttendancePercentage = () => {
     if (students.length === 0) return 0;
-    const presentCount = students.filter(s => s.attendanceStatus === 'present').length;
-    return Math.round((presentCount / students.length) * 100);
+    const boardedCount = students.filter(s => s.attendanceStatus === 'present').length;
+    return Math.round((boardedCount / students.length) * 100);
   };
 
-  const getPresentCount = () => {
-    return students.filter(s => s.attendanceStatus === 'present').length;
-  };
+  const getBoardedCount = () => students.filter(s => s.attendanceStatus === 'present').length;
+  const getNotBoardedCount = () => students.filter(s => s.attendanceStatus === 'absent' || s.attendanceStatus === 'unmarked').length;
 
-  const getAbsentCount = () => {
-    return students.filter(s => s.attendanceStatus === 'absent').length;
+  const resolveStatusMeta = (status) => {
+    if (status === 'present') {
+      return { label: 'Boarded', color: '#4CAF50', tone: '#E8F5E9' };
+    }
+    if (status === 'absent') {
+      return { label: 'Not Boarded', color: '#F44336', tone: '#FFEBEE' };
+    }
+    return { label: 'Awaiting', color: '#FFA000', tone: '#FFF8E1' };
   };
 
   return (
@@ -244,17 +267,17 @@ const AttendanceView = ({ navigation }) => {
             <View style={[styles.statCard, { backgroundColor: '#E8F5E9' }]}>
               <Ionicons name="checkmark-circle" size={32} color="#4CAF50" />
               <Text style={[styles.statValue, { color: '#4CAF50' }]}>
-                {getPresentCount()}
+                {getBoardedCount()}
               </Text>
-              <Text style={styles.statLabel}>Present</Text>
+              <Text style={styles.statLabel}>Boarded</Text>
             </View>
 
             <View style={[styles.statCard, { backgroundColor: '#FFEBEE' }]}>
               <Ionicons name="close-circle" size={32} color="#F44336" />
               <Text style={[styles.statValue, { color: '#F44336' }]}>
-                {getAbsentCount()}
+                {getNotBoardedCount()}
               </Text>
-              <Text style={styles.statLabel}>Absent</Text>
+              <Text style={styles.statLabel}>Not Boarded</Text>
             </View>
 
             <View style={[styles.statCard, { backgroundColor: '#E3F2FD' }]}>
@@ -301,7 +324,7 @@ const AttendanceView = ({ navigation }) => {
               Students Registered for Bus {busId}
             </Text>
             <Text style={styles.sectionSubtitle}>
-              Mark present or absent status (Real authenticated students)
+              Update boarding status for each student before the bus departs
             </Text>
 
             {students.length === 0 ? (
@@ -317,14 +340,7 @@ const AttendanceView = ({ navigation }) => {
                     <View
                       style={[
                         styles.statusIndicator,
-                        {
-                          backgroundColor:
-                            student.attendanceStatus === 'present'
-                              ? '#4CAF50'
-                              : student.attendanceStatus === 'absent'
-                              ? '#F44336'
-                              : '#FFA726',
-                        },
+                        { backgroundColor: resolveStatusMeta(student.attendanceStatus).color },
                       ]}
                     />
                     <View style={styles.studentDetails}>
@@ -333,11 +349,27 @@ const AttendanceView = ({ navigation }) => {
                         {student.registerNumber} • {student.department} • Year {student.year}
                       </Text>
                       <Text style={styles.studentTimestamp}>
-                        {student.attendanceStatus === 'present'
-                          ? `Marked present ${student.markedAt ? (student.markedAt.toDate ? new Date(student.markedAt.toDate()).toLocaleTimeString() : new Date(student.markedAt).toLocaleTimeString()) : ''}`
-                          : student.attendanceStatus === 'absent'
-                          ? `Marked absent ${student.markedAt ? (student.markedAt.toDate ? new Date(student.markedAt.toDate()).toLocaleTimeString() : new Date(student.markedAt).toLocaleTimeString()) : ''}`
-                          : 'Not marked yet'}
+                        {(() => {
+                          if (student.attendanceStatus === 'present') {
+                            const boardedTime = student.markedAt
+                              ? (student.markedAt.toDate
+                                  ? new Date(student.markedAt.toDate()).toLocaleTimeString()
+                                  : new Date(student.markedAt).toLocaleTimeString())
+                              : null;
+                            return boardedTime ? `Boarded at ${boardedTime}` : 'Boarded and logged';
+                          }
+                          if (student.attendanceStatus === 'absent') {
+                            const markedTime = student.markedAt
+                              ? (student.markedAt.toDate
+                                  ? new Date(student.markedAt.toDate()).toLocaleTimeString()
+                                  : new Date(student.markedAt).toLocaleTimeString())
+                              : null;
+                            return markedTime
+                              ? `Marked not boarded ${markedTime}`
+                              : 'Marked as not boarded';
+                          }
+                          return 'Awaiting confirmation';
+                        })()}
                       </Text>
                     </View>
                   </View>
@@ -371,33 +403,21 @@ const AttendanceView = ({ navigation }) => {
                     <View
                       style={[
                         styles.statusBadge,
-                        {
-                          backgroundColor:
-                            student.attendanceStatus === 'present'
-                              ? '#E8F5E9'
-                              : '#FFEBEE',
-                        },
+                        { backgroundColor: resolveStatusMeta(student.attendanceStatus).tone },
                       ]}
                     >
                       <Ionicons
-                        name={
-                          student.attendanceStatus === 'present'
-                            ? 'checkmark-circle'
-                            : 'close-circle'
-                        }
+                        name={student.attendanceStatus === 'present' ? 'checkmark-circle' : 'close-circle'}
                         size={16}
-                        color={student.attendanceStatus === 'present' ? '#4CAF50' : '#F44336'}
+                        color={resolveStatusMeta(student.attendanceStatus).color}
                       />
                       <Text
                         style={[
                           styles.statusText,
-                          {
-                            color:
-                              student.attendanceStatus === 'present' ? '#4CAF50' : '#F44336',
-                          },
+                          { color: resolveStatusMeta(student.attendanceStatus).color },
                         ]}
                       >
-                        {student.attendanceStatus.toUpperCase()}
+                        {resolveStatusMeta(student.attendanceStatus).label}
                       </Text>
                     </View>
                   )}
@@ -422,8 +442,8 @@ const AttendanceView = ({ navigation }) => {
             <Ionicons name="information-circle" size={20} color={COLORS.info} />
             <Text style={styles.historyText}>
               ✅ Real authenticated students from Firebase
-              {'\n'}✅ Daily attendance tracking with timestamps
-              {'\n'}✅ Attendance history stored by Co-Admin
+              {'\n'}✅ Daily boarding status with timestamps
+              {'\n'}✅ History retained for management and students
               {'\n'}✅ Percentage calculations included
             </Text>
           </View>

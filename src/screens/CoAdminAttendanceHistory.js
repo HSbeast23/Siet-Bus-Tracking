@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../utils/constants';
 import { authService } from '../services/authService';
+import { attendanceService } from '../services/attendanceService';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
 
@@ -23,10 +24,11 @@ const CoAdminAttendanceHistory = ({ route, navigation }) => {
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [stats, setStats] = useState({
     totalDays: 0,
-    averagePresent: 0,
-    averageAbsent: 0,
+    averageBoarded: 0,
+    averageNotBoarded: 0,
     totalStudents: 0
   });
+  const [expandedRecordId, setExpandedRecordId] = useState(null);
 
   useEffect(() => {
     loadAttendanceHistory();
@@ -57,10 +59,16 @@ const CoAdminAttendanceHistory = ({ route, navigation }) => {
       console.log(`📦 [COADMIN ATTENDANCE HISTORY] Querying attendance for bus: ${coadminBusId}`);
       const attendanceSnapshot = await getDocs(attendanceQuery);
       console.log(`📦 [COADMIN ATTENDANCE HISTORY] Found ${attendanceSnapshot.size} attendance documents`);
+
+      const registeredStudents = await attendanceService.getStudentsByBus(coadminBusId);
+      const studentProfileMap = registeredStudents.reduce((acc, student) => {
+        acc[student.id] = student;
+        return acc;
+      }, {});
       
       const records = [];
-      let totalPresent = 0;
-      let totalAbsent = 0;
+  let totalBoarded = 0;
+  let totalNotBoarded = 0;
       let studentCountSet = new Set();
 
       attendanceSnapshot.forEach((doc) => {
@@ -68,18 +76,39 @@ const CoAdminAttendanceHistory = ({ route, navigation }) => {
         const students = data.students || {};
         const studentIds = Object.keys(students);
         
-        let presentCount = 0;
-        let absentCount = 0;
+        let boardedCount = 0;
+        let notBoardedCount = 0;
         
         studentIds.forEach(studentId => {
           studentCountSet.add(studentId);
           const studentData = students[studentId];
-          if (studentData.status === 'present') presentCount++;
-          if (studentData.status === 'absent') absentCount++;
+          if (studentData.status === 'present') boardedCount++;
+          if (studentData.status === 'absent') notBoardedCount++;
         });
         
-        totalPresent += presentCount;
-        totalAbsent += absentCount;
+  totalBoarded += boardedCount;
+  totalNotBoarded += notBoardedCount;
+
+        const enrichedStudents = studentIds.map((studentId) => {
+          const studentData = students[studentId];
+          const profile = studentProfileMap[studentId] || {};
+          const rawMarkedAt = studentData?.markedAt;
+          let markedAt = null;
+          if (rawMarkedAt?.toDate) {
+            markedAt = rawMarkedAt.toDate();
+          } else if (rawMarkedAt) {
+            markedAt = new Date(rawMarkedAt);
+          }
+
+          return {
+            id: studentId,
+            status: studentData?.status || 'unmarked',
+            markedAt,
+            markedBy: studentData?.markedBy,
+            name: profile.name || profile.registerNumber || studentId,
+            registerNumber: profile.registerNumber,
+          };
+        }).sort((a, b) => a.name.localeCompare(b.name));
         
         const record = {
           id: doc.id,
@@ -87,9 +116,9 @@ const CoAdminAttendanceHistory = ({ route, navigation }) => {
           busNumber: data.busNumber,
           submittedBy: data.submittedBy || 'Unknown',
           totalStudents: studentIds.length,
-          presentCount,
-          absentCount,
-          students: students
+          presentCount: boardedCount,
+          absentCount: notBoardedCount,
+          students: enrichedStudents
         };
         
         records.push(record);
@@ -100,15 +129,15 @@ const CoAdminAttendanceHistory = ({ route, navigation }) => {
         .sort((a, b) => b.date.getTime() - a.date.getTime())
         .slice(0, 60);
 
-      const totalDays = sortedRecords.length;
-      const avgPresent = totalDays > 0 ? (totalPresent / totalDays).toFixed(1) : 0;
-      const avgAbsent = totalDays > 0 ? (totalAbsent / totalDays).toFixed(1) : 0;
+  const totalDays = sortedRecords.length;
+  const avgBoarded = totalDays > 0 ? (totalBoarded / totalDays).toFixed(1) : 0;
+  const avgNotBoarded = totalDays > 0 ? (totalNotBoarded / totalDays).toFixed(1) : 0;
 
       setAttendanceRecords(sortedRecords);
       setStats({
         totalDays,
-        averagePresent: parseFloat(avgPresent),
-        averageAbsent: parseFloat(avgAbsent),
+        averageBoarded: parseFloat(avgBoarded),
+        averageNotBoarded: parseFloat(avgNotBoarded),
         totalStudents: studentCountSet.size
       });
 
@@ -136,9 +165,23 @@ const CoAdminAttendanceHistory = ({ route, navigation }) => {
     });
   };
 
+  const formatTime = (date) => {
+    if (!date) {
+      return '--:--';
+    }
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
   const getAttendanceRate = (present, total) => {
     if (total === 0) return 0;
     return ((present / total) * 100).toFixed(1);
+  };
+
+  const toggleRecord = (recordId) => {
+    setExpandedRecordId(prev => (prev === recordId ? null : recordId));
   };
 
   if (loading) {
@@ -192,14 +235,14 @@ const CoAdminAttendanceHistory = ({ route, navigation }) => {
         <View style={styles.statsContainer}>
           <View style={styles.statCard}>
             <Ionicons name="checkmark-circle" size={24} color={COLORS.success} />
-            <Text style={styles.statValue}>{stats.averagePresent}</Text>
-            <Text style={styles.statLabel}>Avg Present</Text>
+            <Text style={styles.statValue}>{stats.averageBoarded}</Text>
+            <Text style={styles.statLabel}>Avg Boarded</Text>
           </View>
           
           <View style={styles.statCard}>
             <Ionicons name="close-circle" size={24} color={COLORS.danger} />
-            <Text style={styles.statValue}>{stats.averageAbsent}</Text>
-            <Text style={styles.statLabel}>Avg Absent</Text>
+            <Text style={styles.statValue}>{stats.averageNotBoarded}</Text>
+            <Text style={styles.statLabel}>Avg Not Boarded</Text>
           </View>
         </View>
 
@@ -221,41 +264,97 @@ const CoAdminAttendanceHistory = ({ route, navigation }) => {
             attendanceRecords.map((record) => {
               const attendanceRate = getAttendanceRate(record.presentCount, record.totalStudents);
               const rateColor = attendanceRate >= 80 ? COLORS.success : attendanceRate >= 50 ? COLORS.warning : COLORS.danger;
+              const isExpanded = expandedRecordId === record.id;
+              const students = Array.isArray(record.students) ? record.students : [];
+              const boardedStudents = students.filter((student) => student.status === 'present');
+              const notBoardedStudents = students.filter((student) => student.status === 'absent');
               
               return (
                 <View key={record.id} style={styles.recordCard}>
-                  <View style={styles.recordHeader}>
-                    <View style={styles.dateContainer}>
-                      <Ionicons name="calendar" size={20} color={COLORS.primary} />
-                      <Text style={styles.recordDate}>{formatDate(record.date)}</Text>
+                  <TouchableOpacity onPress={() => toggleRecord(record.id)}>
+                    <View style={styles.recordHeader}>
+                      <View style={styles.dateContainer}>
+                        <Ionicons name="calendar" size={20} color={COLORS.primary} />
+                        <Text style={styles.recordDate}>{formatDate(record.date)}</Text>
+                      </View>
+                      <View style={styles.recordHeaderRight}>
+                        <View style={[styles.rateBadge, { backgroundColor: rateColor }]}>
+                          <Text style={styles.rateText}>{attendanceRate}%</Text>
+                        </View>
+                        <Ionicons
+                          name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                          size={18}
+                          color={COLORS.secondary}
+                          style={{ marginLeft: SPACING.xs }}
+                        />
+                      </View>
                     </View>
-                    <View style={[styles.rateBadge, { backgroundColor: rateColor }]}>
-                      <Text style={styles.rateText}>{attendanceRate}%</Text>
-                    </View>
-                  </View>
+                  </TouchableOpacity>
 
                   <View style={styles.recordStats}>
                     <View style={styles.statItem}>
                       <Ionicons name="people" size={16} color={COLORS.gray} />
                       <Text style={styles.statItemText}>
-                        {record.totalStudents} Total
+                        {record.totalStudents} Manifested
                       </Text>
                     </View>
                     
                     <View style={styles.statItem}>
                       <Ionicons name="checkmark-circle" size={16} color={COLORS.success} />
                       <Text style={[styles.statItemText, { color: COLORS.success }]}>
-                        {record.presentCount} Present
+                        {record.presentCount} Boarded
                       </Text>
                     </View>
                     
                     <View style={styles.statItem}>
                       <Ionicons name="close-circle" size={16} color={COLORS.danger} />
                       <Text style={[styles.statItemText, { color: COLORS.danger }]}>
-                        {record.absentCount} Absent
+                        {record.absentCount} Not Boarded
                       </Text>
                     </View>
                   </View>
+
+                  {isExpanded && (
+                    <View style={styles.expandedSection}>
+                      <View style={styles.column}>
+                        <View style={styles.columnHeader}>
+                          <Ionicons name="checkmark-circle" size={16} color={COLORS.success} />
+                          <Text style={[styles.columnTitle, { color: COLORS.success }]}>Boarded</Text>
+                        </View>
+                        {boardedStudents.length === 0 ? (
+                          <Text style={styles.emptyColumnText}>No students boarded</Text>
+                        ) : (
+                          boardedStudents.map(student => (
+                            <View key={student.id} style={styles.columnRow}>
+                              <Text style={styles.columnName}>{student.name || student.id}</Text>
+                              <Text style={styles.columnMeta}>{student.registerNumber || student.id}</Text>
+                              <Text style={styles.columnMeta}>Boarded at {formatTime(student.markedAt)}</Text>
+                            </View>
+                          ))
+                        )}
+                      </View>
+
+                      <View style={styles.columnDivider} />
+
+                      <View style={styles.column}>
+                        <View style={styles.columnHeader}>
+                          <Ionicons name="close-circle" size={16} color={COLORS.danger} />
+                          <Text style={[styles.columnTitle, { color: COLORS.danger }]}>Not Boarded</Text>
+                        </View>
+                        {notBoardedStudents.length === 0 ? (
+                          <Text style={styles.emptyColumnText}>Everyone boarded</Text>
+                        ) : (
+                          notBoardedStudents.map(student => (
+                            <View key={student.id} style={styles.columnRow}>
+                              <Text style={styles.columnName}>{student.name || student.id}</Text>
+                              <Text style={styles.columnMeta}>{student.registerNumber || student.id}</Text>
+                              <Text style={styles.columnMeta}>Marked {student.markedBy || 'Co-Admin'} • {formatTime(student.markedAt)}</Text>
+                            </View>
+                          ))
+                        )}
+                      </View>
+                    </View>
+                  )}
 
                   <View style={styles.recordFooter}>
                     <Text style={styles.submittedBy}>
@@ -377,6 +476,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: SPACING.sm,
   },
+  recordHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   dateContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -420,6 +523,52 @@ const styles = StyleSheet.create({
     paddingTop: SPACING.sm,
   },
   submittedBy: {
+    fontSize: FONTS.sizes.xs,
+    color: COLORS.gray,
+    fontStyle: 'italic',
+  },
+  expandedSection: {
+    flexDirection: 'row',
+    marginTop: SPACING.sm,
+    paddingTop: SPACING.sm,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    gap: SPACING.md,
+  },
+  column: {
+    flex: 1,
+  },
+  columnHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: SPACING.xs,
+    gap: SPACING.xs,
+  },
+  columnTitle: {
+    fontSize: FONTS.sizes.sm,
+    fontWeight: FONTS.weights.semibold,
+  },
+  columnRow: {
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    gap: 2,
+  },
+  columnName: {
+    fontSize: FONTS.sizes.sm,
+    color: COLORS.secondary,
+    fontWeight: FONTS.weights.medium,
+  },
+  columnMeta: {
+    fontSize: FONTS.sizes.xs,
+    color: COLORS.gray,
+    marginTop: 2,
+  },
+  columnDivider: {
+    width: 1,
+    backgroundColor: COLORS.border,
+  },
+  emptyColumnText: {
     fontSize: FONTS.sizes.xs,
     color: COLORS.gray,
     fontStyle: 'italic',

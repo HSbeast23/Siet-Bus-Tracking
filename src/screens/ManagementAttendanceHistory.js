@@ -18,6 +18,8 @@ const ManagementAttendanceHistory = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [sections, setSections] = useState([]);
+  const [expandedBus, setExpandedBus] = useState(null);
+  const [expandedRecords, setExpandedRecords] = useState({});
 
   useEffect(() => {
     loadAttendance();
@@ -88,6 +90,17 @@ const ManagementAttendanceHistory = ({ navigation }) => {
     [sections]
   );
 
+  const toggleBusSection = (busNumber) => {
+    setExpandedBus((prev) => (prev === busNumber ? null : busNumber));
+  };
+
+  const toggleRecord = (recordId) => {
+    setExpandedRecords((prev) => ({
+      ...prev,
+      [recordId]: !prev[recordId],
+    }));
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -145,55 +158,135 @@ const ManagementAttendanceHistory = ({ navigation }) => {
             </Text>
           </View>
         ) : (
-          sections.map((section) => (
-            <View key={section.busNumber} style={styles.sectionCard}>
-              <View style={styles.sectionHeader}>
-                <View style={styles.sectionTitleRow}>
-                  <Ionicons name="bus" size={20} color={COLORS.white} />
-                  <Text style={styles.sectionTitle}>{section.busNumber}</Text>
-                </View>
-                <Text style={styles.sectionSubtitle}>
-                  {section.records.length} day{section.records.length === 1 ? '' : 's'} logged
-                </Text>
-              </View>
+          sections.map((section) => {
+            const isExpanded = expandedBus === section.busNumber;
+            const latestRecord = section.records[0];
+            const totalBoarded = section.records.reduce((sum, record) => sum + record.presentCount, 0);
+            const totalNotBoarded = section.records.reduce((sum, record) => sum + record.absentCount, 0);
 
-              {section.records.map((record) => (
-                <View key={record.id} style={styles.recordCard}>
-                  <View style={styles.recordHeader}>
-                    <View style={styles.recordHeaderLeft}>
-                      <Ionicons name="calendar" size={18} color={COLORS.secondary} />
-                      <Text style={styles.recordDate}>{formatDate(record.date)}</Text>
-                    </View>
-                    <View style={styles.recordStats}>
-                      <StatPill icon="checkmark-circle" value={record.presentCount} label="Present" color={COLORS.success} />
-                      <StatPill icon="close-circle" value={record.absentCount} label="Absent" color={COLORS.danger} />
-                      <StatPill icon="people" value={record.totalCount} label="Total" color={COLORS.info} />
-                    </View>
-                  </View>
-
-                  <View style={styles.studentList}>
-                    {record.students.map((student) => (
-                      <View key={student.id} style={styles.studentRow}>
-                        <View style={[styles.statusDot, { backgroundColor: getStatusColor(student.status) }]} />
-                        <View style={styles.studentInfo}>
-                          <Text style={styles.studentName}>{student.name}</Text>
-                          <Text style={styles.studentMeta}>
-                            {student.registerNumber || student.id} • {formatStatus(student.status)}
-                          </Text>
-                        </View>
-                        <Text style={styles.studentTime}>{formatTime(student.markedAt)}</Text>
+            return (
+              <View key={section.busNumber} style={styles.busCard}>
+                <TouchableOpacity onPress={() => toggleBusSection(section.busNumber)}>
+                  <View style={styles.busSummaryRow}>
+                    <View style={styles.busSummaryLeft}>
+                      <View style={styles.busIconBadge}>
+                        <Ionicons name="bus" size={20} color={COLORS.white} />
                       </View>
-                    ))}
+                      <View>
+                        <Text style={styles.busTitle}>{section.busNumber}</Text>
+                        {latestRecord && (
+                          <Text style={styles.busSubtitle}>
+                            Latest manifest • {formatDate(latestRecord.date)}
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+                    <View style={styles.busSummaryStats}>
+                      <View style={styles.busChip}>
+                        <Ionicons name="checkmark-circle" size={14} color={COLORS.success} />
+                        <Text style={[styles.busChipText, { color: COLORS.success }]}>{totalBoarded}</Text>
+                        <Text style={styles.busChipLabel}>Boarded</Text>
+                      </View>
+                      <View style={styles.busChip}>
+                        <Ionicons name="close-circle" size={14} color={COLORS.danger} />
+                        <Text style={[styles.busChipText, { color: COLORS.danger }]}>{totalNotBoarded}</Text>
+                        <Text style={styles.busChipLabel}>Not Boarded</Text>
+                      </View>
+                      <Ionicons
+                        name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                        size={20}
+                        color={COLORS.secondary}
+                      />
+                    </View>
                   </View>
+                </TouchableOpacity>
 
-                  <View style={styles.recordFooter}>
-                    <Ionicons name="person" size={14} color={COLORS.textSecondary} />
-                    <Text style={styles.recordFooterText}>Submitted by {record.submittedBy}</Text>
+                {isExpanded && (
+                  <View style={styles.busDetails}>
+                    {section.records.map((record) => {
+                      const expanded = expandedRecords[record.id] === true;
+                      const boardedStudents = record.students.filter((student) => student.status === 'present');
+                      const notBoardedStudents = record.students.filter((student) => student.status === 'absent');
+                      return (
+                        <View key={record.id} style={styles.historyCard}>
+                          <TouchableOpacity onPress={() => toggleRecord(record.id)}>
+                            <View style={styles.historyHeader}>
+                              <View style={styles.historyHeaderLeft}>
+                                <Ionicons name="calendar" size={18} color={COLORS.secondary} />
+                                <Text style={styles.historyDate}>{formatDate(record.date)}</Text>
+                              </View>
+                              <View style={styles.historyHeaderRight}>
+                                <StatPill icon="checkmark-circle" value={record.presentCount} label="Boarded" color={COLORS.success} />
+                                <StatPill icon="close-circle" value={record.absentCount} label="Not Boarded" color={COLORS.danger} />
+                                <StatPill icon="people" value={record.totalCount} label="Manifest" color={COLORS.info} />
+                                <Ionicons
+                                  name={expanded ? 'chevron-up' : 'chevron-down'}
+                                  size={18}
+                                  color={COLORS.secondary}
+                                  style={{ marginLeft: SPACING.xs }}
+                                />
+                              </View>
+                            </View>
+                          </TouchableOpacity>
+
+                          {expanded && (
+                            <View style={styles.manifestRow}>
+                              <View style={styles.manifestColumn}>
+                                <View style={styles.manifestColumnHeader}>
+                                  <Ionicons name="checkmark-circle" size={16} color={COLORS.success} />
+                                  <Text style={[styles.manifestColumnTitle, { color: COLORS.success }]}>Boarded</Text>
+                                </View>
+                                {boardedStudents.length === 0 ? (
+                                  <Text style={styles.manifestEmpty}>No students boarded</Text>
+                                ) : (
+                                  boardedStudents.map((student) => (
+                                    <View key={student.id} style={styles.manifestRowItem}>
+                                      <Text style={styles.manifestName}>{student.name}</Text>
+                                      <Text style={styles.manifestMeta}>
+                                        {student.registerNumber || student.id}
+                                      </Text>
+                                      <Text style={styles.manifestTime}>{formatTime(student.markedAt)}</Text>
+                                    </View>
+                                  ))
+                                )}
+                              </View>
+
+                              <View style={styles.manifestDivider} />
+
+                              <View style={styles.manifestColumn}>
+                                <View style={styles.manifestColumnHeader}>
+                                  <Ionicons name="close-circle" size={16} color={COLORS.danger} />
+                                  <Text style={[styles.manifestColumnTitle, { color: COLORS.danger }]}>Not Boarded</Text>
+                                </View>
+                                {notBoardedStudents.length === 0 ? (
+                                  <Text style={styles.manifestEmpty}>Everyone boarded</Text>
+                                ) : (
+                                  notBoardedStudents.map((student) => (
+                                    <View key={student.id} style={styles.manifestRowItem}>
+                                      <Text style={styles.manifestName}>{student.name}</Text>
+                                      <Text style={styles.manifestMeta}>
+                                        {student.registerNumber || student.id}
+                                      </Text>
+                                      <Text style={styles.manifestTime}>{formatTime(student.markedAt)}</Text>
+                                    </View>
+                                  ))
+                                )}
+                              </View>
+                            </View>
+                          )}
+
+                          <View style={styles.historyFooter}>
+                            <Ionicons name="person" size={14} color={COLORS.textSecondary} />
+                            <Text style={styles.historyFooterText}>Submitted by {record.submittedBy}</Text>
+                          </View>
+                        </View>
+                      );
+                    })}
                   </View>
-                </View>
-              ))}
-            </View>
-          ))
+                )}
+              </View>
+            );
+          })
         )}
 
         <View style={{ height: SPACING.xl }} />
@@ -262,24 +355,6 @@ const formatTime = (date) => {
     hour: '2-digit',
     minute: '2-digit',
   });
-};
-
-const formatStatus = (status) => {
-  if (!status) {
-    return 'Unmarked';
-  }
-  return status.charAt(0).toUpperCase() + status.slice(1);
-};
-
-const getStatusColor = (status) => {
-  switch (status) {
-    case 'present':
-      return COLORS.success;
-    case 'absent':
-      return COLORS.danger;
-    default:
-      return COLORS.warning;
-  }
 };
 
 const styles = StyleSheet.create({
@@ -370,60 +445,100 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
-  sectionCard: {
+  busCard: {
     backgroundColor: COLORS.white,
     borderRadius: RADIUS.lg,
     marginBottom: SPACING.lg,
     ...SHADOWS.sm,
+    overflow: 'hidden',
   },
-  sectionHeader: {
-    backgroundColor: COLORS.secondary,
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    borderTopLeftRadius: RADIUS.lg,
-    borderTopRightRadius: RADIUS.lg,
-  },
-  sectionTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  sectionTitle: {
-    marginLeft: SPACING.xs,
-    fontSize: 18,
-    fontFamily: FONTS.bold,
-    color: COLORS.white,
-  },
-  sectionSubtitle: {
-    marginTop: 4,
-    fontSize: 13,
-    fontFamily: FONTS.regular,
-    color: '#F1F1F1',
-  },
-  recordCard: {
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    borderBottomColor: COLORS.border,
-    borderBottomWidth: 1,
-  },
-  recordHeader: {
+  busSummaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
   },
-  recordHeaderLeft: {
+  busSummaryLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: SPACING.sm,
   },
-  recordDate: {
-    marginLeft: SPACING.xs,
+  busIconBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: COLORS.secondary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  busTitle: {
+    fontSize: 18,
+    fontFamily: FONTS.bold,
+    color: COLORS.secondary,
+  },
+  busSubtitle: {
+    marginTop: 2,
+    fontSize: 12,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
+  },
+  busSummaryStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  busChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 6,
+    borderRadius: RADIUS.md,
+    gap: 4,
+  },
+  busChipText: {
+    fontSize: 14,
+    fontFamily: FONTS.semiBold,
+  },
+  busChipLabel: {
+    fontSize: 11,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
+    maxWidth: 72,
+    textAlign: 'left',
+  },
+  busDetails: {
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.sm,
+    paddingBottom: SPACING.md,
+  },
+  historyCard: {
+    paddingVertical: SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  historyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  historyHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+  },
+  historyHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+  },
+  historyDate: {
     fontSize: 15,
     fontFamily: FONTS.semiBold,
     color: COLORS.textPrimary,
-  },
-  recordStats: {
-    flexDirection: 'row',
-    alignItems: 'center',
   },
   statPill: {
     flexDirection: 'row',
@@ -443,48 +558,65 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: FONTS.medium,
   },
-  studentList: {
-    marginBottom: SPACING.md,
-  },
-  studentRow: {
+  manifestRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 6,
+    marginTop: SPACING.md,
+    gap: SPACING.md,
   },
-  statusDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: SPACING.sm,
-  },
-  studentInfo: {
+  manifestColumn: {
     flex: 1,
   },
-  studentName: {
+  manifestColumnHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    marginBottom: SPACING.xs,
+  },
+  manifestColumnTitle: {
+    fontSize: 13,
+    fontFamily: FONTS.semiBold,
+  },
+  manifestRowItem: {
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  manifestName: {
     fontSize: 14,
     fontFamily: FONTS.semiBold,
     color: COLORS.textPrimary,
   },
-  studentMeta: {
+  manifestMeta: {
     fontSize: 12,
     fontFamily: FONTS.regular,
     color: COLORS.textSecondary,
     marginTop: 2,
   },
-  studentTime: {
+  manifestTime: {
+    fontSize: 11,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
+  manifestDivider: {
+    width: 1,
+    backgroundColor: COLORS.border,
+  },
+  manifestEmpty: {
     fontSize: 12,
     fontFamily: FONTS.regular,
     color: COLORS.textSecondary,
-    marginLeft: SPACING.sm,
+    fontStyle: 'italic',
   },
-  recordFooter: {
+  historyFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     borderTopColor: COLORS.border,
     borderTopWidth: 1,
     paddingTop: SPACING.sm,
+    marginTop: SPACING.md,
   },
-  recordFooterText: {
+  historyFooterText: {
     marginLeft: SPACING.xs,
     fontSize: 12,
     fontFamily: FONTS.regular,

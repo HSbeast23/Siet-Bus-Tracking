@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   FlatList,
+  Platform,
+  Animated,
 } from 'react-native';
 import MapView, { Marker, AnimatedRegion, PROVIDER_GOOGLE, Callout, Polyline } from 'react-native-maps';
 import * as Location from 'expo-location';
@@ -151,6 +153,70 @@ const mergeStopsIntoPolyline = (polylinePoints, stops) => {
 
   return merged;
 };
+
+const StopMarker = React.memo(({ stop, index, totalStops }) => {
+  if (!stop) {
+    return null;
+  }
+
+  const [tracksViewChanges, setTracksViewChanges] = React.useState(Platform.OS === 'android');
+
+  const isStart = index === 0;
+  const isEnd = typeof totalStops === 'number' ? index === totalStops - 1 : false;
+
+  React.useEffect(() => {
+    if (Platform.OS !== 'android') {
+      return;
+    }
+
+    const timer = setTimeout(() => setTracksViewChanges(false), 750);
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <Marker
+      coordinate={{ latitude: stop.latitude, longitude: stop.longitude }}
+      anchor={{ x: 0.5, y: 1 }}
+      tracksViewChanges={tracksViewChanges}
+    >
+      <View style={styles.stopMarkerWrapper}>
+        <View
+          style={[
+            styles.stopMarkerLabelContainer,
+            isStart && styles.stopMarkerLabelContainerStart,
+            isEnd && styles.stopMarkerLabelContainerEnd,
+          ]}
+        >
+          <Text
+            style={[
+              styles.stopMarkerLabel,
+              isStart && styles.stopMarkerLabelStart,
+              isEnd && styles.stopMarkerLabelEnd,
+            ]}
+            allowFontScaling={false}
+          >
+            {stop.name || `Stop ${index + 1}`}
+          </Text>
+        </View>
+        <View
+          style={[
+            styles.stopMarkerStem,
+            isStart && styles.stopMarkerStemStart,
+            isEnd && styles.stopMarkerStemEnd,
+          ]}
+        />
+      </View>
+      <Callout tooltip>
+        <View style={styles.stopCallout}>
+          <Text style={styles.stopCalloutTitle}>{stop.name || `Stop ${index + 1}`}</Text>
+          <Text style={styles.stopCalloutSubtitle}>
+            Lat: {stop.latitude.toFixed(5)} • Lng: {stop.longitude.toFixed(5)}
+          </Text>
+        </View>
+      </Callout>
+    </Marker>
+  );
+});
 
 const MapScreen = ({ route, navigation }) => {
   const [busLocation, setBusLocation] = useState(null);
@@ -716,49 +782,53 @@ const MapScreen = ({ route, navigation }) => {
           />
         )}
 
-        {resolvedRouteStops.map((stop, index) => {
-          console.log('📌 [MAP] Rendering stop marker:', stop.name, stop.latitude, stop.longitude);
-          return (
-          <Marker
+        {resolvedRouteStops.map((stop, index) => (
+          <StopMarker
             key={stop.id || `route-stop-${index}`}
-            coordinate={{ latitude: stop.latitude, longitude: stop.longitude }}
-            tracksViewChanges={false}
-          >
-            <View style={styles.stopMarkerWrapper}>
-              <View style={styles.stopMarker}>
-                <Text style={styles.stopMarkerText}>{index + 1}</Text>
-              </View>
-              <View style={styles.stopMarkerLabelContainer}>
-                <Text style={styles.stopMarkerLabel} numberOfLines={1}>
-                  {stop.name || `Stop ${index + 1}`}
-                </Text>
-              </View>
-            </View>
-            <Callout tooltip>
-              <View style={styles.stopCallout}>
-                <Text style={styles.stopCalloutTitle}>{stop.name || `Stop ${index + 1}`}</Text>
-                <Text style={styles.stopCalloutSubtitle}>Lat: {stop.latitude.toFixed(5)} • Lng: {stop.longitude.toFixed(5)}</Text>
-              </View>
-            </Callout>
-          </Marker>
-        );})}
+            stop={stop}
+            index={index}
+            totalStops={resolvedRouteStops.length}
+          />
+        ))}
         
         {/* Bus Location Marker - Animated & Only show when actively tracking */}
         {busLocation && busLocation.isTracking && (
           <Marker.Animated
             ref={markerRef}
             coordinate={busCoordinate}
-            anchor={{ x: 0.5, y: 0.5 }}
-            flat={true}
-            rotation={busLocation.heading || 0}
+            anchor={Platform.select({ ios: { x: 0.5, y: 0.92 }, default: { x: 0.5, y: 0.6 } })}
+            // Keep the badge above Android's extruded buildings without altering the iOS layout
+            flat
+            tracksViewChanges={Platform.OS === 'android'}
+            zIndex={9999}
+            priority="high"
           >
-            <View style={styles.busMarkerContainer}>
-              <View style={[styles.busMarker, { 
-                transform: [{ rotate: `${busLocation.heading || 0}deg` }] 
-              }]}>
-                <Ionicons name="bus" size={30} color={COLORS.white} />
+            <Animated.View
+              style={styles.busMarkerContainer}
+              renderToHardwareTextureAndroid
+            >
+              <View
+                style={[styles.busHeadingBadge, {
+                  transform: [{ rotate: `${busLocation.heading || 0}deg` }],
+                }]}
+              >
+                <Ionicons name="navigate" size={14} color={COLORS.white} />
               </View>
-            </View>
+              <View style={styles.busBadgeWrapper}>
+                <View style={styles.busBadgeIconBubble}>
+                  <Ionicons name="bus" size={22} color={COLORS.secondary} />
+                </View>
+                <View style={styles.busBadgeTextColumn}>
+                  <Text style={styles.busBadgeTitle}>{resolvedBusLabel}</Text>
+                  <Text style={styles.busBadgeSubtitle}>
+                    {Number.isFinite(busLocation.speed)
+                      ? `${(busLocation.speed * 3.6).toFixed(0)} km/h`
+                      : 'Live tracking'}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.busBadgePointer} />
+            </Animated.View>
             <Callout tooltip>
               <View style={styles.calloutContainer}>
                 <Text style={styles.calloutTitle}>{resolvedBusLabel}</Text>
@@ -868,18 +938,25 @@ const styles = StyleSheet.create({
   map: {
     flex: 1,
   },
-  busMarker: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 20,
-    width: 40,
-    height: 40,
+  busHeadingBadge: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: COLORS.secondary,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 3,
+    shadowColor: COLORS.secondary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 6,
+    marginBottom: -8,
+    borderWidth: 2,
     borderColor: COLORS.white,
   },
   stopMarkerWrapper: {
     alignItems: 'center',
+    justifyContent: 'center',
   },
   studentMarker: {
     backgroundColor: COLORS.accent,
@@ -942,6 +1019,76 @@ const styles = StyleSheet.create({
   busMarkerContainer: {
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    elevation: 5,
+    paddingBottom: 10,
+    transform: [{ translateY: Platform.OS === 'android' ? -26 : -10 }],
+  },
+  busBadgeWrapper: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 24,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 140,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.2)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 4,
+    elevation: 6,
+  },
+  busBadgeIconBubble: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: COLORS.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    elevation: 4,
+  },
+  busBadgeTextColumn: {
+    flexDirection: 'column',
+    flex: 1,
+  },
+  busBadgeTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: COLORS.secondary,
+    marginBottom: 3,
+    letterSpacing: 0.3,
+  },
+  busBadgeSubtitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.gray,
+    letterSpacing: 0.2,
+  },
+  busBadgePointer: {
+    marginTop: -6,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 14,
+    borderRightWidth: 14,
+    borderTopWidth: 16,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: COLORS.primary,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
   },
   calloutContainer: {
     backgroundColor: COLORS.white,
@@ -985,34 +1132,50 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
-  stopMarker: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: COLORS.secondary,
-    borderWidth: 2,
-    borderColor: COLORS.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stopMarkerText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.white,
-  },
   stopMarkerLabelContainer: {
-    marginTop: 4,
-    backgroundColor: 'rgba(0,0,0,0.65)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
-    maxWidth: 140,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0,0,0,0.82)',
+    maxWidth: 260,
+    marginBottom: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.25,
+    shadowRadius: 2,
+    elevation: 4,
+  },
+  stopMarkerLabelContainerStart: {
+    backgroundColor: 'rgba(33,150,243,0.85)',
+  },
+  stopMarkerLabelContainerEnd: {
+    backgroundColor: 'rgba(244,67,54,0.9)',
   },
   stopMarkerLabel: {
     color: COLORS.white,
-    fontSize: 12,
+    fontSize: 13,
+    lineHeight: 19,
     fontFamily: FONTS.medium,
     textAlign: 'center',
+  },
+  stopMarkerLabelStart: {
+    color: COLORS.white,
+  },
+  stopMarkerLabelEnd: {
+    color: COLORS.white,
+  },
+  stopMarkerStem: {
+    width: 3,
+    height: 10,
+    backgroundColor: COLORS.secondary,
+    borderRadius: 2,
+    marginTop: -1,
+  },
+  stopMarkerStemStart: {
+    backgroundColor: COLORS.info,
+  },
+  stopMarkerStemEnd: {
+    backgroundColor: COLORS.danger,
   },
   stopCallout: {
     backgroundColor: COLORS.white,
