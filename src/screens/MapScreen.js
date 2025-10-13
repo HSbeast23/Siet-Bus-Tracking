@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
   FlatList,
   Platform,
-  Animated,
 } from 'react-native';
 import MapView, { Marker, AnimatedRegion, PROVIDER_GOOGLE, Callout, Polyline } from 'react-native-maps';
 import * as Location from 'expo-location';
@@ -16,14 +15,12 @@ import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
 import { subscribeToBusLocation, normalizeBusNumber } from '../services/locationService';
 import { authService } from '../services/authService';
-import { ORS_API_KEY } from '@env';
 import {
   DEFAULT_ROUTE_STOPS,
-  ORS_ROUTE_COORDINATES,
+  OSRM_ROUTE_COORDINATES,
   ROUTE_POLYLINE_FIT_COORDINATES,
 } from '../utils/routePolylineConfig';
-
-const ORS_ENDPOINT = 'https://api.openrouteservice.org/v2/directions/driving-car/geojson';
+const OSRM_BASE_URL = 'https://router.project-osrm.org/route/v1/driving';
 
 const normalizeShapingPoints = (points = [], contextId = 'point') => {
   if (!Array.isArray(points)) {
@@ -243,73 +240,60 @@ const MapScreen = ({ route, navigation }) => {
   const routeKeyRef = useRef('');
   const hasFittedRouteRef = useRef(false);
 
-  const fetchRoutePolyline = useCallback(
-  async (coordinates, stopsForRoute) => {
-      if (!Array.isArray(coordinates) || coordinates.length < 2) {
-        setRoutePolyline([]);
-        return;
+  const fetchRoutePolyline = useCallback(async (coordinates, stopsForRoute) => {
+    if (!Array.isArray(coordinates) || coordinates.length < 2) {
+      setRoutePolyline([]);
+      return;
+    }
+
+    try {
+      setIsRouteLoading(true);
+      setRouteFetchError('');
+
+      const coordinateString = coordinates
+        .map(([lng, lat]) => `${lng},${lat}`)
+        .join(';');
+      const requestUrl = `${OSRM_BASE_URL}/${coordinateString}?overview=full&geometries=geojson`;
+
+      console.log('🗺️ [MAP] Requesting OSRM route:', requestUrl);
+      console.log('🚌 [MAP] Route stops provided:', JSON.stringify(stopsForRoute));
+
+      const response = await fetch(requestUrl);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`OSRM request failed: ${response.status} ${errorText}`);
       }
 
-      if (!ORS_API_KEY) {
-        console.warn('⚠️ [MAP] ORS API key missing. Skipping route fetch.');
-        const straightLineFallback = coordinates.map(([lng, lat]) => ({ latitude: lat, longitude: lng }));
-        const enforcedRoute = mergeStopsIntoPolyline(straightLineFallback, stopsForRoute);
-        setRoutePolyline(enforcedRoute);
-        return;
+      const data = await response.json();
+      const geometry = data?.routes?.[0]?.geometry?.coordinates ?? [];
+
+      console.log(`🛰️ [MAP] OSRM geometry points: ${geometry.length}`);
+      console.log('📍 [MAP] First OSRM point:', geometry[0]);
+      console.log('📍 [MAP] Last OSRM point:', geometry[geometry.length - 1]);
+
+      if (!geometry.length) {
+        throw new Error('No geometry data returned from OSRM response.');
       }
 
-      try {
-        setIsRouteLoading(true);
-        setRouteFetchError('');
+      let formatted = geometry.map(([lng, lat]) => ({ latitude: lat, longitude: lng }));
+      formatted = includeEndpoint(formatted, coordinates[0], 'start');
+      formatted = includeEndpoint(formatted, coordinates[coordinates.length - 1], 'end');
+      formatted = mergeStopsIntoPolyline(formatted, stopsForRoute);
 
-        console.log('🗺️ [MAP] Requesting ORS route with coordinates:', JSON.stringify(coordinates));
-        console.log('🚌 [MAP] Route stops provided:', JSON.stringify(stopsForRoute));
+      console.log(`✅ [MAP] Final polyline points after enforcement: ${formatted.length}`);
 
-        const response = await fetch(ORS_ENDPOINT, {
-          method: 'POST',
-          headers: {
-            Authorization: ORS_API_KEY,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ coordinates }),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`ORS request failed: ${response.status} ${errorText}`);
-        }
-
-        const data = await response.json();
-        const geometry = data?.features?.[0]?.geometry?.coordinates ?? [];
-
-        console.log(`🛰️ [MAP] ORS response geometry points: ${geometry.length}`);
-        console.log('📍 [MAP] First ORS point:', geometry[0]);
-        console.log('📍 [MAP] Last ORS point:', geometry[geometry.length - 1]);
-
-        if (!geometry.length) {
-          throw new Error('No geometry data returned from ORS response.');
-        }
-
-        let formatted = geometry.map(([lng, lat]) => ({ latitude: lat, longitude: lng }));
-        formatted = includeEndpoint(formatted, coordinates[0], 'start');
-        formatted = includeEndpoint(formatted, coordinates[coordinates.length - 1], 'end');
-        formatted = mergeStopsIntoPolyline(formatted, stopsForRoute);
-
-        console.log(`✅ [MAP] Final polyline points after enforcement: ${formatted.length}`);
-
-        setRoutePolyline(formatted);
-      } catch (error) {
-        console.error('❌ [MAP] Failed to fetch ORS route polyline:', error);
-        setRouteFetchError('Unable to load optimized route. Showing straight-line preview.');
-        const straightLine = coordinates.map(([lng, lat]) => ({ latitude: lat, longitude: lng }));
-        const enforcedRoute = mergeStopsIntoPolyline(straightLine, stopsForRoute);
-        setRoutePolyline(enforcedRoute);
-      } finally {
-        setIsRouteLoading(false);
-      }
-    },
-    [ORS_API_KEY]
-  );
+      setRoutePolyline(formatted);
+    } catch (error) {
+      console.error('❌ [MAP] Failed to fetch OSRM route polyline:', error);
+      setRouteFetchError('Unable to load optimized route. Showing straight-line preview.');
+      const straightLine = coordinates.map(([lng, lat]) => ({ latitude: lat, longitude: lng }));
+      const enforcedRoute = mergeStopsIntoPolyline(straightLine, stopsForRoute);
+      setRoutePolyline(enforcedRoute);
+    } finally {
+      setIsRouteLoading(false);
+    }
+  }, []);
 
   // Get bus details from route params (for management) or from user info (for students)
   const busIdFromParams = route?.params?.busId;
@@ -357,7 +341,7 @@ const MapScreen = ({ route, navigation }) => {
     [resolvedRouteStops]
   );
 
-  const orsCoordinatePayload = useMemo(() => {
+  const osrmCoordinatePayload = useMemo(() => {
     const payload = resolvedRouteStops.flatMap((stop, stopIndex) => {
       const baseCoordinate = [[stop.longitude, stop.latitude]];
 
@@ -381,7 +365,7 @@ const MapScreen = ({ route, navigation }) => {
       return [...baseCoordinate, ...shapingCoordinates];
     });
 
-    console.log('🧭 [MAP] ORS payload coordinates:', JSON.stringify(payload));
+    console.log('🧭 [MAP] OSRM payload coordinates:', JSON.stringify(payload));
 
     return payload;
   }, [resolvedRouteStops]);
@@ -402,9 +386,9 @@ const MapScreen = ({ route, navigation }) => {
 
   useEffect(() => {
     const coordinates =
-      Array.isArray(orsCoordinatePayload) && orsCoordinatePayload.length >= 2
-        ? orsCoordinatePayload
-        : ORS_ROUTE_COORDINATES;
+      Array.isArray(osrmCoordinatePayload) && osrmCoordinatePayload.length >= 2
+        ? osrmCoordinatePayload
+        : OSRM_ROUTE_COORDINATES;
 
     const coordinateKey = JSON.stringify(coordinates);
     if (coordinateKey === routeKeyRef.current) {
@@ -414,7 +398,7 @@ const MapScreen = ({ route, navigation }) => {
     routeKeyRef.current = coordinateKey;
     hasFittedRouteRef.current = false;
     fetchRoutePolyline(coordinates, resolvedRouteStops);
-  }, [fetchRoutePolyline, orsCoordinatePayload, resolvedRouteStops]);
+  }, [fetchRoutePolyline, osrmCoordinatePayload, resolvedRouteStops]);
 
   // �🔥 Subscribe to real-time bus location updates from Firestore
   useEffect(() => {
@@ -796,17 +780,13 @@ const MapScreen = ({ route, navigation }) => {
           <Marker.Animated
             ref={markerRef}
             coordinate={busCoordinate}
-            anchor={Platform.select({ ios: { x: 0.5, y: 0.92 }, default: { x: 0.5, y: 0.6 } })}
-            // Keep the badge above Android's extruded buildings without altering the iOS layout
-            flat
-            tracksViewChanges={Platform.OS === 'android'}
+            anchor={{ x: 0.5, y: 1 }}
+            flat={false}
+            tracksViewChanges={true}
             zIndex={9999}
             priority="high"
           >
-            <Animated.View
-              style={styles.busMarkerContainer}
-              renderToHardwareTextureAndroid
-            >
+            <View style={styles.busMarkerContainer}>
               <View
                 style={[styles.busHeadingBadge, {
                   transform: [{ rotate: `${busLocation.heading || 0}deg` }],
@@ -828,7 +808,7 @@ const MapScreen = ({ route, navigation }) => {
                 </View>
               </View>
               <View style={styles.busBadgePointer} />
-            </Animated.View>
+            </View>
             <Callout tooltip>
               <View style={styles.calloutContainer}>
                 <Text style={styles.calloutTitle}>{resolvedBusLabel}</Text>
@@ -1025,7 +1005,7 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 5,
     paddingBottom: 10,
-    transform: [{ translateY: Platform.OS === 'android' ? -26 : -10 }],
+    transform: [{ translateY: -10 }],
   },
   busBadgeWrapper: {
     backgroundColor: COLORS.primary,

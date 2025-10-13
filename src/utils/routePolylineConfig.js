@@ -73,7 +73,7 @@ export const DEFAULT_ROUTE_STOPS = [
   },
 ];
 
-export const ORS_ROUTE_COORDINATES = DEFAULT_ROUTE_STOPS.map((stop) => [
+export const OSRM_ROUTE_COORDINATES = DEFAULT_ROUTE_STOPS.map((stop) => [
   stop.longitude,
   stop.latitude,
 ]);
