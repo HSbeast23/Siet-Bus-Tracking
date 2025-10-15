@@ -82,3 +82,33 @@ export const ROUTE_POLYLINE_FIT_COORDINATES = DEFAULT_ROUTE_STOPS.map((stop) => 
   latitude: stop.latitude,
   longitude: stop.longitude,
 }));
+
+export const OSRM_BASE_URL = 'https://router.project-osrm.org';
+
+export const buildOsrmRouteUrl = (stops, profile = 'driving', options = {}) => {
+  const { overview = 'full', geometries = 'geojson', steps = false } = options;
+  if (!Array.isArray(stops) || stops.length < 2) {
+    return null;
+  }
+
+  const coordinateString = stops
+    .map((stop) => {
+      if (!stop || typeof stop.longitude !== 'number' || typeof stop.latitude !== 'number') {
+        return null;
+      }
+      return `${stop.longitude},${stop.latitude}`;
+    })
+    .filter(Boolean)
+    .join(';');
+
+  if (!coordinateString) {
+    return null;
+  }
+
+  return `${OSRM_BASE_URL}/route/v1/${profile}/${coordinateString}?overview=${overview}&geometries=${geometries}&steps=${steps}`;
+};
+
+export const stopsToLatLng = (stops = []) =>
+  stops
+    .filter((stop) => typeof stop?.latitude === 'number' && typeof stop?.longitude === 'number')
+    .map((stop) => ({ latitude: stop.latitude, longitude: stop.longitude }));

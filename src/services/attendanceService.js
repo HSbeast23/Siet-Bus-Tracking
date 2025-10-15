@@ -96,7 +96,6 @@ class AttendanceService {
     try {
       const today = this.getTodayDate();
       const attendanceDocRef = doc(this.attendanceCollection, `${busNumber}_${today}`);
-      const resolvedMarkedBy = markedBy || 'Co-Admin';
       
       // Get existing attendance
       const attendanceSnap = await getDoc(attendanceDocRef);
@@ -111,7 +110,7 @@ class AttendanceService {
       existingData.students[studentId] = {
         status, // 'present' or 'absent'
         markedAt: Timestamp.now(),
-        markedBy: resolvedMarkedBy
+        markedBy
       };
 
       // Save to Firestore
@@ -129,7 +128,6 @@ class AttendanceService {
     try {
       const today = this.getTodayDate();
       const attendanceDocRef = doc(this.attendanceCollection, `${busNumber}_${today}`);
-      const resolvedSubmittedBy = submittedBy || 'Co-Admin';
 
       // ✅ Check if attendance already submitted today
       const existingSnap = await getDoc(attendanceDocRef);
@@ -147,7 +145,7 @@ class AttendanceService {
         date: today,
         timestamp: Timestamp.now(),
         students: attendanceData,
-        submittedBy: resolvedSubmittedBy,
+        submittedBy,
         submittedAt: Timestamp.now(),
         submitted: true
       };

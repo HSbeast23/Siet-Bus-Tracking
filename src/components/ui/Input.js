@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, TextInput, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { View, TextInput, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -137,10 +137,7 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.regular,
     fontSize: 15,
     color: COLORS.black,
-    paddingVertical: Platform.select({ ios: SPACING.md, android: SPACING.sm }),
-    minHeight: 48,
-    textAlignVertical: 'center',
-    lineHeight: 20,
+    paddingVertical: SPACING.md,
   },
   inputWithIcon: {
     paddingLeft: 0,

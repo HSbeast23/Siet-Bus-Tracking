@@ -4,18 +4,18 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
+  SafeAreaView,
   ScrollView,
   ActivityIndicator
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../utils/constants';
+import { COLORS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
 import { normalizeBusNumber } from '../services/locationService';
 
 const BusDetails = ({ route, navigation }) => {
-  const { bus, role: routeRole = 'management' } = route.params;
+  const { bus } = route.params;
   const busNumber = bus.number || bus.busNumber || '';
   const driverName = bus.driverName || bus.driver || 'Not Assigned';
   const busStatus = bus.status || 'Inactive';
@@ -105,7 +105,7 @@ const BusDetails = ({ route, navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={COLORS.secondary} />
@@ -223,12 +223,7 @@ const BusDetails = ({ route, navigation }) => {
               {studentCount > topStudents.length && (
                 <TouchableOpacity
                   style={styles.viewAllButton}
-                  onPress={() =>
-                    navigation.navigate('StudentManagement', {
-                      busId: busNumber,
-                      role: routeRole,
-                    })
-                  }
+                  onPress={() => navigation.navigate('StudentManagement', { busId: busNumber })}
                   activeOpacity={0.7}
                 >
                   <Ionicons name="people" size={18} color={COLORS.primary} />
@@ -243,25 +238,15 @@ const BusDetails = ({ route, navigation }) => {
         <View style={styles.actionButtons}>
           <TouchableOpacity 
             style={styles.actionButton}
-            onPress={() =>
-              navigation.navigate('MapScreen', {
-                busId: busNumber,
-                role: routeRole,
-              })
-            }
+            onPress={() => navigation.navigate('MapScreen', { 
+              busId: busNumber, 
+              role: 'management' 
+            })}
           >
             <Ionicons name="map" size={20} color={COLORS.white} />
             <Text style={styles.actionButtonText}>Track Live</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: COLORS.warning }]}
-            onPress={() =>
-              navigation.navigate('BusEdit', {
-                busId: busNumber,
-                role: routeRole,
-              })
-            }
-          >
+          <TouchableOpacity style={[styles.actionButton, { backgroundColor: COLORS.warning }]}>
             <Ionicons name="settings" size={20} color={COLORS.white} />
             <Text style={styles.actionButtonText}>Edit Details</Text>
           </TouchableOpacity>
@@ -280,19 +265,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.md,
-    paddingBottom: SPACING.md,
+    paddingHorizontal: 20,
+    paddingVertical: 15,
     backgroundColor: COLORS.white,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.lightGray,
   },
   backButton: {
-    padding: SPACING.sm,
+    padding: 5,
   },
   headerTitle: {
-    fontSize: FONTS.sizes.xl,
-    fontFamily: FONTS.semiBold,
+    fontSize: 20,
+    fontWeight: 'bold',
     color: COLORS.secondary,
   },
   placeholder: {
@@ -300,15 +284,19 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.lg,
+    padding: 20,
   },
   busInfoCard: {
     backgroundColor: COLORS.white,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.lg,
-    marginBottom: SPACING.lg,
-    ...SHADOWS.md,
+    borderRadius: 15,
+    padding: 20,
+    marginBottom: 20,
+    marginVertical: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   busHeader: {
     flexDirection: 'row',
@@ -321,100 +309,109 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: SPACING.md,
+    marginRight: 15,
   },
   busMainInfo: {
     flex: 1,
   },
   busNumber: {
     fontSize: 24,
-    fontFamily: FONTS.bold,
+    fontWeight: 'bold',
     color: COLORS.secondary,
-    marginBottom: SPACING.xs,
+    marginBottom: 5,
   },
   driverName: {
-    fontSize: 15,
-    fontFamily: FONTS.regular,
+    fontSize: 16,
     color: COLORS.gray,
-    marginBottom: SPACING.sm,
+    marginBottom: 10,
   },
   statusBadge: {
     alignSelf: 'flex-start',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs,
-    borderRadius: RADIUS.md,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 15,
   },
   statusText: {
     color: COLORS.white,
     fontSize: 12,
-    fontFamily: FONTS.semiBold,
+    fontWeight: 'bold',
   },
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: SPACING.lg,
+    marginBottom: 20,
   },
   statCard: {
     backgroundColor: COLORS.white,
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
+    borderRadius: 12,
+    padding: 15,
     alignItems: 'center',
     flex: 1,
-    marginHorizontal: SPACING.xs,
-    ...SHADOWS.sm,
+    marginHorizontal: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 3,
   },
   statNumber: {
     fontSize: 20,
-    fontFamily: FONTS.bold,
+    fontWeight: 'bold',
     color: COLORS.secondary,
-    marginVertical: SPACING.xs,
+    marginVertical: 5,
   },
   statLabel: {
     fontSize: 12,
-    fontFamily: FONTS.regular,
     color: COLORS.gray,
   },
   sectionCard: {
     backgroundColor: COLORS.white,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.lg,
-    marginBottom: SPACING.lg,
-    ...SHADOWS.sm,
+    borderRadius: 15,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 3,
   },
   loadingBlock: {
-    padding: SPACING.lg,
+    padding: 20,
     alignItems: 'center',
   },
   loadingBlockText: {
-    marginTop: SPACING.sm,
+    marginTop: 10,
     color: COLORS.gray,
     textAlign: 'center',
-    fontFamily: FONTS.regular,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: SPACING.md,
+    marginBottom: 15,
   },
   sectionTitle: {
     fontSize: 18,
-    fontFamily: FONTS.bold,
+    fontWeight: 'bold',
     color: COLORS.secondary,
-    marginBottom: SPACING.md,
+    marginBottom: 15,
   },
   sectionAction: {
     color: COLORS.primary,
-    fontFamily: FONTS.medium,
+    fontWeight: '600',
+  },
+  viewAllText: {
+    fontSize: 12,
+    color: COLORS.gray,
   },
   routeItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: SPACING.md,
+    marginBottom: 15,
   },
   routeIndicator: {
     alignItems: 'center',
-    marginRight: SPACING.md,
+    marginRight: 15,
   },
   routeDot: {
     width: 12,
@@ -425,45 +422,39 @@ const styles = StyleSheet.create({
     width: 2,
     height: 20,
     backgroundColor: COLORS.lightGray,
-    marginTop: SPACING.sm,
+    marginTop: 5,
   },
   routeStop: {
     fontSize: 16,
-    fontFamily: FONTS.semiBold,
     color: COLORS.secondary,
   },
   emptyRouteText: {
     textAlign: 'center',
     color: COLORS.gray,
-    marginTop: SPACING.sm,
-    fontFamily: FONTS.regular,
+    marginTop: 8,
   },
   viewAllButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: SPACING.md,
-    marginTop: SPACING.sm,
-    borderRadius: RADIUS.md,
-    backgroundColor: `${COLORS.primary}1A`,
-    paddingHorizontal: SPACING.lg,
+    paddingVertical: 12,
+    marginTop: 10,
+    borderRadius: 10,
+    backgroundColor: COLORS.primary100,
+    paddingHorizontal: 16,
   },
   viewAllButtonText: {
     fontSize: 14,
     color: COLORS.primary,
-    fontFamily: FONTS.medium,
-    marginLeft: SPACING.xs,
+    fontWeight: '600',
+    marginLeft: 6,
   },
-  studentPreviewList: {
-    marginTop: SPACING.xs,
-  },
-  studentPreviewItem: {
+  studentItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: `${COLORS.primary}0F`,
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
-    marginBottom: SPACING.md,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.lightGray,
   },
   studentAvatar: {
     width: 40,
@@ -472,41 +463,73 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: SPACING.md,
+    marginRight: 12,
+  },
+  studentPreviewList: {
+    marginTop: 4,
+  },
+  studentPreviewItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary100,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+  },
+  studentInfo: {
+    flex: 1,
   },
   studentPreviewMeta: {
     flex: 1,
   },
+  studentName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.secondary,
+  },
   studentPreviewName: {
-    fontFamily: FONTS.semiBold,
+    fontWeight: '600',
     color: COLORS.secondary,
   },
   studentPreviewSub: {
     fontSize: 12,
-    fontFamily: FONTS.regular,
     color: COLORS.gray,
     marginTop: 2,
+  },
+  studentRoll: {
+    fontSize: 12,
+    color: COLORS.gray,
+    marginTop: 2,
+  },
+  pickupInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  pickupText: {
+    fontSize: 12,
+    color: COLORS.gray,
+    marginLeft: 4,
   },
   actionButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: SPACING.lg,
+    marginBottom: 20,
   },
   actionButton: {
     backgroundColor: COLORS.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: RADIUS.md,
-    paddingVertical: SPACING.md,
+    borderRadius: 12,
+    paddingVertical: 15,
     flex: 1,
-    marginHorizontal: SPACING.xs,
+    marginHorizontal: 5,
   },
   actionButtonText: {
     color: COLORS.white,
     fontSize: 16,
-    fontFamily: FONTS.semiBold,
-    marginLeft: SPACING.xs,
+    fontWeight: 'bold',
+    marginLeft: 8,
   },
 });
 

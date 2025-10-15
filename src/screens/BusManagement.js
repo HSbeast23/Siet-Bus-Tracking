@@ -27,24 +27,19 @@ const BusManagement = ({ navigation, route }) => {
   const normalizedFilterBusId = filterBusId ? normalizeBusNumber(filterBusId) : null;
 
   const resolveBusStatus = useCallback((busDoc) => {
-    return busDoc.isTracking ? 'Active' : 'Inactive';
-  }, []);
-
-  const formatTime = useCallback((timestamp) => {
-    if (!timestamp) {
-      return null;
+    if (busDoc.isTracking) {
+      return 'Active';
     }
-
-    const date = new Date(timestamp);
-    if (Number.isNaN(date.getTime())) {
-      return null;
+    if (busDoc.lastUpdate) {
+      const lastUpdateTime = new Date(busDoc.lastUpdate).getTime();
+      if (!Number.isNaN(lastUpdateTime)) {
+        const diffMinutes = (Date.now() - lastUpdateTime) / (1000 * 60);
+        if (diffMinutes <= 10) {
+          return 'Recently Active';
+        }
+      }
     }
-
-    return date.toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    });
+    return 'Inactive';
   }, []);
 
   const refreshStudentCounts = useCallback(async () => {
@@ -122,7 +117,7 @@ const BusManagement = ({ navigation, route }) => {
         studentsCount: activeStudentCounts[normalizedBus] ?? bus.studentsCount ?? bus.studentCount ?? 0,
         isRealData: true,
         lastUpdate: bus.lastUpdate || null,
-        stoppedAt: !bus.isTracking && bus.lastUpdate ? bus.lastUpdate : null,
+        speed: bus.speed ?? null,
       };
     });
 
@@ -136,28 +131,20 @@ const BusManagement = ({ navigation, route }) => {
     refreshStudentCounts();
   }, [rawBuses.length, refreshStudentCounts]);
 
-  const onRefresh = useCallback(async () => {
+  const onRefresh = () => {
     setRefreshing(true);
-    try {
-      await refreshStudentCounts();
-    } catch (error) {
-      console.error('❌ [BUS MGMT] Manual refresh failed:', error);
-    } finally {
-      setRefreshing(false);
-    }
-  }, [refreshStudentCounts]);
-
-  const effectiveRole = role || 'management';
+    refreshStudentCounts();
+  };
 
   const handleBusPress = (bus) => {
     if (isSelectMode) {
       navigation.navigate('MapScreen', {
         busId: bus.number,
-        role: effectiveRole,
+        role: 'management',
       });
       return;
     }
-    navigation.navigate('BusDetails', { bus, role: effectiveRole });
+    navigation.navigate('BusDetails', { bus });
   };
 
   return (
@@ -245,14 +232,9 @@ const BusManagement = ({ navigation, route }) => {
                     <View style={styles.busDetails}>
                       <Text style={styles.busNumber}>{bus.displayName || bus.number}</Text>
                       <Text style={styles.driverName}>Driver: {bus.driver}</Text>
-                      {bus.status === 'Inactive' && formatTime(bus.stoppedAt) && (
+                      {bus.lastUpdate && (
                         <Text style={styles.updateTime}>
-                          Tracking stopped at {formatTime(bus.stoppedAt)}
-                        </Text>
-                      )}
-                      {bus.status === 'Active' && formatTime(bus.lastUpdate) && (
-                        <Text style={styles.updateTime}>
-                          Last updated at {formatTime(bus.lastUpdate)}
+                          Updated {new Date(bus.lastUpdate).toLocaleTimeString()}
                         </Text>
                       )}
                     </View>
@@ -272,6 +254,12 @@ const BusManagement = ({ navigation, route }) => {
                     <Ionicons name="people" size={16} color={COLORS.gray} />
                     <Text style={styles.studentCount}>{bus.studentsCount || 0} Students</Text>
                   </View>
+                  {bus.speed !== null && (
+                    <View style={styles.speedInfo}>
+                      <Ionicons name="speedometer" size={16} color={COLORS.success} />
+                      <Text style={styles.speedText}>{(bus.speed * 3.6).toFixed(1)} km/h</Text>
+                    </View>
+                  )}
                   <Ionicons name="chevron-forward" size={20} color={COLORS.gray} />
                 </View>
               </TouchableOpacity>
@@ -451,6 +439,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: FONTS.regular,
     color: COLORS.gray,
+    marginLeft: SPACING.xs,
+  },
+  speedInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  speedText: {
+    fontSize: 14,
+    fontFamily: FONTS.regular,
+    color: COLORS.success,
     marginLeft: SPACING.xs,
   },
 });
