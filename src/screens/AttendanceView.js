@@ -18,11 +18,11 @@ import { attendanceService } from '../services/attendanceService';
 const AttendanceView = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState(new Date());
   const [students, setStudents] = useState([]);
   const [busId, setBusId] = useState('');
   const [currentUser, setCurrentUser] = useState(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const displayDate = new Date();
 
   useEffect(() => {
     initializeCoAdmin();
@@ -32,7 +32,7 @@ const AttendanceView = ({ navigation }) => {
     if (busId) {
       loadAttendanceData();
     }
-  }, [busId, selectedDate]);
+  }, [busId]);
 
   const initializeCoAdmin = async () => {
     try {
@@ -60,19 +60,32 @@ const AttendanceView = ({ navigation }) => {
         Alert.alert('No Students', `No students are registered for bus ${busId}`);
       }
 
-      // Fetch today's attendance data
-      const todayAttendance = await attendanceService.getTodayAttendance(busId);
-  const todayStudents = todayAttendance.students || {};
-      setIsSubmitted(todayAttendance.submitted || false);
+      const existingStatusMap = new Map();
+      students.forEach(student => {
+        existingStatusMap.set(student.id, {
+          attendanceStatus: student.attendanceStatus,
+          markedAt: student.markedAt,
+          markedBy: student.markedBy,
+        });
+      });
 
       // Merge students with their attendance status
       const studentsWithStatus = fetchedStudents.map(student => {
-        const attendance = todayStudents?.[student.id];
+        const existing = existingStatusMap.get(student.id);
+        if (existing) {
+          return {
+            ...student,
+            attendanceStatus: existing.attendanceStatus,
+            markedAt: existing.markedAt,
+            markedBy: existing.markedBy,
+          };
+        }
+
         return {
           ...student,
-          attendanceStatus: attendance?.status || 'unmarked',
-          markedAt: attendance?.markedAt || null,
-          markedBy: attendance?.markedBy || null,
+          attendanceStatus: 'unmarked',
+          markedAt: null,
+          markedBy: null,
         };
       });
 
@@ -91,38 +104,22 @@ const AttendanceView = ({ navigation }) => {
     setRefreshing(false);
   };
 
-  const handleMarkAttendance = async (studentId, status) => {
+  const handleMarkAttendance = (studentId, status) => {
     if (isSubmitted) {
       Alert.alert('Already Submitted', 'Today\'s attendance has been submitted and cannot be modified');
       return;
     }
 
-    try {
-      const result = await attendanceService.markAttendance(
-        busId,
-        studentId,
-        status,
-        currentUser?.name || currentUser?.email || 'Co-Admin'
-      );
+    const markedAt = new Date();
+    const markedBy = currentUser?.name || currentUser?.email || 'Co-Admin';
 
-      if (result.success) {
-        const markedAt = new Date();
-
-        setStudents(prevStudents =>
-          prevStudents.map(student =>
-            student.id === studentId
-              ? { ...student, attendanceStatus: status, markedAt, markedBy: currentUser.name }
-              : student
-          )
-        );
-
-      } else {
-        Alert.alert('Error', 'Failed to mark attendance');
-      }
-    } catch (error) {
-      console.error('Error marking attendance:', error);
-      Alert.alert('Error', 'Failed to mark attendance');
-    }
+    setStudents(prevStudents =>
+      prevStudents.map(student =>
+        student.id === studentId
+          ? { ...student, attendanceStatus: status, markedAt, markedBy }
+          : student
+      )
+    );
   };
 
   const handleSubmitAttendance = async () => {
@@ -147,46 +144,57 @@ const AttendanceView = ({ navigation }) => {
   const submitAttendanceConfirmed = async () => {
     try {
       // Prepare attendance data
-      const attendanceMap = {};
-      students.forEach(student => {
+      const submitter = currentUser?.name || currentUser?.email || 'Co-Admin';
+      const attendanceRecords = students.map(student => {
         const resolvedStatus = student.attendanceStatus === 'unmarked' ? 'absent' : student.attendanceStatus;
-        const resolvedMarkedAt = student.markedAt || new Date();
-        const resolvedMarkedBy = student.markedBy || currentUser?.name || currentUser?.email || 'Co-Admin';
+        const resolvedMarkedAt = student.markedAt instanceof Date
+          ? student.markedAt
+          : new Date(student.markedAt || Date.now());
+        const resolvedMarkedBy = student.markedBy || submitter;
 
-        attendanceMap[student.id] = {
+        return {
+          id: student.id,
+          name: student.name,
+          registerNumber: student.registerNumber,
+          department: student.department,
+          year: student.year,
           status: resolvedStatus,
           markedAt: resolvedMarkedAt,
-          markedBy: resolvedMarkedBy
+          markedBy: resolvedMarkedBy,
         };
       });
 
       const result = await attendanceService.submitAttendance(
         busId,
-        attendanceMap,
-        currentUser.name
+        attendanceRecords,
+        submitter
       );
 
       if (result.success) {
+        const recordById = new Map(attendanceRecords.map(item => [item.id, item]));
         setStudents(prev =>
-          prev.map(student =>
-            student.attendanceStatus === 'unmarked'
-              ? {
-                  ...student,
-                  attendanceStatus: 'absent',
-                  markedAt: new Date(),
-                  markedBy: currentUser?.name || currentUser?.email || 'Co-Admin',
-                }
-              : student
-          )
+          prev.map(student => {
+            const record = recordById.get(student.id);
+            if (!record) {
+              return student;
+            }
+
+            return {
+              ...student,
+              attendanceStatus: record.status,
+              markedAt: record.markedAt,
+              markedBy: record.markedBy,
+            };
+          })
         );
         setIsSubmitted(true);
-        Alert.alert('Success', result.message);
+        Alert.alert('Email Ready', result.message);
       } else {
         Alert.alert('Error', result.error || 'Failed to submit attendance');
       }
     } catch (error) {
       console.error('Error submitting attendance:', error);
-      Alert.alert('Error', 'Failed to submit attendance');
+      Alert.alert('Error', 'Failed to prepare attendance email');
     }
   };
 
@@ -296,7 +304,7 @@ const AttendanceView = ({ navigation }) => {
               <View style={styles.warningTextContainer}>
                 <Text style={styles.warningTitle}>Attendance Already Submitted</Text>
                 <Text style={styles.warningSubtitle}>
-                  Today's attendance has been submitted. Come back tomorrow to mark new attendance.
+                  Attendance email prepared. Use the button below if you need to reopen the draft.
                 </Text>
               </View>
             </View>
@@ -304,11 +312,11 @@ const AttendanceView = ({ navigation }) => {
 
           {/* Date Selector */}
           <View style={styles.dateSection}>
-            <Text style={styles.sectionTitle}>Select Date</Text>
+            <Text style={styles.sectionTitle}>Attendance Date</Text>
             <View style={styles.dateCard}>
               <Ionicons name="calendar" size={20} color={COLORS.secondary} />
               <Text style={styles.dateText}>
-                {selectedDate.toLocaleDateString('en-US', {
+                {displayDate.toLocaleDateString('en-US', {
                   weekday: 'long',
                   year: 'numeric',
                   month: 'long',
@@ -437,13 +445,23 @@ const AttendanceView = ({ navigation }) => {
             </TouchableOpacity>
           )}
 
+          {isSubmitted && (
+            <TouchableOpacity
+              style={[styles.submitButton, { backgroundColor: COLORS.info }]}
+              onPress={submitAttendanceConfirmed}
+            >
+              <Ionicons name="mail" size={20} color={COLORS.white} />
+              <Text style={styles.submitButtonText}>Reopen Attendance Email</Text>
+            </TouchableOpacity>
+          )}
+
           {/* History Note */}
           <View style={styles.historyNote}>
             <Ionicons name="information-circle" size={20} color={COLORS.info} />
             <Text style={styles.historyText}>
               ✅ Real authenticated students from Firebase
-              {'\n'}✅ Daily boarding status with timestamps
-              {'\n'}✅ History retained for management and students
+              {'\n'}✅ Daily boarding status with timestamps in-session
+              {'\n'}✅ Submission opens an email to haarhishhaarhish43@gmail.com
               {'\n'}✅ Percentage calculations included
             </Text>
           </View>

@@ -219,13 +219,6 @@ const StudentDashboard = ({ navigation }) => {
       }
     },
     {
-      title: 'View Attendance',
-      subtitle: 'Check your attendance history',
-      icon: 'calendar-outline', // Changed to calendar-outline for better visibility
-      color: COLORS.info,
-      onPress: () => navigation.navigate('AttendanceHistoryScreen')
-    },
-    {
       title: 'Submit Report',
       subtitle: 'Send report to management',
       icon: 'chatbubble',

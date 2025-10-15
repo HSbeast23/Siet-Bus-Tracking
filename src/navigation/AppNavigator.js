@@ -17,14 +17,11 @@ import StudentManagement from '../screens/StudentManagement';
 import RouteManagement from '../screens/RouteManagement';
 import NavigationTestScreen from '../screens/NavigationTestScreen';
 import AttendanceView from '../screens/AttendanceView';
-import AttendanceHistoryScreen from '../screens/AttendanceHistoryScreen';
-import CoAdminAttendanceHistory from '../screens/CoAdminAttendanceHistory';
 import Reports from '../screens/Reports';
 import StudentReportScreen from '../screens/StudentReportScreen';
 import StudentReportHistoryScreen from '../screens/StudentReportHistoryScreen';
 import FeedbackScreen from '../screens/FeedbackScreen';
 import CoAdminManagement from '../screens/CoAdminManagement';
-import ManagementAttendanceHistory from '../screens/ManagementAttendanceHistory';
 
 const Stack = createStackNavigator();
 
@@ -62,11 +59,6 @@ const AppNavigator = () => {
         name="CoAdminManagement" 
         component={CoAdminManagement} 
         options={{ title: 'Co-Admin Management', headerShown: false }}
-      />
-      <Stack.Screen 
-        name="ManagementAttendanceHistory" 
-        component={ManagementAttendanceHistory} 
-        options={{ title: 'Attendance History', headerShown: false }}
       />
       <Stack.Screen 
         name="CoAdminDashboard" 
@@ -137,16 +129,6 @@ const AppNavigator = () => {
         name="AttendanceView" 
         component={AttendanceView} 
         options={{ title: 'Attendance View', headerShown: false }}
-      />
-      <Stack.Screen 
-        name="AttendanceHistoryScreen" 
-        component={AttendanceHistoryScreen} 
-        options={{ title: 'Attendance History', headerShown: false }}
-      />
-      <Stack.Screen 
-        name="CoAdminAttendanceHistory" 
-        component={CoAdminAttendanceHistory} 
-        options={{ title: 'Attendance History', headerShown: false }}
       />
       <Stack.Screen 
         name="FeedbackScreen" 

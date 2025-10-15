@@ -151,14 +151,6 @@ const CoAdminDashboard = ({ navigation }) => {
         params: { busId: userBusId }
       },
       {
-        title: 'Attendance History',
-        subtitle: 'View attendance records',
-        icon: 'calendar',
-        color: COLORS.info,
-        screen: 'CoAdminAttendanceHistory',
-        params: { busId: userBusId }
-      },
-      {
         title: 'Reports',
         subtitle: 'View student reports',
         icon: 'document-text',

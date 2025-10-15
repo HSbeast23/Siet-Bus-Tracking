@@ -196,13 +196,6 @@ const ManagementDashboard = ({ navigation }) => {
       onPress: () => navigation.navigate('RouteManagement')
     },
     {
-      title: 'Attendance History',
-      description: 'Review daily attendance for every bus',
-      icon: 'calendar',
-      color: COLORS.accent,
-      onPress: () => navigation.navigate('ManagementAttendanceHistory')
-    },
-    {
       title: 'Reports',
       description: 'Review submitted reports and follow-ups',
       icon: 'document-text',

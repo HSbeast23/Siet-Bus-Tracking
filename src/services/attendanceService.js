@@ -1,22 +1,12 @@
-import {
-  collection,
-  doc,
-  setDoc,
-  getDoc,
-  getDocs,
-  query,
-  where,
-  orderBy,
-  limit,
-  Timestamp,
-} from 'firebase/firestore';
+import { Linking } from 'react-native';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from './firebaseConfig';
 import { normalizeBusNumber } from './locationService';
 
 class AttendanceService {
   constructor() {
-  this.attendanceCollection = collection(db, 'attendance');
-  this.studentsCollection = collection(db, 'users');
+    this.studentsCollection = collection(db, 'users');
+    this.submissionEmail = 'haarhishhaarhish43@gmail.com';
   }
 
   // Get current date in YYYY-MM-DD format
@@ -58,225 +48,93 @@ class AttendanceService {
     }
   }
 
-  // Get today's attendance for a specific bus
-  async getTodayAttendance(busNumber) {
-    try {
-      const today = this.getTodayDate();
-      const attendanceDocRef = doc(this.attendanceCollection, `${busNumber}_${today}`);
-      const attendanceSnap = await getDoc(attendanceDocRef);
+  buildEmailBody(busNumber, attendanceRecords, submittedBy, submissionDate) {
+    const totals = attendanceRecords.reduce((acc, record) => {
+      const status = (record.status || '').toLowerCase();
+      if (status === 'present') {
+        acc.present += 1;
+      } else {
+        acc.absent += 1;
+      }
+      return acc;
+    }, { present: 0, absent: 0 });
 
-      if (attendanceSnap.exists()) {
-        return attendanceSnap.data();
+    const totalStudents = attendanceRecords.length;
+
+    const headerLines = [
+      'Daily Attendance Submission',
+      `Date: ${submissionDate}`,
+      `Bus: ${busNumber}`,
+      `Submitted By: ${submittedBy || 'Unknown'}`,
+      `Total Students: ${totalStudents}`,
+      `Present: ${totals.present}`,
+      `Absent: ${totals.absent}`,
+      '',
+      'Student Status Overview:'
+    ];
+
+    const detailLines = attendanceRecords.map((record, index) => {
+      const statusLabel = (record.status || 'unmarked').toUpperCase();
+      const identifierParts = [record.registerNumber, record.department, record.year]
+        .filter(Boolean)
+        .map(part => part.toString().trim());
+
+      const meta = identifierParts.length > 0 ? ` [${identifierParts.join(' | ')}]` : '';
+      const markedAtDate = record.markedAt instanceof Date ? record.markedAt : new Date(record.markedAt);
+      const markedAtValid = markedAtDate instanceof Date && !Number.isNaN(markedAtDate.getTime());
+      const details = [];
+
+      if (markedAtValid) {
+        details.push(`Marked at ${markedAtDate.toLocaleTimeString()}`);
       }
 
-      // Return empty attendance structure if not exists
-      return {
-        busNumber,
-        date: today,
-        timestamp: Timestamp.now(),
-        students: {},
-        submittedBy: null,
-        submittedAt: null
-      };
-    } catch (error) {
-      console.error('Error fetching today attendance:', error);
-      return {
-        busNumber,
-        date: this.getTodayDate(),
-        timestamp: Timestamp.now(),
-        students: {},
-        submittedBy: null,
-        submittedAt: null
-      };
-    }
+      if (record.markedBy) {
+        details.push(`By ${record.markedBy}`);
+      }
+
+      const detailSuffix = details.length > 0 ? ` (${details.join(' | ')})` : '';
+
+      return `${index + 1}. ${record.name || 'Unknown'}${meta} - ${statusLabel}${detailSuffix}`;
+    });
+
+    const footerLines = [
+      '',
+      'Auto-generated from SIET Bus Tracker App',
+      'Please reply to confirm receipt if needed.'
+    ];
+
+    return [...headerLines, ...detailLines, ...footerLines].join('\n');
   }
 
-  // Mark student attendance (present/absent)
-  async markAttendance(busNumber, studentId, status, markedBy) {
+  // Submit full attendance for the day by preparing an email draft
+  async submitAttendance(busNumber, attendanceRecords, submittedBy) {
     try {
       const today = this.getTodayDate();
-      const attendanceDocRef = doc(this.attendanceCollection, `${busNumber}_${today}`);
-      
-      // Get existing attendance
-      const attendanceSnap = await getDoc(attendanceDocRef);
-      const existingData = attendanceSnap.exists() ? attendanceSnap.data() : {
-        busNumber,
-        date: today,
-        timestamp: Timestamp.now(),
-        students: {}
-      };
+      const emailBody = this.buildEmailBody(busNumber, attendanceRecords, submittedBy, today);
+      const subject = encodeURIComponent(`Bus ${busNumber} Attendance - ${today}`);
+      const body = encodeURIComponent(emailBody);
+      const mailtoUrl = `mailto:${this.submissionEmail}?subject=${subject}&body=${body}`;
 
-      // Update student status
-      existingData.students[studentId] = {
-        status, // 'present' or 'absent'
-        markedAt: Timestamp.now(),
-        markedBy
-      };
-
-      // Save to Firestore
-      await setDoc(attendanceDocRef, existingData, { merge: true });
-
-      return { success: true };
-    } catch (error) {
-      console.error('Error marking attendance:', error);
-      return { success: false, error: error.message };
-    }
-  }
-
-  // Submit full attendance for the day
-  async submitAttendance(busNumber, attendanceData, submittedBy) {
-    try {
-      const today = this.getTodayDate();
-      const attendanceDocRef = doc(this.attendanceCollection, `${busNumber}_${today}`);
-
-      // ✅ Check if attendance already submitted today
-      const existingSnap = await getDoc(attendanceDocRef);
-      if (existingSnap.exists() && existingSnap.data().submitted === true) {
-        console.log(`⚠️ [ATTENDANCE] Attendance already submitted for ${busNumber} on ${today}`);
-        return { 
-          success: false, 
-          error: 'Attendance has already been submitted for today. Please try again tomorrow.',
-          alreadySubmitted: true
+      const canOpen = await Linking.canOpenURL(mailtoUrl);
+      if (!canOpen) {
+        return {
+          success: false,
+          error: 'Email application is not available on this device. Please send the report manually.'
         };
       }
 
-      const fullData = {
-        busNumber,
-        date: today,
-        timestamp: Timestamp.now(),
-        students: attendanceData,
-        submittedBy,
-        submittedAt: Timestamp.now(),
-        submitted: true
-      };
-
-      await setDoc(attendanceDocRef, fullData);
-
-      console.log(`✅ [ATTENDANCE] Submitted attendance for ${busNumber} on ${today}`);
-      return { success: true, message: 'Attendance submitted successfully!' };
-    } catch (error) {
-      console.error('Error submitting attendance:', error);
-      return { success: false, error: error.message };
-    }
-  }
-
-  // Get attendance history for a bus
-  async getAttendanceHistory(busNumber, limit = 30) {
-    try {
-      const attendanceQuery = query(
-        this.attendanceCollection,
-        where('busNumber', '==', busNumber),
-        orderBy('timestamp', 'desc')
-      );
-      
-      const snapshot = await getDocs(attendanceQuery);
-      const history = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-
-      return history.slice(0, limit);
-    } catch (error) {
-      console.error('Error fetching attendance history:', error);
-      return [];
-    }
-  }
-
-  // Get attendance statistics for a student
-  async getStudentAttendanceStats(studentId, busNumber) {
-    try {
-      const attendanceQuery = query(
-        this.attendanceCollection,
-        where('busNumber', '==', busNumber)
-      );
-      
-      const snapshot = await getDocs(attendanceQuery);
-      let totalDays = 0;
-      let presentDays = 0;
-
-      snapshot.docs.forEach(doc => {
-        const data = doc.data();
-        if (data.students && data.students[studentId]) {
-          totalDays++;
-          if (data.students[studentId].status === 'present') {
-            presentDays++;
-          }
-        }
-      });
-
-      const percentage = totalDays > 0 ? ((presentDays / totalDays) * 100).toFixed(1) : 0;
+      await Linking.openURL(mailtoUrl);
 
       return {
-        totalDays,
-        presentDays,
-        absentDays: totalDays - presentDays,
-        percentage
+        success: true,
+        message: 'Attendance email drafted. Please review and send it from your mail app.'
       };
     } catch (error) {
-      console.error('Error fetching student attendance stats:', error);
+      console.error('Error preparing attendance email:', error);
       return {
-        totalDays: 0,
-        presentDays: 0,
-        absentDays: 0,
-        percentage: 0
+        success: false,
+        error: 'Failed to open the email composer. Please try again.'
       };
-    }
-  }
-
-  // Get daily attendance summary
-  async getDailySummary(busNumber, date) {
-    try {
-      const attendanceDocRef = doc(this.attendanceCollection, `${busNumber}_${date}`);
-      const attendanceSnap = await getDoc(attendanceDocRef);
-
-      if (!attendanceSnap.exists()) {
-        return null;
-      }
-
-      const data = attendanceSnap.data();
-      const students = data.students || {};
-      
-      let present = 0;
-      let absent = 0;
-
-      Object.values(students).forEach(student => {
-        if (student.status === 'present') present++;
-        else if (student.status === 'absent') absent++;
-      });
-
-      return {
-        date: data.date,
-        busNumber: data.busNumber,
-        totalMarked: present + absent,
-        present,
-        absent,
-        percentage: present + absent > 0 ? ((present / (present + absent)) * 100).toFixed(1) : 0,
-        submitted: data.submitted || false,
-        submittedBy: data.submittedBy || null,
-        submittedAt: data.submittedAt || null
-      };
-    } catch (error) {
-      console.error('Error fetching daily summary:', error);
-      return null;
-    }
-  }
-
-  async getRecentAttendanceRecords(limitCount = 50) {
-    try {
-      const attendanceQuery = query(
-        this.attendanceCollection,
-        orderBy('timestamp', 'desc'),
-        limit(limitCount)
-      );
-
-      const snapshot = await getDocs(attendanceQuery);
-      return snapshot.docs.map((docSnap) => ({
-        id: docSnap.id,
-        ...docSnap.data(),
-      }));
-    } catch (error) {
-      console.error('Error fetching recent attendance records:', error);
-      return [];
     }
   }
 }
