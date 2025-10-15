@@ -69,6 +69,7 @@ const MapScreen = ({ route, navigation }) => {
 	const [busId, setBusId] = useState('');
 
 	const [busLocation, setBusLocation] = useState(null);
+	const [isBusTracking, setIsBusTracking] = useState(false);
 	const [studentLocation, setStudentLocation] = useState(null);
 	const [loading, setLoading] = useState(true);
 
@@ -200,13 +201,22 @@ const MapScreen = ({ route, navigation }) => {
 					unsubscribeFromBus = subscribeToBusLocation(
 						normalizedBus,
 						(snapshot) => {
+							const trackingActive = Boolean(snapshot?.isTracking);
 							const coords = snapshot?.currentLocation;
-							if (coords?.latitude && coords?.longitude) {
-								setBusLocation({ latitude: coords.latitude, longitude: coords.longitude });
+							const hasValidCoords = Number.isFinite(coords?.latitude) && Number.isFinite(coords?.longitude);
+
+							if (trackingActive && hasValidCoords) {
+								setBusLocation({ latitude: Number(coords.latitude), longitude: Number(coords.longitude) });
+								setIsBusTracking(true);
+							} else {
+								setBusLocation(null);
+								setIsBusTracking(false);
 							}
 						},
 						(error) => {
 							console.error('Bus subscription error', error);
+							setBusLocation(null);
+							setIsBusTracking(false);
 						}
 					);
 				}
@@ -230,6 +240,8 @@ const MapScreen = ({ route, navigation }) => {
 			if (typeof unsubscribeFromBus === 'function') {
 				unsubscribeFromBus();
 			}
+			setBusLocation(null);
+			setIsBusTracking(false);
 		};
 	}, [route, ensureStudentLocation]);
 
@@ -245,12 +257,12 @@ const MapScreen = ({ route, navigation }) => {
 	}, [routeOnlyCoordinates]);
 
 	const focusOnBus = useCallback(() => {
-		if (!mapRef.current || !busLocation) {
+		if (!mapRef.current || !busLocation || !isBusTracking) {
 			return;
 		}
 
 		mapRef.current.animateCamera({ center: busLocation, zoom: 16 }, { duration: 600 });
-	}, [busLocation]);
+	}, [busLocation, isBusTracking]);
 
 	const focusOnStudent = useCallback(() => {
 		if (!mapRef.current || !studentLocation) {
@@ -329,7 +341,7 @@ const MapScreen = ({ route, navigation }) => {
 						/>
 					))}
 
-					{busLocation && (
+					{isBusTracking && busLocation && (
 						<Marker
 							coordinate={busLocation}
 							title={busDisplayName || busId || 'Bus'}
@@ -353,7 +365,7 @@ const MapScreen = ({ route, navigation }) => {
 						<Ionicons name="navigate" size={20} color="#FFFFFF" />
 					</TouchableOpacity>
 
-					{busLocation && (
+					{isBusTracking && busLocation && (
 						<TouchableOpacity style={styles.circleButton} onPress={focusOnBus}>
 							<Ionicons name="bus" size={20} color="#FFFFFF" />
 						</TouchableOpacity>
@@ -391,7 +403,9 @@ const MapScreen = ({ route, navigation }) => {
 				<Text style={styles.footerLabel}>Stops • {routeStops.length}</Text>
 				<View style={styles.footerDivider} />
 				<Text style={styles.footerLabel}>Role • {role.charAt(0).toUpperCase() + role.slice(1)}</Text>
-				{busLocation && <Text style={styles.footerLabel}>Bus • Live</Text>}
+				{busId ? (
+					<Text style={styles.footerLabel}>Bus • {isBusTracking ? 'Live' : 'Offline'}</Text>
+				) : null}
 			</View>
 		</SafeAreaView>
 	);
