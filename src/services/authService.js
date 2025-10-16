@@ -71,6 +71,16 @@ const normalizeRegisterNumber = (value = '') => {
   return normalized ? normalized.toUpperCase() : '';
 };
 
+const normalizeTeamRole = (value = '') => {
+  const normalized = value?.toString().trim().toLowerCase();
+  if (!normalized) {
+    return 'coadmin';
+  }
+  return ['coadmin', 'assistant', 'operations'].includes(normalized)
+    ? normalized
+    : 'coadmin';
+};
+
 class AuthService {
   // Legacy registration methods are intentionally disabled with clear guidance
   async registerStudent() {
@@ -372,6 +382,70 @@ class AuthService {
       return mergedProfile;
     } catch (error) {
       console.error('Error updating student profile:', error);
+      throw error;
+    }
+  }
+
+  async updateCoAdminProfile(updatedFields = {}) {
+    try {
+      const currentUser = await this.getCurrentUser();
+      if (!currentUser) {
+        throw new Error('No active co-admin session');
+      }
+
+      const normalizedBus = normalizeBusNumber(
+        updatedFields.busId || updatedFields.busNumber || currentUser.busId || currentUser.busNumber || ''
+      );
+
+      const profileUpdate = {
+        name: (updatedFields.name ?? currentUser.name ?? '').toString().trim(),
+        phone: (updatedFields.phone ?? currentUser.phone ?? '').toString().trim(),
+        email: (updatedFields.email ?? currentUser.email ?? '').toString().trim(),
+        busId: normalizedBus,
+        busNumber: normalizedBus,
+        role: currentUser.role || 'coadmin',
+        teamRole: normalizeTeamRole(updatedFields.teamRole || updatedFields.role || currentUser.teamRole),
+        avatar: updatedFields.avatar ?? currentUser.avatar ?? '',
+        updatedAt: new Date().toISOString(),
+      };
+
+      let refreshedProfile = profileUpdate;
+      try {
+        const response = await userAPI.updateProfile({
+          ...profileUpdate,
+          userId: currentUser.userId || currentUser.registerNumber,
+        });
+        if (response?.data) {
+          refreshedProfile = {
+            ...profileUpdate,
+            ...response.data,
+          };
+        }
+      } catch (apiError) {
+        console.warn('Co-admin profile API update failed, using local merge:', apiError?.message || apiError);
+      }
+
+      try {
+        const userDocId = currentUser.uid || currentUser.id || currentUser.userId;
+        if (userDocId) {
+          const docRef = doc(db, USERS_COLLECTION, userDocId);
+          await setDoc(docRef, profileUpdate, { merge: true });
+        }
+      } catch (firestoreError) {
+        console.error('Error persisting co-admin profile to Firestore:', firestoreError);
+      }
+
+      const mergedProfile = {
+        ...currentUser,
+        ...refreshedProfile,
+        busId: refreshedProfile.busId || normalizedBus,
+        busNumber: refreshedProfile.busNumber || normalizedBus,
+      };
+
+      await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(mergedProfile));
+      return mergedProfile;
+    } catch (error) {
+      console.error('Error updating co-admin profile:', error);
       throw error;
     }
   }

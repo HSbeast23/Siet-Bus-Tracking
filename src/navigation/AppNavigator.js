@@ -23,6 +23,7 @@ import StudentReportScreen from '../screens/StudentReportScreen';
 import StudentReportHistoryScreen from '../screens/StudentReportHistoryScreen';
 import FeedbackScreen from '../screens/FeedbackScreen';
 import CoAdminManagement from '../screens/CoAdminManagement';
+import CoAdminProfileScreen from '../screens/CoAdminProfileScreen';
 
 const Stack = createStackNavigator();
 
@@ -64,7 +65,7 @@ const AppNavigator = () => {
       <Stack.Screen 
         name="CoAdminDashboard" 
         component={CoAdminDashboard} 
-        options={{ title: 'Co-Admin Dashboard', headerLeft: null }}
+        options={{ title: 'Co-Admin Dashboard', headerShown: false }}
       />
       <Stack.Screen 
         name="DriverDashboard" 
@@ -155,6 +156,11 @@ const AppNavigator = () => {
         name="StudentReportHistoryScreen" 
         component={StudentReportHistoryScreen} 
         options={{ title: 'Report History', headerShown: false }}
+      />
+      <Stack.Screen 
+        name="CoAdminProfile" 
+        component={CoAdminProfileScreen} 
+        options={{ title: 'Co-Admin Profile', headerShown: false }}
       />
     </Stack.Navigator>
   );
