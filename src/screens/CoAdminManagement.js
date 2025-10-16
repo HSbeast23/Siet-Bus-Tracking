@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import {
   ActivityIndicator,
+  Image,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -69,6 +70,10 @@ const CoAdminManagement = ({ navigation }) => {
     });
   }, [search, coadmins]);
 
+  const handleCoadminPress = (coadmin) => {
+    navigation.navigate('CoAdminDetails', { coadmin });
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
@@ -120,10 +125,19 @@ const CoAdminManagement = ({ navigation }) => {
             </View>
           ) : (
             filteredCoadmins.map((coadmin) => (
-              <View key={coadmin.id || coadmin.userId} style={styles.card}>
+              <TouchableOpacity
+                key={coadmin.id || coadmin.userId}
+                style={styles.card}
+                activeOpacity={0.8}
+                onPress={() => handleCoadminPress(coadmin)}
+              >
                 <View style={styles.cardHeader}>
                   <View style={styles.avatar}>
-                    <Ionicons name="shield-checkmark" size={24} color={COLORS.white} />
+                    {coadmin?.avatar ? (
+                      <Image source={{ uri: coadmin.avatar }} style={styles.avatarImage} />
+                    ) : (
+                      <Ionicons name="shield-checkmark" size={24} color={COLORS.white} />
+                    )}
                   </View>
                   <View style={styles.cardTitleContainer}>
                     <Text style={styles.cardTitle}>{coadmin.name || coadmin.userId}</Text>
@@ -147,7 +161,7 @@ const CoAdminManagement = ({ navigation }) => {
                     <Text style={styles.metaText}>{coadmin.phone || 'No phone recorded'}</Text>
                   </View>
                 </View>
-              </View>
+              </TouchableOpacity>
             ))
           )}
 
@@ -255,6 +269,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: SPACING.md,
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: RADIUS.round,
   },
   cardTitleContainer: {
     flex: 1,

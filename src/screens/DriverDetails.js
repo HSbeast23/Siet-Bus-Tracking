@@ -6,7 +6,8 @@ import {
   StyleSheet,
   SafeAreaView,
   ScrollView,
-  Dimensions
+  Dimensions,
+  Image,
 } from 'react-native';
 import { COLORS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
@@ -48,7 +49,11 @@ const DriverDetails = ({ route, navigation }) => {
         <View style={styles.driverInfoCard}>
           <View style={styles.driverHeader}>
             <View style={styles.driverAvatar}>
-              <Ionicons name="person" size={40} color={COLORS.white} />
+              {driver?.avatar ? (
+                <Image source={{ uri: driver.avatar }} style={styles.driverAvatarImage} />
+              ) : (
+                <Ionicons name="person" size={40} color={COLORS.white} />
+              )}
             </View>
             <View style={styles.driverMainInfo}>
               <Text style={styles.driverName}>{driver.name}</Text>
@@ -173,6 +178,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 15,
+  },
+  driverAvatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 40,
   },
   driverMainInfo: {
     flex: 1,

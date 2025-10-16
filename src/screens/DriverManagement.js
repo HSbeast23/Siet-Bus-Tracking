@@ -7,7 +7,8 @@ import {
   ScrollView,
   TextInput,
   Dimensions,
-  ActivityIndicator
+  ActivityIndicator,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../utils/constants';
@@ -176,7 +177,11 @@ const DriverManagement = ({ navigation, route }) => {
                 <View style={styles.driverCardHeader}>
                   <View style={styles.driverInfo}>
                     <View style={styles.driverAvatar}>
-                      <Ionicons name="person" size={24} color={COLORS.white} />
+                      {driver.avatar ? (
+                        <Image source={{ uri: driver.avatar }} style={styles.driverAvatarImage} />
+                      ) : (
+                        <Ionicons name="person" size={24} color={COLORS.white} />
+                      )}
                     </View>
                     <View style={styles.driverDetails}>
                       <Text style={styles.driverName}>{driver.name}</Text>
@@ -349,6 +354,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: SPACING.md,
+  },
+  driverAvatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: RADIUS.xl,
   },
   driverDetails: {
     flex: 1,
