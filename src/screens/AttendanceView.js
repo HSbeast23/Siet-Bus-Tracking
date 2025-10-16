@@ -38,14 +38,14 @@ const AttendanceView = ({ navigation }) => {
     try {
       const user = await authService.getCurrentUser();
       if (!user || user.role !== 'coadmin') {
-        Alert.alert('Error', 'You must be logged in as Co-Admin to view attendance');
+  Alert.alert('Error', 'You must be logged in as Bus Incharge to view attendance');
         navigation.goBack();
         return;
       }
       setCurrentUser(user);
-      setBusId(user.busId); // Co-Admin's assigned bus (SIET-005)
+      setBusId(user.busId); // Bus incharge's assigned bus (SIET-005)
     } catch (error) {
-      console.error('Error initializing co-admin:', error);
+      console.error('Error initializing bus incharge:', error);
       Alert.alert('Error', 'Failed to load user information');
     }
   };
@@ -111,7 +111,7 @@ const AttendanceView = ({ navigation }) => {
     }
 
     const markedAt = new Date();
-    const markedBy = currentUser?.name || currentUser?.email || 'Co-Admin';
+  const markedBy = currentUser?.name || currentUser?.email || 'Bus Incharge';
 
     setStudents(prevStudents =>
       prevStudents.map(student =>
@@ -144,7 +144,7 @@ const AttendanceView = ({ navigation }) => {
   const submitAttendanceConfirmed = async () => {
     try {
       // Prepare attendance data
-      const submitter = currentUser?.name || currentUser?.email || 'Co-Admin';
+  const submitter = currentUser?.name || currentUser?.email || 'Bus Incharge';
       const attendanceRecords = students.map(student => {
         const resolvedStatus = student.attendanceStatus === 'unmarked' ? 'absent' : student.attendanceStatus;
         const resolvedMarkedAt = student.markedAt instanceof Date
@@ -242,7 +242,7 @@ const AttendanceView = ({ navigation }) => {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
         >
-          {/* Co-Admin Info */}
+          {/* Bus Incharge Info */}
           <View style={styles.coAdminCard}>
             <View style={styles.coAdminHeader}>
               <Ionicons name="person-circle" size={24} color="#8B4513" />

@@ -79,7 +79,7 @@ const CoAdminDashboard = ({ navigation }) => {
 
         setStats({ totalStudents });
       } catch (error) {
-        console.error('Error loading co-admin dashboard:', error);
+  console.error('Error loading bus incharge dashboard:', error);
       } finally {
         if (showSpinner) {
           setLoading(false);
@@ -194,7 +194,7 @@ const CoAdminDashboard = ({ navigation }) => {
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Co-Admin Dashboard</Text>
+          <Text style={styles.headerTitle}>Bus Incharge Dashboard</Text>
           <TouchableOpacity
             style={styles.headerButton}
             onPress={handleLogout}
@@ -223,7 +223,7 @@ const CoAdminDashboard = ({ navigation }) => {
           >
             <View style={styles.greetingCard}>
               <Text style={styles.greetingLabel}>Welcome,</Text>
-              <Text style={styles.greetingName}>{user?.name || 'Co-Admin'}</Text>
+              <Text style={styles.greetingName}>{user?.name || 'Bus Incharge'}</Text>
               <Text style={styles.greetingMeta}>{greetingMeta}</Text>
             </View>
 

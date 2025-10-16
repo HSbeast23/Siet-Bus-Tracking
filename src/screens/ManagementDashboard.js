@@ -74,8 +74,8 @@ const ManagementDashboard = ({ navigation }) => {
       onPress: () => navigation.navigate('BusManagement'),
     },
     {
-      title: 'Co-Admin Management',
-      description: 'Monitor co-admin assignments and bus coverage',
+      title: 'Bus Incharge Management',
+      description: 'Monitor bus incharge assignments and bus coverage',
       icon: 'shield-checkmark',
       color: COLORS.info,
       onPress: () => navigation.navigate('CoAdminManagement'),

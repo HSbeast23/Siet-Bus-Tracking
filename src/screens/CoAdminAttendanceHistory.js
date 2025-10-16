@@ -38,10 +38,10 @@ const CoAdminAttendanceHistory = ({ route, navigation }) => {
     try {
       setLoading(true);
       
-      // Get current Co-Admin
+  // Get current Bus Incharge
       const currentUser = await authService.getCurrentUser();
       if (!currentUser || currentUser.role !== 'coadmin') {
-        Alert.alert('Error', 'You must be logged in as Co-Admin');
+  Alert.alert('Error', 'You must be logged in as Bus Incharge');
         navigation.goBack();
         return;
       }
@@ -348,7 +348,7 @@ const CoAdminAttendanceHistory = ({ route, navigation }) => {
                             <View key={student.id} style={styles.columnRow}>
                               <Text style={styles.columnName}>{student.name || student.id}</Text>
                               <Text style={styles.columnMeta}>{student.registerNumber || student.id}</Text>
-                              <Text style={styles.columnMeta}>Marked {student.markedBy || 'Co-Admin'} • {formatTime(student.markedAt)}</Text>
+                              <Text style={styles.columnMeta}>Marked {student.markedBy || 'Bus Incharge'} • {formatTime(student.markedAt)}</Text>
                             </View>
                           ))
                         )}

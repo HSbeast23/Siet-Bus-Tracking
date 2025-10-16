@@ -21,7 +21,7 @@ import CoAdminBottomNav from '../components/CoAdminBottomNav';
 import { normalizeBusNumber } from '../services/locationService';
 
 const TEAM_ROLES = [
-  { key: 'coadmin', label: 'Co-Administrator' },
+  { key: 'coadmin', label: 'Bus Incharge' },
   { key: 'assistant', label: 'Assistant Coordinator' },
   { key: 'operations', label: 'Operations Support' },
 ];
@@ -65,7 +65,7 @@ const CoAdminProfileScreen = ({ navigation }) => {
         avatar: currentUser.avatar || '',
       });
     } catch (error) {
-      console.error('Failed to load co-admin profile', error);
+  console.error('Failed to load bus incharge profile', error);
     } finally {
       setIsLoading(false);
     }
@@ -122,7 +122,7 @@ const CoAdminProfileScreen = ({ navigation }) => {
       setProfile(updated);
       Alert.alert('Saved', 'Profile updated successfully.');
     } catch (error) {
-      console.error('Failed to save co-admin profile', error);
+  console.error('Failed to save bus incharge profile', error);
       Alert.alert('Update failed', 'Could not update your profile. Please try again later.');
     } finally {
       setIsSaving(false);
@@ -178,7 +178,7 @@ const CoAdminProfileScreen = ({ navigation }) => {
                   <Ionicons name="camera" size={16} color={COLORS.white} />
                 </View>
               </TouchableOpacity>
-              <Text style={styles.nameText}>{form.name || profile?.userId || 'Co-Admin'}</Text>
+              <Text style={styles.nameText}>{form.name || profile?.userId || 'Bus Incharge'}</Text>
               <Text style={styles.metaText}>{activeBusId ? `Bus ${activeBusId}` : 'No bus assigned'}</Text>
             </View>
 

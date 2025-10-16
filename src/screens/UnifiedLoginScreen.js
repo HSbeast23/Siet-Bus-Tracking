@@ -26,7 +26,7 @@ const BUS_OPTIONS = Array.from({ length: 28 }, (_, index) => {
 const ROLE_OPTIONS = [
   { key: 'student', label: 'Student', icon: 'school' },
   { key: 'driver', label: 'Driver', icon: 'bus' },
-  { key: 'coadmin', label: 'Co-Admin', icon: 'shield-checkmark' },
+  { key: 'coadmin', label: 'Bus Incharge', icon: 'shield-checkmark' },
   { key: 'management', label: 'Management', icon: 'briefcase' },
 ];
 

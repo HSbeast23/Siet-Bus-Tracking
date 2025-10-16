@@ -60,12 +60,12 @@ const AppNavigator = () => {
       <Stack.Screen 
         name="CoAdminManagement" 
         component={CoAdminManagement} 
-        options={{ title: 'Co-Admin Management', headerShown: false }}
+        options={{ title: 'Bus Incharge Management', headerShown: false }}
       />
       <Stack.Screen 
         name="CoAdminDashboard" 
         component={CoAdminDashboard} 
-        options={{ title: 'Co-Admin Dashboard', headerShown: false }}
+        options={{ title: 'Bus Incharge Dashboard', headerShown: false }}
       />
       <Stack.Screen 
         name="DriverDashboard" 
@@ -160,7 +160,7 @@ const AppNavigator = () => {
       <Stack.Screen 
         name="CoAdminProfile" 
         component={CoAdminProfileScreen} 
-        options={{ title: 'Co-Admin Profile', headerShown: false }}
+        options={{ title: 'Bus Incharge Profile', headerShown: false }}
       />
     </Stack.Navigator>
   );

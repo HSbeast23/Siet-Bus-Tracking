@@ -37,7 +37,7 @@ const CoAdminManagement = ({ navigation }) => {
       });
       setCoadmins(sorted);
     } catch (error) {
-      console.error('Error loading co-admins:', error);
+        console.error('Error loading bus incharges:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -75,7 +75,7 @@ const CoAdminManagement = ({ navigation }) => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
           <Ionicons name="arrow-back" size={24} color={COLORS.secondary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Co-Admin Management</Text>
+          <Text style={styles.headerTitle}>Bus Incharge Management</Text>
         <TouchableOpacity onPress={onRefresh} style={styles.headerButton}>
           <Ionicons name="refresh" size={22} color={COLORS.secondary} />
         </TouchableOpacity>
@@ -95,7 +95,7 @@ const CoAdminManagement = ({ navigation }) => {
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.primary} />
-          <Text style={styles.loadingText}>Loading co-admin assignments...</Text>
+            <Text style={styles.loadingText}>Loading bus incharge assignments...</Text>
         </View>
       ) : (
         <ScrollView
@@ -113,9 +113,9 @@ const CoAdminManagement = ({ navigation }) => {
           {filteredCoadmins.length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="people-outline" size={60} color={COLORS.textSecondary} />
-              <Text style={styles.emptyTitle}>No co-admins found</Text>
+                <Text style={styles.emptyTitle}>No bus incharges found</Text>
               <Text style={styles.emptySubtitle}>
-                Add co-admin accounts to assign them to buses and track their coverage.
+                  Add bus incharge accounts to assign them to buses and track their coverage.
               </Text>
             </View>
           ) : (
