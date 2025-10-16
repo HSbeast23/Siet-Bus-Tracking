@@ -1,7 +1,10 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
+  Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { authService } from '../services/authService';
 import StudentBottomNav from '../components/StudentBottomNav';
 import { COLORS, FONTS, RADIUS, SHADOWS, SPACING } from '../utils/constants';
+import { normalizeBusNumber } from '../services/locationService';
 
 const formatYearLabel = (value) => {
   if (!value) return null;
@@ -25,19 +29,119 @@ const formatYearLabel = (value) => {
   return `${numericValue}${suffix} Year`;
 };
 
+const YEAR_OPTIONS = [
+  { key: 'I', label: 'I' },
+  { key: 'II', label: 'II' },
+  { key: 'III', label: 'III' },
+  { key: 'IV', label: 'IV' },
+];
+
+const DEPARTMENT_OPTIONS = [
+  { key: 'CSE', label: 'CSE' },
+  { key: 'ECE', label: 'ECE' },
+  { key: 'EEE', label: 'EEE' },
+  { key: 'MECH', label: 'MECH' },
+  { key: 'CIVIL', label: 'CIVIL' },
+  { key: 'IT', label: 'IT' },
+  { key: 'AIDS', label: 'AIDS' },
+  { key: 'AIML', label: 'AIML' },
+  { key: 'BT', label: 'BT' },
+];
+
+const BUS_OPTIONS = Array.from({ length: 30 }, (_, index) => {
+  const busId = `SIET-${String(index + 1).padStart(3, '0')}`;
+  return { key: busId, label: busId };
+});
+
+const EMPTY_FORM = {
+  name: '',
+  department: '',
+  year: '',
+  phone: '',
+  boardingPoint: '',
+  boardingTime: '',
+  busNumber: '',
+  registerNumber: '',
+};
+
+const normalizeDepartmentValue = (value = '') => {
+  const normalized = value?.toString().trim().toUpperCase();
+  if (!normalized) {
+    return '';
+  }
+    const aliasKey = normalized.replace(/[\s\._&-]/g, '');
+  const aliasMap = {
+    COMPUTERSCIENCEANDENGINEERING: 'CSE',
+    COMPUTERSCIENCEENGINEERING: 'CSE',
+    COMPUTERSCIENCE: 'CSE',
+    ELECTRONICSANDCOMMUNICATIONENGINEERING: 'ECE',
+    ELECTRONICSANDCOMMUNICATION: 'ECE',
+    ELECTRICALANDELECTRONICSENGINEERING: 'EEE',
+    ELECTRICALANDELECTRONICS: 'EEE',
+    MECHANICALENGINEERING: 'MECH',
+    CIVILENGINEERING: 'CIVIL',
+    INFORMATIONTECHNOLOGY: 'IT',
+    ARTIFICIALINTELLIGENCEANDDATASCIENCE: 'AIDS',
+    ARTIFICIALINTELLIGENCEANDMACHINELEARNING: 'AIML',
+    BIOTECHNOLOGY: 'BT',
+    BIOTECH: 'BT',
+  };
+  return aliasMap[aliasKey] || normalized;
+};
+
+const normalizeYearValue = (value = '') => {
+  const normalized = value?.toString().trim().toUpperCase();
+  if (!normalized) {
+    return '';
+  }
+  if (normalized.includes('IV') || normalized.includes('4')) {
+    return 'IV';
+  }
+  if (normalized.includes('III') || normalized.includes('3')) {
+    return 'III';
+  }
+  if (normalized.includes('II') || normalized.includes('2')) {
+    return 'II';
+  }
+  if (normalized.includes('I') || normalized.includes('1')) {
+    return 'I';
+  }
+  return normalized;
+};
+
+const normalizeRegisterNumber = (value = '') => {
+  const normalized = value?.toString().trim();
+  return normalized ? normalized.toUpperCase() : '';
+};
+
+const normalizeBusValue = (value = '') => normalizeBusNumber(value) || '';
+
+const extractBusOrder = (value = '') => {
+  const match = value.match(/(\d+)/);
+  return match ? parseInt(match[1], 10) : Number.MAX_SAFE_INTEGER;
+};
+
+const buildFormValuesFromProfile = (profile) => {
+  if (!profile) {
+    return { ...EMPTY_FORM };
+  }
+
+  return {
+    name: profile?.name || '',
+    department: normalizeDepartmentValue(profile?.department || profile?.departmentRaw || ''),
+    year: normalizeYearValue(profile?.year || profile?.yearCode || ''),
+    phone: profile?.phone || profile?.contactNumber || '',
+    boardingPoint: profile?.boardingPoint || profile?.pickupLocation || '',
+    boardingTime: profile?.boardingTime || profile?.pickupTime || '',
+    busNumber: normalizeBusValue(profile?.busNumber || profile?.busId || profile?.selectedBus || ''),
+    registerNumber: normalizeRegisterNumber(profile?.registerNumber || profile?.userId || ''),
+  };
+};
+
 const StudentProfileScreen = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [profile, setProfile] = useState(null);
-  const [formValues, setFormValues] = useState({
-    name: '',
-    department: '',
-    year: '',
-    phone: '',
-    boardingPoint: '',
-    boardingTime: '',
-    busNumber: '',
-    registerNumber: '',
-  });
+  const [formValues, setFormValues] = useState({ ...EMPTY_FORM });
   const [isSaving, setIsSaving] = useState(false);
 
   const loadProfile = useCallback(async () => {
@@ -45,16 +149,7 @@ const StudentProfileScreen = ({ navigation }) => {
       setIsLoading(true);
       const currentUser = await authService.getCurrentUser();
       setProfile(currentUser);
-      setFormValues({
-        name: currentUser?.name || '',
-        department: currentUser?.department || '',
-        year: currentUser?.year ? String(currentUser.year) : '',
-        phone: currentUser?.phone || currentUser?.contactNumber || '',
-        boardingPoint: currentUser?.boardingPoint || currentUser?.pickupLocation || '',
-        boardingTime: currentUser?.boardingTime || currentUser?.pickupTime || '',
-        busNumber: currentUser?.busNumber || currentUser?.busId || '',
-        registerNumber: currentUser?.registerNumber || currentUser?.userId || '',
-      });
+      setFormValues(buildFormValuesFromProfile(currentUser));
     } catch (error) {
       console.error('Error loading student profile:', error);
     } finally {
@@ -68,8 +163,26 @@ const StudentProfileScreen = ({ navigation }) => {
     return unsubscribe;
   }, [loadProfile, navigation]);
 
-  const degreeLine = formValues.department
-    ? `B.E - ${formValues.department}`
+  const departmentOptions = useMemo(() => {
+    const base = [...DEPARTMENT_OPTIONS];
+    if (formValues.department && !base.some((option) => option.key === formValues.department)) {
+      base.push({ key: formValues.department, label: formValues.department });
+    }
+    return base;
+  }, [formValues.department]);
+
+  const busOptions = useMemo(() => {
+    const base = [...BUS_OPTIONS];
+    if (formValues.busNumber && !base.some((option) => option.key === formValues.busNumber)) {
+      base.push({ key: formValues.busNumber, label: formValues.busNumber });
+    }
+    return base.sort((a, b) => extractBusOrder(a.label) - extractBusOrder(b.label));
+  }, [formValues.busNumber]);
+
+  const selectedDepartmentLabel = departmentOptions.find((option) => option.key === formValues.department)?.label;
+
+  const degreeLine = selectedDepartmentLabel
+    ? `B.E - ${selectedDepartmentLabel}`
     : profile?.course || 'Student';
   const yearLabel = formatYearLabel(formValues.year || profile?.year);
 
@@ -85,31 +198,20 @@ const StudentProfileScreen = ({ navigation }) => {
       setIsSaving(true);
       const payload = {
         name: formValues.name?.trim() || '',
-        department: formValues.department?.trim() || '',
-        year: formValues.year?.trim() || '',
+        department: normalizeDepartmentValue(formValues.department),
+        year: normalizeYearValue(formValues.year),
         phone: formValues.phone?.trim() || '',
         boardingPoint: formValues.boardingPoint?.trim() || '',
         boardingTime: formValues.boardingTime?.trim() || '',
-        busNumber: formValues.busNumber?.trim() || '',
-        registerNumber: formValues.registerNumber?.trim() || '',
+        busNumber: normalizeBusValue(formValues.busNumber),
+        busId: normalizeBusValue(formValues.busNumber),
+        registerNumber: normalizeRegisterNumber(formValues.registerNumber),
       };
 
       const updatedProfile = await authService.updateStudentProfile(payload);
 
       setProfile(updatedProfile);
-      setFormValues({
-        name: updatedProfile?.name ?? payload.name,
-        department: updatedProfile?.department ?? payload.department,
-        year: updatedProfile?.year ? String(updatedProfile.year) : payload.year,
-        phone: updatedProfile?.phone ?? payload.phone,
-        boardingPoint:
-          updatedProfile?.boardingPoint || updatedProfile?.pickupLocation || payload.boardingPoint,
-        boardingTime:
-          updatedProfile?.boardingTime || updatedProfile?.pickupTime || payload.boardingTime,
-        busNumber: updatedProfile?.busNumber || updatedProfile?.busId || payload.busNumber,
-        registerNumber:
-          updatedProfile?.registerNumber || updatedProfile?.userId || payload.registerNumber,
-      });
+      setFormValues(buildFormValuesFromProfile(updatedProfile));
       Alert.alert('Success', 'Profile updated successfully.');
     } catch (error) {
       Alert.alert('Update failed', 'Unable to update profile right now. Please try again later.');
@@ -179,14 +281,16 @@ const StudentProfileScreen = ({ navigation }) => {
               label="Department"
               value={formValues.department}
               onChangeText={(value) => handleChange('department', value)}
-              autoCapitalize="characters"
+              options={departmentOptions}
+              placeholder="Select department"
             />
             <EditableRow
               icon="calendar"
               label="Year"
               value={formValues.year}
               onChangeText={(value) => handleChange('year', value)}
-              keyboardType="number-pad"
+              options={YEAR_OPTIONS}
+              placeholder="Select year"
             />
             <EditableRow
               icon="call"
@@ -213,7 +317,8 @@ const StudentProfileScreen = ({ navigation }) => {
               label="Bus Number"
               value={formValues.busNumber}
               onChangeText={(value) => handleChange('busNumber', value)}
-              autoCapitalize="characters"
+              options={busOptions}
+              placeholder="Select bus number"
               isLast
             />
           </View>
@@ -233,26 +338,89 @@ const EditableRow = ({
   keyboardType = 'default',
   autoCapitalize = 'sentences',
   isLast,
-}) => (
-  <View style={[styles.infoRow, isLast && styles.infoRowLast]}>
-    <View style={styles.infoIconWrapper}>
-      <Ionicons name={icon} size={20} color={COLORS.primary} />
+  options,
+  placeholder,
+}) => {
+  const [isPickerVisible, setPickerVisible] = useState(false);
+
+  const resolvedPlaceholder = placeholder || `${options ? 'Select' : 'Enter'} ${label.toLowerCase()}`;
+
+  const displayValue = options
+    ? options.find((option) => option.key === value)?.label || value
+    : value;
+
+  return (
+    <View style={[styles.infoRow, isLast && styles.infoRowLast]}>
+      <View style={styles.infoIconWrapper}>
+        <Ionicons name={icon} size={20} color={COLORS.primary} />
+      </View>
+      <View style={styles.infoTextGroup}>
+        <Text style={styles.infoLabel}>{label}</Text>
+        {options ? (
+          <>
+            <TouchableOpacity
+              style={styles.selectTrigger}
+              onPress={() => setPickerVisible(true)}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  styles.selectValue,
+                  !displayValue && styles.selectPlaceholder,
+                ]}
+              >
+                {displayValue || resolvedPlaceholder}
+              </Text>
+              <Ionicons name="chevron-down" size={18} color={COLORS.gray} />
+            </TouchableOpacity>
+            <Modal
+              transparent
+              visible={isPickerVisible}
+              animationType="fade"
+              onRequestClose={() => setPickerVisible(false)}
+            >
+              <Pressable
+                style={styles.modalOverlay}
+                onPress={() => setPickerVisible(false)}
+              >
+                <View style={styles.modalContent}>
+                  <FlatList
+                    data={options}
+                    keyExtractor={(item) => item.key}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity
+                        style={styles.modalOption}
+                        onPress={() => {
+                          onChangeText(item.key);
+                          setPickerVisible(false);
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.modalOptionText}>{item.label}</Text>
+                      </TouchableOpacity>
+                    )}
+                    ItemSeparatorComponent={() => <View style={styles.modalSeparator} />}
+                  />
+                </View>
+              </Pressable>
+            </Modal>
+          </>
+        ) : (
+          <TextInput
+            value={value}
+            onChangeText={onChangeText}
+            style={styles.infoValueInput}
+            placeholder={resolvedPlaceholder}
+            placeholderTextColor={`${COLORS.gray}88`}
+            keyboardType={keyboardType}
+            autoCapitalize={autoCapitalize}
+            autoCorrect={false}
+          />
+        )}
+      </View>
     </View>
-    <View style={styles.infoTextGroup}>
-      <Text style={styles.infoLabel}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        style={styles.infoValueInput}
-        placeholder={`Enter ${label.toLowerCase()}`}
-        placeholderTextColor={`${COLORS.gray}88`}
-        keyboardType={keyboardType}
-        autoCapitalize={autoCapitalize}
-        autoCorrect={false}
-      />
-    </View>
-  </View>
-);
+  );
+};
 
 const styles = StyleSheet.create({
   safeArea: {
@@ -369,6 +537,47 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.semiBold,
     color: COLORS.black,
     paddingVertical: 4,
+  },
+  selectTrigger: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+  },
+  selectValue: {
+    flex: 1,
+    fontSize: FONTS.sizes.md,
+    fontFamily: FONTS.semiBold,
+    color: COLORS.black,
+  },
+  selectPlaceholder: {
+    color: `${COLORS.gray}AA`,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'center',
+    paddingHorizontal: SPACING.lg,
+  },
+  modalContent: {
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.lg,
+    maxHeight: '65%',
+    ...SHADOWS.md,
+  },
+  modalOption: {
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+  },
+  modalOptionText: {
+    fontSize: FONTS.sizes.md,
+    fontFamily: FONTS.medium,
+    color: COLORS.black,
+  },
+  modalSeparator: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: COLORS.border,
   },
 });
 

@@ -20,6 +20,57 @@ const USERS_COLLECTION = 'users';
 
 const buildLoginError = (message) => message || 'Invalid credentials. Please verify your details and try again.';
 
+const DEPARTMENT_ALIAS_MAP = {
+  COMPUTERSCIENCEANDENGINEERING: 'CSE',
+  COMPUTERSCIENCEENGINEERING: 'CSE',
+  COMPUTERSCIENCE: 'CSE',
+  ELECTRONICSANDCOMMUNICATIONENGINEERING: 'ECE',
+  ELECTRONICSANDCOMMUNICATION: 'ECE',
+  ELECTRICALANDELECTRONICSENGINEERING: 'EEE',
+  ELECTRICALANDELECTRONICS: 'EEE',
+  MECHANICALENGINEERING: 'MECH',
+  CIVILENGINEERING: 'CIVIL',
+  INFORMATIONTECHNOLOGY: 'IT',
+  ARTIFICIALINTELLIGENCEANDDATASCIENCE: 'AIDS',
+  ARTIFICIALINTELLIGENCEANDMACHINELEARNING: 'AIML',
+  BIOTECHNOLOGY: 'BT',
+  BIOTECH: 'BT',
+};
+
+const normalizeDepartmentCode = (value = '') => {
+  const normalized = value?.toString().trim().toUpperCase();
+  if (!normalized) {
+    return '';
+  }
+  const aliasKey = normalized.replace(/[\s\._&-]/g, '');
+  return DEPARTMENT_ALIAS_MAP[aliasKey] || normalized;
+};
+
+const normalizeYearCode = (value = '') => {
+  const normalized = value?.toString().trim().toUpperCase();
+  if (!normalized) {
+    return '';
+  }
+  if (normalized.includes('IV') || normalized.includes('4')) {
+    return 'IV';
+  }
+  if (normalized.includes('III') || normalized.includes('3')) {
+    return 'III';
+  }
+  if (normalized.includes('II') || normalized.includes('2')) {
+    return 'II';
+  }
+  if (normalized.includes('I') || normalized.includes('1')) {
+    return 'I';
+  }
+  return normalized;
+};
+
+const normalizeRegisterNumber = (value = '') => {
+  const normalized = value?.toString().trim();
+  return normalized ? normalized.toUpperCase() : '';
+};
+
 class AuthService {
   // Legacy registration methods are intentionally disabled with clear guidance
   async registerStudent() {
@@ -252,29 +303,69 @@ class AuthService {
         throw new Error('No active student session');
       }
 
-      const payload = {
-        name: currentUser.name,
-        department: currentUser.department,
-        year: currentUser.year,
-        phone: currentUser.phone,
-        boardingPoint: currentUser.boardingPoint,
-        boardingTime: currentUser.boardingTime,
-        busNumber: currentUser.busNumber,
-        registerNumber: currentUser.registerNumber,
-        ...updatedFields,
+      const resolvedFields = {
+        name: (updatedFields.name ?? currentUser.name ?? '').toString().trim(),
+        department: (updatedFields.department ?? currentUser.department ?? '').toString().trim(),
+        year: (updatedFields.year ?? currentUser.year ?? '').toString().trim(),
+        phone: (updatedFields.phone ?? currentUser.phone ?? '').toString().trim(),
+        boardingPoint: (updatedFields.boardingPoint ?? currentUser.boardingPoint ?? '').toString().trim(),
+        boardingTime: (updatedFields.boardingTime ?? currentUser.boardingTime ?? '').toString().trim(),
+        busNumber: (updatedFields.busNumber ?? currentUser.busNumber ?? currentUser.busId ?? '').toString().trim(),
+        registerNumber: (updatedFields.registerNumber ?? currentUser.registerNumber ?? currentUser.userId ?? '').toString().trim(),
       };
 
-      let refreshedProfile = payload;
+      const normalizedBusNumber = normalizeBusNumber(resolvedFields.busNumber || currentUser.busNumber);
+      const normalizedRegisterNumber = normalizeRegisterNumber(resolvedFields.registerNumber || currentUser.registerNumber || currentUser.userId);
+      const normalizedDepartment = normalizeDepartmentCode(resolvedFields.department || currentUser.department);
+      const normalizedYear = normalizeYearCode(resolvedFields.year || currentUser.year);
+
+      const profileUpdate = {
+        ...resolvedFields,
+        department: normalizedDepartment,
+        year: normalizedYear,
+        busNumber: normalizedBusNumber,
+        busId: normalizedBusNumber,
+        selectedBus: normalizedBusNumber,
+        registerNumber: normalizedRegisterNumber,
+        role: currentUser.role,
+        email: currentUser.email || '',
+        updatedAt: new Date().toISOString(),
+      };
+
+      let refreshedProfile = profileUpdate;
       try {
-        const response = await userAPI.updateProfile(payload);
-        refreshedProfile = response?.data || payload;
+        const response = await userAPI.updateProfile(profileUpdate);
+        if (response?.data) {
+          refreshedProfile = {
+            ...profileUpdate,
+            ...response.data,
+          };
+        }
       } catch (apiError) {
         console.warn('Falling back to local profile update:', apiError?.message || apiError);
+      }
+
+      try {
+        const userDocId = currentUser.uid || currentUser.id || currentUser.userId || normalizedRegisterNumber;
+        if (!userDocId) {
+          console.warn('Unable to persist profile update to Firestore: missing user document id');
+        } else {
+          const userDocRef = doc(db, USERS_COLLECTION, userDocId);
+          await setDoc(userDocRef, profileUpdate, { merge: true });
+        }
+      } catch (firestoreError) {
+        console.error('Error updating student profile in Firestore:', firestoreError);
       }
 
       const mergedProfile = {
         ...currentUser,
         ...refreshedProfile,
+        busNumber: refreshedProfile?.busNumber || normalizedBusNumber,
+        busId: refreshedProfile?.busId || normalizedBusNumber,
+        selectedBus: refreshedProfile?.selectedBus || normalizedBusNumber,
+        registerNumber: refreshedProfile?.registerNumber || normalizedRegisterNumber,
+        department: refreshedProfile?.department || normalizedDepartment,
+        year: refreshedProfile?.year || normalizedYear,
       };
 
       await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(mergedProfile));
