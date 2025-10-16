@@ -81,7 +81,6 @@ const StudentBottomNav = ({ activeTab, navigation }) => {
               {item.label}
             </Text>
 
-            {isActive && !isTrackButton && <View style={styles.activeIndicator} />}
           </TouchableOpacity>
         );
       })}
@@ -123,7 +122,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   iconContainerActive: {
-    backgroundColor: `${COLORS.primary}22`,
+    backgroundColor: 'transparent',
   },
   trackIconContainer: {
     width: 58,
@@ -139,20 +138,12 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_500Medium',
   },
   activeLabel: {
-    color: COLORS.black,
+    color: COLORS.secondary,
   },
   trackLabel: {
     marginTop: 8,
     color: COLORS.black,
     fontFamily: 'Poppins_600SemiBold',
-  },
-  activeIndicator: {
-    position: 'absolute',
-    bottom: 6,
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: COLORS.primary,
   },
 });
 
