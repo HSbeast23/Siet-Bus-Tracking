@@ -132,13 +132,15 @@ const ManagementDashboard = ({ navigation }) => {
       <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Management Dashboard</Text>
-          <TouchableOpacity
-            style={styles.headerButton}
-            onPress={handleLogout}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="log-out-outline" size={22} color={COLORS.white} />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={handleLogout}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="log-out-outline" size={22} color={COLORS.white} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <ScrollView
@@ -199,12 +201,14 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.bold,
     color: COLORS.secondary,
   },
-  headerButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  headerActions: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+  },
+  headerButton: {
+    marginLeft: 12,
+    padding: 6,
+    borderRadius: RADIUS.round,
     backgroundColor: 'rgba(255,255,255,0.2)',
   },
   scrollContent: {

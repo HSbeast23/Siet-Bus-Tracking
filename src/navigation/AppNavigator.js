@@ -54,7 +54,7 @@ const AppNavigator = () => {
       <Stack.Screen 
         name="ManagementDashboard" 
         component={ManagementDashboard} 
-        options={{ title: 'Management Dashboard', headerLeft: null }}
+        options={{ title: 'Management Dashboard', headerShown: false }}
       />
       <Stack.Screen 
         name="CoAdminManagement" 
