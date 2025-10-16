@@ -386,6 +386,70 @@ class AuthService {
     }
   }
 
+  async updateDriverProfile(updatedFields = {}) {
+    try {
+      const currentUser = await this.getCurrentUser();
+      if (!currentUser) {
+        throw new Error('No active driver session');
+      }
+
+      const normalizedBus = normalizeBusNumber(
+        updatedFields.busId || updatedFields.busNumber || currentUser.busId || currentUser.busNumber || ''
+      );
+
+      const profileUpdate = {
+        name: (updatedFields.name ?? currentUser.name ?? '').toString().trim(),
+        phone: (updatedFields.phone ?? currentUser.phone ?? '').toString().trim(),
+        email: (updatedFields.email ?? currentUser.email ?? '').toString().trim(),
+        licenseNumber: (updatedFields.licenseNumber ?? currentUser.licenseNumber ?? '').toString().trim(),
+        busId: normalizedBus,
+        busNumber: normalizedBus,
+        role: currentUser.role || 'driver',
+        avatar: updatedFields.avatar ?? currentUser.avatar ?? '',
+        updatedAt: new Date().toISOString(),
+      };
+
+      let refreshedProfile = profileUpdate;
+      try {
+        const response = await userAPI.updateProfile({
+          ...profileUpdate,
+          userId: currentUser.userId || currentUser.registerNumber,
+        });
+        if (response?.data) {
+          refreshedProfile = {
+            ...profileUpdate,
+            ...response.data,
+          };
+        }
+      } catch (apiError) {
+        console.warn('Driver profile API update failed, using local merge:', apiError?.message || apiError);
+      }
+
+      try {
+        const userDocId = currentUser.uid || currentUser.id || currentUser.userId;
+        if (userDocId) {
+          const docRef = doc(db, USERS_COLLECTION, userDocId);
+          await setDoc(docRef, profileUpdate, { merge: true });
+        }
+      } catch (firestoreError) {
+        console.error('Error persisting driver profile to Firestore:', firestoreError);
+      }
+
+      const mergedProfile = {
+        ...currentUser,
+        ...refreshedProfile,
+        busId: refreshedProfile.busId || normalizedBus,
+        busNumber: refreshedProfile.busNumber || normalizedBus,
+      };
+
+      await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(mergedProfile));
+      return mergedProfile;
+    } catch (error) {
+      console.error('Error updating driver profile:', error);
+      throw error;
+    }
+  }
+
   async updateCoAdminProfile(updatedFields = {}) {
     try {
       const currentUser = await this.getCurrentUser();

@@ -1,21 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View,
+  ActivityIndicator,
+  Alert,
+  BackHandler,
+  Image,
+  ScrollView,
+  StyleSheet,
   Text,
   TouchableOpacity,
-  StyleSheet,
+  View,
   SafeAreaView,
-  Alert,
-  ScrollView,
-  ActivityIndicator,
-  BackHandler
 } from 'react-native';
 import * as Location from 'expo-location';
-import { COLORS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
+
+import { COLORS, FONTS, RADIUS, SHADOWS, SPACING } from '../utils/constants';
 import { updateBusLocation, stopBusTracking } from '../services/locationService';
 import { authService } from '../services/authService';
-import { useFocusEffect } from '@react-navigation/native';
 
 // Normalize bus number to handle variations (SIET--005 → SIET-005)
 const normalizeBusNumber = (busNumber) => {
@@ -29,23 +31,27 @@ const DriverDashboard = ({ navigation }) => {
     busNumber: '',
     email: '',
     phone: '',
-    licenseNumber: ''
+    licenseNumber: '',
+    avatar: '',
   });
   const [isTracking, setIsTracking] = useState(false);
   const [currentLocation, setCurrentLocation] = useState(null);
   const [locationSubscription, setLocationSubscription] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [menuVisible, setMenuVisible] = useState(false);
 
   useEffect(() => {
     loadDriverData();
+  }, []);
+
+  useEffect(() => {
     return () => {
-      // Cleanup location tracking when component unmounts
       if (locationSubscription) {
-        console.log('🧹 [DRIVER] Component unmounting - cleaning up location tracking');
+        console.log('🧹 [DRIVER] Cleaning up location tracking subscription');
         locationSubscription.remove();
       }
     };
-  }, []);
+  }, [locationSubscription]);
 
   // Handle back button press - ask confirmation if tracking is active
   useFocusEffect(
@@ -56,72 +62,52 @@ const DriverDashboard = ({ navigation }) => {
             'Stop Tracking?',
             'You are currently tracking. Going back will stop location tracking. Do you want to continue?',
             [
-              {
-                text: 'Cancel',
-                style: 'cancel',
-                onPress: () => {}
-              },
+              { text: 'Cancel', style: 'cancel' },
               {
                 text: 'Stop & Go Back',
                 style: 'destructive',
                 onPress: async () => {
                   await stopLocationTracking();
                   navigation.goBack();
-                }
-              }
+                },
+              },
             ]
           );
-          return true; // Prevent default back action
+          return true;
         }
-        return false; // Allow default back action
+        return false;
       };
 
       const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
-
       return () => backHandler.remove();
-    }, [isTracking])
+    }, [isTracking, navigation])
   );
 
   const loadDriverData = async () => {
     try {
-      // Get authenticated user data from authService
       const currentUser = await authService.getCurrentUser();
       console.log('Current authenticated driver:', currentUser);
-      
+
       if (currentUser) {
-        const normalizedBusNumber = normalizeBusNumber(currentUser.busNumber || '');
-        console.log(`🔧 [DRIVER] Normalizing bus number: "${currentUser.busNumber}" → "${normalizedBusNumber}"`);
-        
+        const normalizedBusNumber = normalizeBusNumber(currentUser.busNumber || currentUser.busId || '');
         setDriverInfo({
           name: currentUser.name || 'Driver',
           busNumber: normalizedBusNumber,
           email: currentUser.email || '',
           phone: currentUser.phone || 'N/A',
-          licenseNumber: currentUser.licenseNumber || 'N/A'
-        });
-        
-        console.log('Driver info loaded:', {
-          name: currentUser.name,
-          busNumber: normalizedBusNumber,
-          email: currentUser.email
+          licenseNumber: currentUser.licenseNumber || 'N/A',
+          avatar: currentUser.avatar || '',
         });
       } else {
-        console.log('No authenticated driver found');
-        // Handle case where driver is not authenticated
         Alert.alert(
           'Authentication Required',
           'Please login to access the driver dashboard.',
-          [
-            {
-              text: 'Login',
-              onPress: () => navigation.navigate('Login')
-            }
-          ]
+          [{ text: 'Login', onPress: () => navigation.navigate('Login') }]
         );
       }
-      setLoading(false);
     } catch (error) {
       console.error('Error loading driver data:', error);
+    } finally {
       setLoading(false);
     }
   };
@@ -130,11 +116,7 @@ const DriverDashboard = ({ navigation }) => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert(
-          'Permission Required',
-          'Location permission is required to track the bus location.',
-          [{ text: 'OK' }]
-        );
+        Alert.alert('Permission Required', 'Location permission is required to track the bus location.');
         return false;
       }
       return true;
@@ -151,30 +133,28 @@ const DriverDashboard = ({ navigation }) => {
     try {
       const normalizedBusNumber = normalizeBusNumber(driverInfo.busNumber);
       console.log(`🚀 [DRIVER] Starting tracking for bus: ${normalizedBusNumber}`);
-      
-      // Try to get initial location with fallback accuracy levels
+
       let initialLocation;
       try {
-        console.log('📍 [DRIVER] Attempting BestForNavigation accuracy...');
         initialLocation = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.BestForNavigation,
         });
       } catch (bestError) {
-        console.log('⚠️ [DRIVER] BestForNavigation failed, trying High accuracy...');
         try {
           initialLocation = await Location.getCurrentPositionAsync({
             accuracy: Location.Accuracy.High,
           });
         } catch (highError) {
-          console.log('⚠️ [DRIVER] High accuracy failed, using Balanced...');
           initialLocation = await Location.getCurrentPositionAsync({
             accuracy: Location.Accuracy.Balanced,
           });
         }
       }
-      
-      console.log(`✅ [DRIVER] Got initial location:`, initialLocation.coords);
-      
+
+      if (!initialLocation) {
+        throw new Error('Unable to acquire initial location');
+      }
+
       const locationData = {
         latitude: initialLocation.coords.latitude,
         longitude: initialLocation.coords.longitude,
@@ -184,22 +164,19 @@ const DriverDashboard = ({ navigation }) => {
         heading: initialLocation.coords.heading || 0,
         speed: initialLocation.coords.speed || 0,
         accuracy: initialLocation.coords.accuracy || 0,
-        isTracking: true // Set tracking flag to TRUE
+        isTracking: true,
       };
-      
+
       setCurrentLocation(locationData);
       setIsTracking(true);
-      
-      // Update Firestore with initial location
+
       await updateBusLocation(normalizedBusNumber, locationData);
-      console.log(`✅ [DRIVER] Initial location saved for bus ${normalizedBusNumber}`);
-      
-      // Start continuous location tracking with best settings
+
       const subscription = await Location.watchPositionAsync(
         {
-          accuracy: Location.Accuracy.High, // Use High instead of BestForNavigation for better compatibility
-          timeInterval: 2000, // Update every 2 seconds for smoother tracking
-          distanceInterval: 5, // Update every 5 meters
+          accuracy: Location.Accuracy.High,
+          timeInterval: 2000,
+          distanceInterval: 5,
         },
         async (location) => {
           const newLocationData = {
@@ -211,412 +188,568 @@ const DriverDashboard = ({ navigation }) => {
             speed: location.coords.speed || 0,
             heading: location.coords.heading || 0,
             accuracy: location.coords.accuracy || 0,
-            isTracking: true // Ensure tracking flag stays TRUE
+            isTracking: true,
           };
-          
+
           setCurrentLocation(newLocationData);
-          
-          // Update Firestore in real-time
           try {
             await updateBusLocation(normalizedBusNumber, newLocationData);
-            console.log(`📍 [DRIVER] Location updated for bus ${normalizedBusNumber}`);
           } catch (error) {
-            console.error(`❌ [DRIVER] Failed to update location:`, error);
+            console.error('❌ [DRIVER] Failed to update location:', error);
           }
         }
       );
-      
+
       setLocationSubscription(subscription);
-      Alert.alert('Success', `Location tracking started for bus ${normalizedBusNumber}!`);
-      
+      Alert.alert('Tracking Started', `Location tracking activated for bus ${normalizedBusNumber}.`);
     } catch (error) {
       console.error('❌ [DRIVER] Error starting location tracking:', error);
-      console.error('❌ [DRIVER] Error details:', error.message);
       setIsTracking(false);
-      
-      // Provide helpful error message
-      if (error.message.includes('unavailable')) {
-        Alert.alert(
-          'Location Unavailable',
-          'GPS location is not available. If using an emulator:\n\n1. Open emulator extended controls (...)\n2. Go to Location tab\n3. Set a location manually\n\nIf on a real device, ensure Location Services are enabled in Settings.',
-          [{ text: 'OK' }]
-        );
-      } else {
-        Alert.alert('Error', 'Failed to start location tracking. Please try again.');
-      }
+      Alert.alert(
+        'Location Unavailable',
+        'Failed to start tracking. Ensure GPS is enabled or set a mock location if using an emulator.'
+      );
     }
   };
 
   const stopLocationTracking = async () => {
     console.log('🛑 [DRIVER] Stopping location tracking...');
-    
-    // Stop location subscription first
+
     if (locationSubscription) {
       locationSubscription.remove();
       setLocationSubscription(null);
-      console.log('✅ [DRIVER] Location subscription removed');
     }
-    
-    // Mark bus as NOT tracking in Firestore
+
     if (driverInfo.busNumber) {
-      const normalizedBusNumber = normalizeBusNumber(driverInfo.busNumber);
       try {
-        await stopBusTracking(normalizedBusNumber);
-        console.log(`🛑 [DRIVER] Tracking stopped in Firestore for bus ${normalizedBusNumber}`);
+        await stopBusTracking(normalizeBusNumber(driverInfo.busNumber));
       } catch (error) {
-        console.error(`❌ [DRIVER] Error stopping tracking in Firestore:`, error);
+        console.error('❌ [DRIVER] Error stopping tracking in Firestore:', error);
       }
     }
-    
+
     setIsTracking(false);
     setCurrentLocation(null);
-    console.log('✅ [DRIVER] Tracking state cleared');
-    Alert.alert('Success', 'Location tracking stopped.');
   };
 
   const handleLogout = () => {
     Alert.alert(
       'Logout',
-      isTracking 
+      isTracking
         ? 'You are currently tracking. Logging out will stop location tracking. Are you sure?'
         : 'Are you sure you want to logout?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Logout', 
+        {
+          text: 'Logout',
           style: 'destructive',
           onPress: async () => {
-            // Stop tracking if active
             if (isTracking) {
-              console.log('🚨 [DRIVER] Stopping tracking due to logout...');
               await stopLocationTracking();
             }
-            
-            // Logout from auth service
+            setMenuVisible(false);
             const success = await authService.logout();
             if (success) {
-              console.log('✅ [DRIVER] Driver logged out successfully');
-              navigation.reset({
-                index: 0,
-                routes: [{ name: 'Welcome' }],
-              });
+              navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
             } else {
               Alert.alert('Error', 'Failed to logout. Please try again.');
             }
-          }
-        }
+          },
+        },
       ]
     );
   };
 
+  const trackingStatusMeta = useMemo(
+    () =>
+      isTracking
+        ? { label: 'ACTIVE', color: COLORS.success, tone: '#E8F5E9' }
+        : { label: 'INACTIVE', color: COLORS.danger, tone: '#FFEBEE' },
+    [isTracking]
+  );
+
+  const navigateToProfile = () => {
+    setMenuVisible(false);
+    navigation.navigate('DriverProfile');
+  };
+
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.safeArea}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.accent} />
-          <Text style={styles.loadingText}>Loading...</Text>
+          <Text style={styles.loadingText}>Loading dashboard...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <View>
-          <Text style={styles.welcomeText}>Welcome,</Text>
-          <Text style={styles.driverText}>{driverInfo.name}</Text>
+        <View style={styles.headerLeft}>
+          <Ionicons name="person" size={20} color={COLORS.white} />
+          <Text style={styles.headerTitle}>Driver Dashboard</Text>
         </View>
-        <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-          <Ionicons name="log-out" size={24} color={COLORS.danger} />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={() => setMenuVisible((prev) => !prev)}
+          >
+            <Ionicons name="person-circle" size={26} color={COLORS.white} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.iconButton} onPress={handleLogout}>
+            <Ionicons name="log-out" size={22} color={COLORS.white} />
+          </TouchableOpacity>
+        </View>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Driver Info Card */}
-        <View style={styles.driverInfoCard}>
-          <View style={styles.driverInfoContent}>
-            <Ionicons name="person-circle" size={50} color={COLORS.accent} />
-            <View style={styles.driverDetails}>
-              <Text style={styles.driverName}>{driverInfo.name}</Text>
-              <Text style={styles.busNumber}>Bus: {driverInfo.busNumber}</Text>
-              <Text style={styles.driverEmail}>{driverInfo.email}</Text>
+      {menuVisible && (
+        <TouchableOpacity
+          activeOpacity={1}
+          style={styles.menuBackdrop}
+          onPress={() => setMenuVisible(false)}
+        >
+          <View style={styles.menuSheet}>
+            <TouchableOpacity style={styles.menuOption} onPress={navigateToProfile}>
+              <Ionicons name="create" size={18} color={COLORS.secondary} />
+              <Text style={styles.menuOptionText}>Edit Profile</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.menuOption} onPress={navigateToProfile}>
+              <Ionicons name="image" size={18} color={COLORS.secondary} />
+              <Text style={styles.menuOptionText}>Update Photo</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      )}
+
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        <View style={styles.heroSection}>
+          <View style={styles.heroLeft}>
+            <Text style={styles.greeting}>Welcome,</Text>
+            <Text style={styles.heroName}>{driverInfo.name}</Text>
+            <Text style={styles.heroSub}>Here's your dashboard for today.</Text>
+
+            <View style={styles.heroMetaRow}>
+              <View style={styles.heroMetaTile}>
+                <Ionicons name="bus" size={18} color={COLORS.secondary} />
+                <Text style={styles.heroMetaLabel}>Bus</Text>
+                <Text style={styles.heroMetaValue}>{driverInfo.busNumber || 'N/A'}</Text>
+              </View>
+              <View style={styles.heroMetaTile}>
+                <Ionicons name="mail" size={18} color={COLORS.secondary} />
+                <Text style={styles.heroMetaLabel}>Contact</Text>
+                <Text style={styles.heroMetaValue}>{driverInfo.email || 'Not set'}</Text>
+              </View>
             </View>
+          </View>
+
+          <View style={styles.heroAvatarWrapper}>
+            {driverInfo.avatar ? (
+              <Image source={{ uri: driverInfo.avatar }} style={styles.heroAvatar} />
+            ) : (
+              <Ionicons name="person-circle" size={96} color={`${COLORS.white}CC`} />
+            )}
+            <TouchableOpacity style={styles.heroEditButton} onPress={navigateToProfile}>
+              <Ionicons name="create" size={18} color={COLORS.white} />
+            </TouchableOpacity>
           </View>
         </View>
 
-        {/* Location Tracking Card */}
         <View style={styles.trackingCard}>
           <View style={styles.trackingHeader}>
-            <Ionicons 
-              name="location" 
-              size={30} 
-              color={isTracking ? COLORS.success : COLORS.gray} 
-            />
-            <View style={styles.trackingDetails}>
-              <Text style={styles.trackingTitle}>Location Tracking</Text>
-              <Text style={[
-                styles.trackingStatus,
-                { color: isTracking ? COLORS.success : COLORS.danger }
-              ]}>
-                {isTracking ? 'ACTIVE' : 'INACTIVE'}
+            <View style={[styles.statusChip, { backgroundColor: trackingStatusMeta.tone }]}>
+              <Ionicons name="location" size={18} color={trackingStatusMeta.color} />
+              <Text style={[styles.statusChipText, { color: trackingStatusMeta.color }]}>
+                {trackingStatusMeta.label}
               </Text>
             </View>
+            <TouchableOpacity
+              style={[styles.trackingButton, { backgroundColor: trackingStatusMeta.color }]}
+              onPress={isTracking ? stopLocationTracking : startLocationTracking}
+            >
+              <Ionicons name={isTracking ? 'stop' : 'play'} size={18} color={COLORS.white} />
+              <Text style={styles.trackingButtonText}>
+                {isTracking ? 'Stop Tracking' : 'Start Tracking'}
+              </Text>
+            </TouchableOpacity>
           </View>
 
-          {currentLocation && (
-            <View style={styles.locationDetails}>
-              <Text style={styles.locationText}>
-                Lat: {currentLocation.latitude.toFixed(6)}
-              </Text>
-              <Text style={styles.locationText}>
-                Lng: {currentLocation.longitude.toFixed(6)}
-              </Text>
-              <Text style={styles.locationText}>
-                Updated: {new Date(currentLocation.timestamp).toLocaleTimeString()}
-              </Text>
+          <View style={styles.trackingBody}>
+            <View style={styles.trackingInfoRow}>
+              <View>
+                <Text style={styles.trackingLabel}>Current Location</Text>
+                <Text style={styles.trackingSummary}>
+                  {currentLocation
+                    ? `${currentLocation.latitude.toFixed(4)}, ${currentLocation.longitude.toFixed(4)}`
+                    : 'Awaiting location lock'}
+                </Text>
+              </View>
+              <TouchableOpacity style={styles.trackingIconButton} onPress={loadDriverData}>
+                <Ionicons name="refresh" size={18} color={COLORS.secondary} />
+              </TouchableOpacity>
             </View>
-          )}
 
-          <TouchableOpacity
-            style={[
-              styles.trackingButton,
-              { backgroundColor: isTracking ? COLORS.danger : COLORS.success }
-            ]}
-            onPress={isTracking ? stopLocationTracking : startLocationTracking}
-          >
-            <Ionicons 
-              name={isTracking ? "stop" : "play"} 
-              size={20} 
-              color={COLORS.white} 
-            />
-            <Text style={styles.trackingButtonText}>
-              {isTracking ? 'Stop Tracking' : 'Start Tracking'}
-            </Text>
-          </TouchableOpacity>
+            <View style={styles.trackingMetricsRow}>
+              <TrackingMetric
+                icon="time"
+                label="Updated"
+                value={currentLocation ? new Date(currentLocation.timestamp).toLocaleTimeString() : '--:--'}
+              />
+              <TrackingMetric
+                icon="speedometer"
+                label="Speed"
+                value={currentLocation ? `${(currentLocation.speed || 0).toFixed(1)} m/s` : '0 m/s'}
+              />
+              <TrackingMetric
+                icon="compass"
+                label="Heading"
+                value={currentLocation ? `${Math.round(currentLocation.heading || 0)}°` : '--'}
+              />
+            </View>
+          </View>
         </View>
 
-        {/* Quick Actions */}
         <View style={styles.actionsContainer}>
           <Text style={styles.sectionTitle}>Quick Actions</Text>
-          
-          <TouchableOpacity
-            style={styles.actionItem}
+          <ActionTile
+            icon="map"
+            iconColor={COLORS.primary}
+            title="View Route"
+            subtitle="See your assigned route"
             onPress={() => Alert.alert('Route Info', 'Route information feature coming soon!')}
-          >
-            <View style={[styles.actionIcon, { backgroundColor: COLORS.primary }]}>
-              <Ionicons name="map" size={20} color={COLORS.white} />
-            </View>
-            <View style={styles.actionContent}>
-              <Text style={styles.actionTitle}>View Route</Text>
-              <Text style={styles.actionSubtitle}>See your assigned route</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={COLORS.gray} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.actionItem}
+          />
+          <ActionTile
+            icon="people"
+            iconColor={COLORS.accent}
+            title="My Students"
+            subtitle="View students on your route"
             onPress={() => Alert.alert('Students', 'Student list feature coming soon!')}
-          >
-            <View style={[styles.actionIcon, { backgroundColor: COLORS.secondary }]}>
-              <Ionicons name="people" size={20} color={COLORS.white} />
-            </View>
-            <View style={styles.actionContent}>
-              <Text style={styles.actionTitle}>My Students</Text>
-              <Text style={styles.actionSubtitle}>View students on your route</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={COLORS.gray} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.actionItem}
+          />
+          <ActionTile
+            icon="call"
+            iconColor={COLORS.danger}
+            title="Emergency Contact"
+            subtitle="Call management in emergency"
             onPress={() => Alert.alert('Emergency', 'Emergency contacts feature coming soon!')}
-          >
-            <View style={[styles.actionIcon, { backgroundColor: COLORS.danger }]}>
-              <Ionicons name="call" size={20} color={COLORS.white} />
-            </View>
-            <View style={styles.actionContent}>
-              <Text style={styles.actionTitle}>Emergency Contact</Text>
-              <Text style={styles.actionSubtitle}>Call management in emergency</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={COLORS.gray} />
-          </TouchableOpacity>
+          />
         </View>
       </ScrollView>
     </SafeAreaView>
   );
 };
 
+const TrackingMetric = ({ icon, label, value }) => (
+  <View style={styles.metricCard}>
+    <Ionicons name={icon} size={18} color={COLORS.secondary} />
+    <Text style={styles.metricLabel}>{label}</Text>
+    <Text style={styles.metricValue}>{value}</Text>
+  </View>
+);
+
+const ActionTile = ({ icon, iconColor, title, subtitle, onPress }) => (
+  <TouchableOpacity style={styles.actionTile} onPress={onPress}>
+    <View style={[styles.actionIcon, { backgroundColor: `${iconColor}22` }]}>
+      <Ionicons name={icon} size={20} color={iconColor} />
+    </View>
+    <View style={styles.actionContent}>
+      <Text style={styles.actionTitle}>{title}</Text>
+      <Text style={styles.actionSubtitle}>{subtitle}</Text>
+    </View>
+    <Ionicons name="chevron-forward" size={20} color={COLORS.gray} />
+  </TouchableOpacity>
+);
+
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: COLORS.gray,
+  scrollContent: {
+    paddingBottom: SPACING.xl,
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.lightGray,
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    backgroundColor: COLORS.primary,
+    borderBottomLeftRadius: RADIUS.lg,
+    borderBottomRightRadius: RADIUS.lg,
+    ...SHADOWS.md,
   },
-  welcomeText: {
-    fontSize: 16,
-    color: COLORS.gray,
-  },
-  driverText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: COLORS.secondary,
-  },
-  logoutButton: {
-    padding: 10,
-  },
-  driverInfoCard: {
-    backgroundColor: COLORS.white,
-    margin: 20,
-    padding: 20,
-    borderRadius: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  driverInfoContent: {
+  headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: SPACING.sm,
   },
-  driverDetails: {
-    flex: 1,
-    marginLeft: 15,
+  headerTitle: {
+    fontSize: FONTS.sizes.lg,
+    fontFamily: FONTS.bold,
+    color: COLORS.white,
   },
-  driverName: {
-    fontSize: 20,
-    fontWeight: 'bold',
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.1)',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-end',
+    paddingHorizontal: SPACING.lg,
+    paddingTop: 88,
+  },
+  menuSheet: {
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.md,
+    paddingVertical: SPACING.xs,
+    width: 200,
+    ...SHADOWS.md,
+  },
+  menuOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+  },
+  menuOptionText: {
+    fontFamily: FONTS.medium,
+    fontSize: FONTS.sizes.sm,
     color: COLORS.secondary,
   },
-  busNumber: {
-    fontSize: 16,
-    color: COLORS.accent,
-    marginTop: 2,
-    fontWeight: 'bold',
+  heroSection: {
+    marginHorizontal: SPACING.lg,
+    marginTop: SPACING.lg,
+    padding: SPACING.lg,
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.xl,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    ...SHADOWS.md,
   },
-  driverEmail: {
-    fontSize: 14,
+  heroLeft: {
+    flex: 1,
+    paddingRight: SPACING.lg,
+  },
+  greeting: {
+    fontSize: FONTS.sizes.sm,
+    fontFamily: FONTS.medium,
     color: COLORS.gray,
+  },
+  heroName: {
+    fontSize: FONTS.sizes.xxl,
+    fontFamily: FONTS.bold,
+    color: COLORS.secondary,
+    marginTop: SPACING.xs,
+  },
+  heroSub: {
+    fontSize: FONTS.sizes.sm,
+    fontFamily: FONTS.regular,
+    color: COLORS.muted,
+    marginTop: 4,
+  },
+  heroMetaRow: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+    marginTop: SPACING.md,
+  },
+  heroMetaTile: {
+    backgroundColor: `${COLORS.primary}18`,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    minWidth: 120,
+  },
+  heroMetaLabel: {
+    fontSize: FONTS.sizes.xs,
+    fontFamily: FONTS.medium,
+    color: COLORS.gray,
+    marginTop: 4,
+  },
+  heroMetaValue: {
+    fontSize: FONTS.sizes.sm,
+    fontFamily: FONTS.semiBold,
+    color: COLORS.secondary,
     marginTop: 2,
+  },
+  heroAvatarWrapper: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: `${COLORS.secondary}33`,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  heroAvatar: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 55,
+  },
+  heroEditButton: {
+    position: 'absolute',
+    bottom: SPACING.xs,
+    right: SPACING.xs,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   trackingCard: {
+    marginHorizontal: SPACING.lg,
+    marginTop: SPACING.lg,
     backgroundColor: COLORS.white,
-    marginHorizontal: 20,
-    marginBottom: 20,
-    padding: 20,
-    borderRadius: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.lg,
+    ...SHADOWS.md,
   },
   trackingHeader: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 15,
   },
-  trackingDetails: {
-    flex: 1,
-    marginLeft: 15,
+  statusChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    borderRadius: RADIUS.round,
   },
-  trackingTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.secondary,
-  },
-  trackingStatus: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    marginTop: 2,
-  },
-  locationDetails: {
-    backgroundColor: COLORS.background,
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 15,
-  },
-  locationText: {
-    fontSize: 14,
-    color: COLORS.black,
-    marginBottom: 2,
+  statusChipText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: FONTS.sizes.sm,
   },
   trackingButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 10,
+    gap: SPACING.xs,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.round,
   },
   trackingButtonText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: FONTS.sizes.sm,
     color: COLORS.white,
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: 8,
+  },
+  trackingBody: {
+    marginTop: SPACING.lg,
+    gap: SPACING.lg,
+  },
+  trackingInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  trackingLabel: {
+    fontFamily: FONTS.medium,
+    fontSize: FONTS.sizes.sm,
+    color: COLORS.gray,
+  },
+  trackingSummary: {
+    fontFamily: FONTS.bold,
+    fontSize: FONTS.sizes.md,
+    color: COLORS.secondary,
+    marginTop: 4,
+  },
+  trackingIconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: `${COLORS.primary}26`,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trackingMetricsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: SPACING.sm,
+  },
+  metricCard: {
+    flex: 1,
+    backgroundColor: `${COLORS.primary}12`,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.sm,
+    borderRadius: RADIUS.md,
+    alignItems: 'center',
+  },
+  metricLabel: {
+    fontFamily: FONTS.medium,
+    fontSize: FONTS.sizes.xs,
+    color: COLORS.gray,
+    marginTop: 6,
+  },
+  metricValue: {
+    fontFamily: FONTS.semiBold,
+    fontSize: FONTS.sizes.sm,
+    color: COLORS.secondary,
+    marginTop: 2,
   },
   actionsContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+    marginHorizontal: SPACING.lg,
+    marginTop: SPACING.xl,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontFamily: FONTS.bold,
+    fontSize: FONTS.sizes.lg,
     color: COLORS.secondary,
-    marginBottom: 15,
+    marginBottom: SPACING.md,
   },
-  actionItem: {
+  actionTile: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.white,
-    padding: 15,
-    borderRadius: 12,
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 3,
+    padding: SPACING.md,
+    borderRadius: RADIUS.md,
+    marginBottom: SPACING.sm,
+    ...SHADOWS.sm,
   },
   actionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
-    marginRight: 15,
+    justifyContent: 'center',
+    marginRight: SPACING.md,
   },
   actionContent: {
     flex: 1,
   },
   actionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontFamily: FONTS.semiBold,
+    fontSize: FONTS.sizes.md,
     color: COLORS.black,
   },
   actionSubtitle: {
-    fontSize: 12,
+    fontFamily: FONTS.regular,
+    fontSize: FONTS.sizes.xs,
     color: COLORS.gray,
-    marginTop: 2,
+    marginTop: 4,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    marginTop: SPACING.sm,
+    fontFamily: FONTS.medium,
+    color: COLORS.gray,
   },
 });
 

@@ -24,6 +24,7 @@ import StudentReportHistoryScreen from '../screens/StudentReportHistoryScreen';
 import FeedbackScreen from '../screens/FeedbackScreen';
 import CoAdminManagement from '../screens/CoAdminManagement';
 import CoAdminProfileScreen from '../screens/CoAdminProfileScreen';
+import DriverProfileScreen from '../screens/DriverProfileScreen';
 
 const Stack = createStackNavigator();
 
@@ -70,7 +71,7 @@ const AppNavigator = () => {
       <Stack.Screen 
         name="DriverDashboard" 
         component={DriverDashboard} 
-        options={{ title: 'Driver Dashboard', headerLeft: null }}
+        options={{ title: 'Driver Dashboard', headerShown: false }}
       />
       <Stack.Screen 
         name="StudentDashboard" 
@@ -161,6 +162,11 @@ const AppNavigator = () => {
         name="CoAdminProfile" 
         component={CoAdminProfileScreen} 
         options={{ title: 'Bus Incharge Profile', headerShown: false }}
+      />
+      <Stack.Screen 
+        name="DriverProfile" 
+        component={DriverProfileScreen} 
+        options={{ title: 'Driver Profile', headerShown: false }}
       />
     </Stack.Navigator>
   );
