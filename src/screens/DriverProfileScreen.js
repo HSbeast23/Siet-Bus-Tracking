@@ -16,6 +16,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONTS, RADIUS, SHADOWS, SPACING } from '../utils/constants';
 import { authService } from '../services/authService';
 import { normalizeBusNumber } from '../services/locationService';
+import { uploadImageToCloudinary } from '../services/cloudinaryService';
+import { CLOUDINARY_UPLOAD_FOLDER } from '@env';
 
 const DriverProfileScreen = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(true);
@@ -84,7 +86,6 @@ const DriverProfileScreen = ({ navigation }) => {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.7,
@@ -102,6 +103,24 @@ const DriverProfileScreen = ({ navigation }) => {
   const handleSave = async () => {
     try {
       setIsSaving(true);
+
+      let resolvedAvatar = form.avatar;
+      const isLocalAvatar = resolvedAvatar && !resolvedAvatar.startsWith('http');
+
+      if (isLocalAvatar) {
+        try {
+          const uploadResult = await uploadImageToCloudinary(resolvedAvatar, {
+            folder: `${CLOUDINARY_UPLOAD_FOLDER || 'siet-bus/profiles'}/drivers`,
+            publicId: profile?.userId || profile?.uid || undefined,
+          });
+          resolvedAvatar = uploadResult.secureUrl;
+        } catch (uploadError) {
+          console.error('Driver avatar upload failed', uploadError);
+          Alert.alert('Upload failed', 'Could not upload profile photo. Please try again.');
+          return;
+        }
+      }
+
       const payload = {
         name: form.name?.trim() || '',
         email: form.email?.trim() || profile?.email || '',
@@ -109,11 +128,12 @@ const DriverProfileScreen = ({ navigation }) => {
         licenseNumber: form.licenseNumber?.trim() || '',
         busId: form.busId,
         busNumber: form.busId,
-        avatar: form.avatar,
+        avatar: resolvedAvatar,
       };
 
       const updated = await authService.updateDriverProfile(payload);
       setProfile(updated);
+      setForm((prev) => ({ ...prev, avatar: resolvedAvatar }));
       Alert.alert('Success', 'Profile updated successfully.');
     } catch (error) {
       console.error('Failed to save driver profile', error);

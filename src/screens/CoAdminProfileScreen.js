@@ -19,6 +19,8 @@ import { COLORS, FONTS, RADIUS, SHADOWS, SPACING } from '../utils/constants';
 import { authService } from '../services/authService';
 import CoAdminBottomNav from '../components/CoAdminBottomNav';
 import { normalizeBusNumber } from '../services/locationService';
+import { uploadImageToCloudinary } from '../services/cloudinaryService';
+import { CLOUDINARY_UPLOAD_FOLDER } from '@env';
 
 const TEAM_ROLES = [
   { key: 'coadmin', label: 'Bus Incharge' },
@@ -65,7 +67,7 @@ const CoAdminProfileScreen = ({ navigation }) => {
         avatar: currentUser.avatar || '',
       });
     } catch (error) {
-  console.error('Failed to load bus incharge profile', error);
+      console.error('Failed to load bus incharge profile', error);
     } finally {
       setIsLoading(false);
     }
@@ -90,7 +92,6 @@ const CoAdminProfileScreen = ({ navigation }) => {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         quality: 0.7,
         allowsEditing: true,
         aspect: [1, 1],
@@ -108,6 +109,24 @@ const CoAdminProfileScreen = ({ navigation }) => {
   const handleSave = async () => {
     try {
       setIsSaving(true);
+
+      let resolvedAvatar = form.avatar;
+      const isLocalAvatar = resolvedAvatar && !resolvedAvatar.startsWith('http');
+
+      if (isLocalAvatar) {
+        try {
+          const uploadResult = await uploadImageToCloudinary(resolvedAvatar, {
+            folder: `${CLOUDINARY_UPLOAD_FOLDER || 'siet-bus/profiles'}/bus-incharge`,
+            publicId: profile?.userId || profile?.uid || undefined,
+          });
+          resolvedAvatar = uploadResult.secureUrl;
+        } catch (uploadError) {
+          console.error('Bus incharge avatar upload failed', uploadError);
+          Alert.alert('Upload failed', 'Could not upload profile photo. Please try again.');
+          return;
+        }
+      }
+
       const payload = {
         name: form.name?.trim() || '',
         teamRole: form.role,
@@ -115,14 +134,15 @@ const CoAdminProfileScreen = ({ navigation }) => {
         email: form.email?.trim() || profile?.email || '',
         busId: normalizeBusNumber(form.busId || form.busNumber),
         busNumber: normalizeBusNumber(form.busId || form.busNumber),
-        avatar: form.avatar,
+        avatar: resolvedAvatar,
       };
 
       const updated = await authService.updateCoAdminProfile(payload);
       setProfile(updated);
+      setForm((prev) => ({ ...prev, avatar: resolvedAvatar }));
       Alert.alert('Saved', 'Profile updated successfully.');
     } catch (error) {
-  console.error('Failed to save bus incharge profile', error);
+      console.error('Failed to save bus incharge profile', error);
       Alert.alert('Update failed', 'Could not update your profile. Please try again later.');
     } finally {
       setIsSaving(false);
