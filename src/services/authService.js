@@ -11,6 +11,7 @@ import {
 import { db } from './firebaseConfig';
 import { normalizeBusNumber } from './locationService';
 import { CONFIG } from '../utils/constants';
+import { userAPI } from './api';
 
 const AUTH_TOKEN_KEY = 'authToken';
 const CURRENT_USER_KEY = 'currentUser';
@@ -242,6 +243,46 @@ class AuthService {
 
   async verifyToken() {
     return null;
+  }
+
+  async updateStudentProfile(updatedFields = {}) {
+    try {
+      const currentUser = await this.getCurrentUser();
+      if (!currentUser) {
+        throw new Error('No active student session');
+      }
+
+      const payload = {
+        name: currentUser.name,
+        department: currentUser.department,
+        year: currentUser.year,
+        phone: currentUser.phone,
+        boardingPoint: currentUser.boardingPoint,
+        boardingTime: currentUser.boardingTime,
+        busNumber: currentUser.busNumber,
+        registerNumber: currentUser.registerNumber,
+        ...updatedFields,
+      };
+
+      let refreshedProfile = payload;
+      try {
+        const response = await userAPI.updateProfile(payload);
+        refreshedProfile = response?.data || payload;
+      } catch (apiError) {
+        console.warn('Falling back to local profile update:', apiError?.message || apiError);
+      }
+
+      const mergedProfile = {
+        ...currentUser,
+        ...refreshedProfile,
+      };
+
+      await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(mergedProfile));
+      return mergedProfile;
+    } catch (error) {
+      console.error('Error updating student profile:', error);
+      throw error;
+    }
   }
 }
 

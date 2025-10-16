@@ -6,6 +6,7 @@ import ManagementDashboard from '../screens/ManagementDashboard';
 import CoAdminDashboard from '../screens/CoAdminDashboard';
 import DriverDashboard from '../screens/DriverDashboard';
 import StudentDashboard from '../screens/StudentDashboard';
+import StudentProfileScreen from '../screens/StudentProfileScreen';
 import MapScreen from '../screens/MapScreen';
 import BusManagement from '../screens/BusManagement';
 import BusDetails from '../screens/BusDetails';
@@ -73,7 +74,12 @@ const AppNavigator = () => {
       <Stack.Screen 
         name="StudentDashboard" 
         component={StudentDashboard} 
-        options={{ title: 'Student Dashboard', headerLeft: null }}
+        options={{ title: 'Student Dashboard', headerLeft: null, headerShown: false }}
+      />
+      <Stack.Screen 
+        name="StudentProfile" 
+        component={StudentProfileScreen} 
+        options={{ title: 'Profile', headerShown: false }}
       />
       <Stack.Screen 
         name="MapScreen" 
