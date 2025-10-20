@@ -1,9 +1,8 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   ActivityIndicator,
   Image,
-  RefreshControl,
-  ScrollView,
+  FlatList,
   StyleSheet,
   Text,
   TextInput,
@@ -21,15 +20,13 @@ const CoAdminManagement = ({ navigation }) => {
   const [coadmins, setCoadmins] = useState([]);
   const [search, setSearch] = useState('');
 
-  useEffect(() => {
-    loadCoadmins();
-  }, []);
-
-  const loadCoadmins = async () => {
-    setLoading(true);
+  const loadCoadmins = useCallback(async (showLoader = true) => {
+    if (showLoader) {
+      setLoading(true);
+    }
     try {
       const results = await registeredUsersStorage.getAllCoAdmins();
-      const sorted = results.sort((a, b) => {
+      const sorted = [...results].sort((a, b) => {
         const busA = (a.busNumber || '').localeCompare(b.busNumber || '');
         if (busA !== 0) {
           return busA;
@@ -40,14 +37,20 @@ const CoAdminManagement = ({ navigation }) => {
     } catch (error) {
         console.error('Error loading bus incharges:', error);
     } finally {
-      setLoading(false);
+      if (showLoader) {
+        setLoading(false);
+      }
       setRefreshing(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadCoadmins();
+  }, [loadCoadmins]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadCoadmins();
+    await loadCoadmins(false);
   };
 
   const filteredCoadmins = useMemo(() => {
@@ -70,9 +73,70 @@ const CoAdminManagement = ({ navigation }) => {
     });
   }, [search, coadmins]);
 
-  const handleCoadminPress = (coadmin) => {
-    navigation.navigate('CoAdminDetails', { coadmin });
-  };
+  const handleCoadminPress = useCallback(
+    (coadmin) => {
+      navigation.navigate('CoAdminDetails', { coadmin });
+    },
+    [navigation]
+  );
+
+  const keyExtractor = useCallback(
+    (item) => item.id || item.userId || `${item.busNumber || 'bus'}-${item.email || item.name}`,
+    []
+  );
+
+  const renderCoadminItem = useCallback(
+    ({ item }) => (
+      <TouchableOpacity
+        style={styles.card}
+        activeOpacity={0.8}
+        onPress={() => handleCoadminPress(item)}
+      >
+        <View style={styles.cardHeader}>
+          <View style={styles.avatar}>
+            {item?.avatar ? (
+              <Image source={{ uri: item.avatar }} style={styles.avatarImage} />
+            ) : (
+              <Ionicons name="shield-checkmark" size={24} color={COLORS.white} />
+            )}
+          </View>
+          <View style={styles.cardTitleContainer}>
+            <Text style={styles.cardTitle}>{item.name || item.userId}</Text>
+            <Text style={styles.cardSubtitle}>ID: {item.userId || item.id || 'N/A'}</Text>
+          </View>
+          <View style={styles.busBadge}>
+            <Ionicons name="bus" size={16} color={COLORS.white} />
+            <Text style={styles.busText}>{item.busNumber || item.busId || 'Unassigned'}</Text>
+          </View>
+        </View>
+
+        <View style={styles.cardBody}>
+          <View style={styles.metaRow}>
+            <Ionicons name="mail" size={16} color={COLORS.textSecondary} />
+            <Text style={styles.metaText}>{item.email || 'No email recorded'}</Text>
+          </View>
+          <View style={styles.metaRow}>
+            <Ionicons name="call" size={16} color={COLORS.textSecondary} />
+            <Text style={styles.metaText}>{item.phone || 'No phone recorded'}</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    ),
+    [handleCoadminPress]
+  );
+
+  const emptyComponent = useMemo(
+    () => (
+      <View style={styles.emptyState}>
+        <Ionicons name="people-outline" size={60} color={COLORS.textSecondary} />
+        <Text style={styles.emptyTitle}>No bus incharges found</Text>
+        <Text style={styles.emptySubtitle}>
+          Add bus incharge accounts to assign them to buses and track their coverage.
+        </Text>
+      </View>
+    ),
+    []
+  );
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -103,70 +167,17 @@ const CoAdminManagement = ({ navigation }) => {
             <Text style={styles.loadingText}>Loading bus incharge assignments...</Text>
         </View>
       ) : (
-        <ScrollView
+        <FlatList
           style={styles.content}
+          contentContainerStyle={styles.listContent}
+          data={filteredCoadmins}
+          keyExtractor={keyExtractor}
+          renderItem={renderCoadminItem}
+          ListEmptyComponent={emptyComponent}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
           showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={[COLORS.primary]}
-              tintColor={COLORS.primary}
-            />
-          }
-        >
-          {filteredCoadmins.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Ionicons name="people-outline" size={60} color={COLORS.textSecondary} />
-                <Text style={styles.emptyTitle}>No bus incharges found</Text>
-              <Text style={styles.emptySubtitle}>
-                  Add bus incharge accounts to assign them to buses and track their coverage.
-              </Text>
-            </View>
-          ) : (
-            filteredCoadmins.map((coadmin) => (
-              <TouchableOpacity
-                key={coadmin.id || coadmin.userId}
-                style={styles.card}
-                activeOpacity={0.8}
-                onPress={() => handleCoadminPress(coadmin)}
-              >
-                <View style={styles.cardHeader}>
-                  <View style={styles.avatar}>
-                    {coadmin?.avatar ? (
-                      <Image source={{ uri: coadmin.avatar }} style={styles.avatarImage} />
-                    ) : (
-                      <Ionicons name="shield-checkmark" size={24} color={COLORS.white} />
-                    )}
-                  </View>
-                  <View style={styles.cardTitleContainer}>
-                    <Text style={styles.cardTitle}>{coadmin.name || coadmin.userId}</Text>
-                    <Text style={styles.cardSubtitle}>
-                      ID: {coadmin.userId || coadmin.id || 'N/A'}
-                    </Text>
-                  </View>
-                  <View style={styles.busBadge}>
-                    <Ionicons name="bus" size={16} color={COLORS.white} />
-                    <Text style={styles.busText}>{coadmin.busNumber || coadmin.busId || 'Unassigned'}</Text>
-                  </View>
-                </View>
-
-                <View style={styles.cardBody}>
-                  <View style={styles.metaRow}>
-                    <Ionicons name="mail" size={16} color={COLORS.textSecondary} />
-                    <Text style={styles.metaText}>{coadmin.email || 'No email recorded'}</Text>
-                  </View>
-                  <View style={styles.metaRow}>
-                    <Ionicons name="call" size={16} color={COLORS.textSecondary} />
-                    <Text style={styles.metaText}>{coadmin.phone || 'No phone recorded'}</Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))
-          )}
-
-          <View style={{ height: SPACING.xl }} />
-        </ScrollView>
+        />
       )}
     </SafeAreaView>
   );
@@ -224,9 +235,12 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.regular,
     color: COLORS.textSecondary,
   },
-  content: {
-    flex: 1,
-    paddingHorizontal: SPACING.lg,
+    content: {
+      flex: 1,
+  },
+  listContent: {
+      paddingHorizontal: SPACING.lg,
+    paddingBottom: SPACING.xl,
   },
   emptyState: {
     alignItems: 'center',

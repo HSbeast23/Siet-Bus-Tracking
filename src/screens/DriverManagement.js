@@ -1,110 +1,179 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  ScrollView,
   TextInput,
-  Dimensions,
   ActivityIndicator,
   Image,
+  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
 import { registeredUsersStorage } from '../services/registeredUsersStorage';
 
-const { width } = Dimensions.get('window');
+const getStatusColor = (status) => (status === 'Active' ? COLORS.success : COLORS.danger);
+const getAuthColor = (authenticated) => (authenticated ? COLORS.success : COLORS.warning);
 
 const DriverManagement = ({ navigation, route }) => {
   const [drivers, setDrivers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [driverStats, setDriverStats] = useState({ total: 0, active: 0, authenticated: 0 });
+  const [refreshing, setRefreshing] = useState(false);
 
   // Get params from navigation (for Co-Admin filtering)
   const { busId: filterBusId, role } = route.params || {};
   const isCoAdmin = role === 'coadmin';
 
-  useEffect(() => {
-    loadDriverData();
+  const loadDriverData = useCallback(async (showLoader = true) => {
+    try {
+      if (showLoader) {
+        setLoading(true);
+      }
+      const fetchedDrivers = await registeredUsersStorage.getAllDrivers();
+
+      const stats = fetchedDrivers.reduce(
+        (acc, driver) => {
+          acc.total += 1;
+          if ((driver.status || '').toLowerCase() === 'active') {
+            acc.active += 1;
+          }
+          if (driver.authenticated) {
+            acc.authenticated += 1;
+          }
+          return acc;
+        },
+        { total: 0, active: 0, authenticated: 0 }
+      );
+
+      setDrivers(fetchedDrivers);
+      setDriverStats(stats);
+    } catch (error) {
+      console.error('❌ [DRIVER MGMT] Error loading driver data:', error);
+    } finally {
+      if (showLoader) {
+        setLoading(false);
+      }
+      setRefreshing(false);
+    }
   }, []);
 
   useEffect(() => {
-    filterDrivers();
-  }, [searchQuery]);
+    loadDriverData();
+  }, [loadDriverData]);
 
-  const loadDriverData = async () => {
-    try {
-      setLoading(true);
-      console.log(`🔍 [DRIVER MGMT] Loading drivers... Role: ${role}, Filter Bus ID: ${filterBusId}, Is Co-Admin: ${isCoAdmin}`);
-      
-      let allDrivers = await registeredUsersStorage.getAllDrivers();
-      console.log(`📦 [DRIVER MGMT] Total drivers from Firebase: ${allDrivers.length}`);
-      
-      // Log all driver bus numbers to debug
-      if (allDrivers.length > 0) {
-        console.log(`� [DRIVER MGMT] Driver bus numbers:`, allDrivers.map(d => d.busNumber));
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    loadDriverData(false);
+  }, [loadDriverData]);
+
+  const filteredDrivers = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    return drivers.filter((driver) => {
+      if (isCoAdmin && filterBusId && driver.busNumber !== filterBusId) {
+        return false;
       }
-      
-      // �🔒 Filter for Co-Admin: Show ONLY their assigned bus driver
-      if (isCoAdmin && filterBusId) {
-        console.log(`🔒 [DRIVER MGMT] Applying Co-Admin filter for bus: ${filterBusId}`);
-        allDrivers = allDrivers.filter(driver => {
-          const match = driver.busNumber === filterBusId;
-          if (!match) {
-            console.log(`   ❌ Driver ${driver.name} (${driver.busNumber}) doesn't match ${filterBusId}`);
-          } else {
-            console.log(`   ✅ Driver ${driver.name} (${driver.busNumber}) matches ${filterBusId}`);
-          }
-          return match;
-        });
-        console.log(`✅ [DRIVER MGMT] Co-Admin filter result: ${allDrivers.length} driver(s) for ${filterBusId}`);
+      if (!normalizedQuery) {
+        return true;
       }
-      
-      const stats = await registeredUsersStorage.getDriverStats();
-      
-      setDrivers(allDrivers);
-      setDriverStats(stats);
-      setLoading(false);
-    } catch (error) {
-      console.error('❌ [DRIVER MGMT] Error loading driver data:', error);
-      setLoading(false);
-    }
-  };
+      const haystack = [driver.name, driver.busNumber, driver.email]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(normalizedQuery);
+    });
+  }, [drivers, searchQuery, isCoAdmin, filterBusId]);
 
-  const filterDrivers = async () => {
-    try {
-      let allDrivers = await registeredUsersStorage.getAllDrivers();
-      
-      // 🔒 Filter for Co-Admin: Show ONLY their assigned bus driver
-      if (isCoAdmin && filterBusId) {
-        allDrivers = allDrivers.filter(driver => driver.busNumber === filterBusId);
-      }
-      
-      const filtered = allDrivers.filter(driver => 
-        driver.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        driver.busNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        driver.email.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-      setDrivers(filtered);
-    } catch (error) {
-      console.error('Error filtering drivers:', error);
-    }
-  };
+  const handleDriverPress = useCallback(
+    (driver) => {
+      navigation.navigate('DriverDetails', { driver });
+    },
+    [navigation]
+  );
 
-  const handleDriverPress = (driver) => {
-    navigation.navigate('DriverDetails', { driver });
-  };
+  const keyExtractor = useCallback((item) => {
+    return (
+      item.id?.toString() ||
+      item.userId?.toString() ||
+      item.email ||
+      `${item.busNumber || 'bus'}-${item.phone || item.name}`
+    );
+  }, []);
 
-  const getStatusColor = (status) => {
-    return status === 'Active' ? COLORS.success : COLORS.danger;
-  };
+  const renderDriverItem = useCallback(
+    ({ item }) => (
+      <TouchableOpacity
+        style={styles.driverCard}
+        onPress={() => handleDriverPress(item)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.driverCardHeader}>
+          <View style={styles.driverInfo}>
+            <View style={styles.driverAvatar}>
+              {item.avatar ? (
+                <Image source={{ uri: item.avatar }} style={styles.driverAvatarImage} />
+              ) : (
+                <Ionicons name="person" size={24} color={COLORS.white} />
+              )}
+            </View>
+            <View style={styles.driverDetails}>
+              <Text style={styles.driverName}>{item.name}</Text>
+              <Text style={styles.busNumber}>{item.busNumber}</Text>
+              <Text style={styles.phoneNumber}>{item.phone}</Text>
+              {item.email ? <Text style={styles.emailText}>{item.email}</Text> : null}
+              {item.licenseNumber ? (
+                <Text style={styles.licenseText}>License: {item.licenseNumber}</Text>
+              ) : null}
+            </View>
+          </View>
 
-  const getAuthColor = (authenticated) => {
-    return authenticated ? COLORS.success : COLORS.warning;
-  };
+          <View style={styles.statusContainer}>
+            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
+              <Text style={styles.statusText}>{item.status}</Text>
+            </View>
+            <View style={[styles.authBadge, { backgroundColor: getAuthColor(item.authenticated) }]}>
+              <Ionicons
+                name={item.authenticated ? 'checkmark-circle' : 'alert-circle'}
+                size={16}
+                color={COLORS.white}
+              />
+              <Text style={styles.authText}>{item.authenticated ? 'Auth' : 'Not Auth'}</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.driverCardFooter}>
+          <View style={styles.lastLoginInfo}>
+            <Ionicons name="time" size={14} color={COLORS.gray} />
+            <Text style={styles.lastLoginText}>Last Login: {item.lastLogin || 'Never'}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={COLORS.gray} />
+        </View>
+      </TouchableOpacity>
+    ),
+    [handleDriverPress]
+  );
+
+  const listHeaderComponent = useMemo(
+    () => <Text style={styles.sectionTitle}>All Drivers ({filteredDrivers.length})</Text>,
+    [filteredDrivers.length]
+  );
+
+  const emptyComponent = useMemo(
+    () => (
+      <View style={styles.emptyContainer}>
+        <Ionicons name="people" size={64} color={COLORS.lightGray} />
+        <Text style={styles.emptyText}>No drivers found</Text>
+        <Text style={styles.emptySubText}>
+          {searchQuery ? 'Try adjusting your search criteria' : 'No drivers have been registered yet'}
+        </Text>
+      </View>
+    ),
+    [searchQuery]
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -157,83 +226,24 @@ const DriverManagement = ({ navigation, route }) => {
         </View>
       </View>
 
-      {/* Drivers List */}
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.primary} />
           <Text style={styles.loadingText}>Loading drivers...</Text>
         </View>
       ) : (
-        <ScrollView style={styles.driversList} showsVerticalScrollIndicator={false}>
-          <Text style={styles.sectionTitle}>All Drivers ({drivers.length})</Text>
-          {drivers.length > 0 ? (
-            drivers.map((driver) => (
-              <TouchableOpacity
-                key={driver.id}
-                style={styles.driverCard}
-                onPress={() => handleDriverPress(driver)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.driverCardHeader}>
-                  <View style={styles.driverInfo}>
-                    <View style={styles.driverAvatar}>
-                      {driver.avatar ? (
-                        <Image source={{ uri: driver.avatar }} style={styles.driverAvatarImage} />
-                      ) : (
-                        <Ionicons name="person" size={24} color={COLORS.white} />
-                      )}
-                    </View>
-                    <View style={styles.driverDetails}>
-                      <Text style={styles.driverName}>{driver.name}</Text>
-                      <Text style={styles.busNumber}>{driver.busNumber}</Text>
-                      <Text style={styles.phoneNumber}>{driver.phone}</Text>
-                      {driver.email && (
-                        <Text style={styles.emailText}>{driver.email}</Text>
-                      )}
-                      {driver.licenseNumber && (
-                        <Text style={styles.licenseText}>License: {driver.licenseNumber}</Text>
-                      )}
-                    </View>
-                  </View>
-                  
-                  <View style={styles.statusContainer}>
-                    <View style={[styles.statusBadge, { backgroundColor: getStatusColor(driver.status) }]}>
-                      <Text style={styles.statusText}>{driver.status}</Text>
-                    </View>
-                    <View style={[styles.authBadge, { backgroundColor: getAuthColor(driver.authenticated) }]}>
-                      <Ionicons 
-                        name={driver.authenticated ? "checkmark-circle" : "alert-circle"} 
-                        size={16} 
-                        color={COLORS.white} 
-                      />
-                      <Text style={styles.authText}>
-                        {driver.authenticated ? "Auth" : "Not Auth"}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-                
-                <View style={styles.driverCardFooter}>
-                  <View style={styles.lastLoginInfo}>
-                    <Ionicons name="time" size={14} color={COLORS.gray} />
-                    <Text style={styles.lastLoginText}>
-                      Last Login: {driver.lastLogin || 'Never'}
-                    </Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={20} color={COLORS.gray} />
-                </View>
-              </TouchableOpacity>
-            ))
-          ) : (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="people" size={64} color={COLORS.lightGray} />
-              <Text style={styles.emptyText}>No drivers found</Text>
-              <Text style={styles.emptySubText}>
-                {searchQuery ? 'Try adjusting your search criteria' : 'No drivers have been registered yet'}
-              </Text>
-            </View>
-          )}
-        </ScrollView>
+        <FlatList
+          style={styles.driversList}
+          contentContainerStyle={styles.listContent}
+          data={filteredDrivers}
+          renderItem={renderDriverItem}
+          keyExtractor={keyExtractor}
+          ListHeaderComponent={listHeaderComponent}
+          ListEmptyComponent={emptyComponent}
+          showsVerticalScrollIndicator={false}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+        />
       )}
 
       {/* Add Driver Button */}
@@ -320,7 +330,10 @@ const styles = StyleSheet.create({
   },
   driversList: {
     flex: 1,
+  },
+  listContent: {
     paddingHorizontal: SPACING.lg,
+    paddingBottom: SPACING.lg,
   },
   sectionTitle: {
     fontSize: 18,
