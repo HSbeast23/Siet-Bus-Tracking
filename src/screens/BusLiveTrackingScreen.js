@@ -7,13 +7,15 @@ import {
   Alert,
   TouchableOpacity,
   ActivityIndicator,
-  Animated
+  Animated,
 } from 'react-native';
-import MapView, { Marker, AnimatedRegion, PROVIDER_GOOGLE, Polyline } from 'react-native-maps';
+import MapView, { Marker, AnimatedRegion, Polyline, UrlTile } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { COLORS, SAMPLE_STOPS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
 import { subscribeToBusLocation } from '../services/locationService';
+
+const OSM_TILE_URL = 'https://tile.openstreetmap.de/{z}/{x}/{y}.png';
 
 const BusLiveTrackingScreen = ({ route, navigation }) => {
   const { bus } = route.params; // Get bus details from navigation params
@@ -192,7 +194,6 @@ const BusLiveTrackingScreen = ({ route, navigation }) => {
 
       <MapView
         ref={setMapRef}
-        provider={PROVIDER_GOOGLE}
         style={styles.map}
         initialRegion={{
           latitude: busLocation?.latitude || SAMPLE_STOPS[0].latitude,
@@ -203,8 +204,16 @@ const BusLiveTrackingScreen = ({ route, navigation }) => {
         showsUserLocation={false}
         showsMyLocationButton={false}
         rotateEnabled={true}
-  pitchEnabled={false}
+        pitchEnabled={false}
+        mapType="none"
       >
+        <UrlTile
+          urlTemplate={OSM_TILE_URL}
+          maximumZ={19}
+          zIndex={-1}
+          flipY={false}
+          onTileError={(error) => console.warn('OSM tile failed to load', error?.nativeEvent)}
+        />
         
         {/* Bus Location Marker - Animated & Only show when actively tracking */}
         {busLocation && busLocation.isTracking && (
@@ -345,7 +354,7 @@ const styles = StyleSheet.create({
     width: 34,
   },
   map: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
   },
   busMarker: {
     backgroundColor: '#FFC107',

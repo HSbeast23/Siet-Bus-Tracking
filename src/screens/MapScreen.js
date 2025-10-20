@@ -8,7 +8,7 @@ import {
 	TouchableOpacity,
 	View,
 } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker, Polyline, UrlTile } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -22,6 +22,7 @@ import {
 } from '../utils/routePolylineConfig';
 
 const EDGE_PADDING = { top: 72, right: 48, bottom: 120, left: 48 };
+const OSM_TILE_URL = 'https://tile.openstreetmap.de/{z}/{x}/{y}.png';
 
 const normaliseRouteStops = (rawStops) => {
 	if (!Array.isArray(rawStops)) {
@@ -316,13 +317,21 @@ const MapScreen = ({ route, navigation }) => {
 				<MapView
 					ref={mapRef}
 					style={styles.map}
-					provider={PROVIDER_GOOGLE}
 					initialRegion={initialRegion}
 					onMapReady={() => setMapReady(true)}
 					showsCompass
 					showsBuildings
 					showsPointsOfInterest={false}
+					mapType="none"
 				>
+					<UrlTile
+						urlTemplate={OSM_TILE_URL}
+						maximumZ={19}
+						zIndex={-1}
+						flipY={false}
+						onTileError={(error) => console.warn('OSM tile failed to load', error?.nativeEvent)}
+					/>
+
 					{osrmPolyline.length > 1 && (
 						<Polyline
 							coordinates={osrmPolyline}
@@ -446,7 +455,7 @@ const styles = StyleSheet.create({
 		position: 'relative',
 	},
 	map: {
-		flex: 1,
+		...StyleSheet.absoluteFillObject,
 	},
 	actionButtons: {
 		position: 'absolute',
