@@ -6,24 +6,75 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "location"
+        ],
+        "NSLocationWhenInUseUsageDescription": "Allow SIET Bus Tracking to access your location while you use the app to show real-time journeys.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow SIET Bus Tracking to access your location even when the app is closed so that students can see live bus updates.",
+        "NSLocationAlwaysUsageDescription": "Allow SIET Bus Tracking to continue sharing your bus location when the app is in the background.",
+        "NSLocationUsageDescription": "Allow SIET Bus Tracking to access your location for live bus tracking.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "bundleIdentifier": "com.haarhish.sietbusapp"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyD1bqjTHy6PJGbWP8yz-XKGJ6ws18f4Xew"
+        }
+      },
+      "package": "com.haarhish.sietbusapp"
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow SIET Bus Tracking to access your location even when the app is closed so that students can see live bus updates.",
+          "locationWhenInUsePermission": "Allow SIET Bus Tracking to access your location while you use the app.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true,
+          "androidForegroundServiceNotificationTitle": "SIET Bus Tracking",
+          "androidForegroundServiceNotificationBody": "Location tracking is active."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "newArchEnabled": false
+          }
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "7ccd10d2-9d0a-439a-8816-260ef2b9d6b6"
+      }
+    },
+    "owner": "haarhish23"
   }
 }

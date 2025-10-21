@@ -18,6 +18,13 @@ import { useFocusEffect } from '@react-navigation/native';
 import { COLORS, FONTS, RADIUS, SHADOWS, SPACING } from '../utils/constants';
 import { updateBusLocation, stopBusTracking } from '../services/locationService';
 import { authService } from '../services/authService';
+import {
+  ensureLocationPermissionsAsync,
+  startBackgroundTrackingAsync,
+  stopBackgroundTrackingAsync,
+  isBackgroundTrackingActiveAsync,
+  getBackgroundTrackingMetaAsync,
+} from '../services/backgroundLocationService';
 
 // Normalize bus number to handle variations (SIET--005 → SIET-005)
 const normalizeBusNumber = (busNumber) => {
@@ -42,6 +49,38 @@ const DriverDashboard = ({ navigation }) => {
 
   useEffect(() => {
     loadDriverData();
+  }, []);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const syncExistingTrackingState = async () => {
+      try {
+        const running = await isBackgroundTrackingActiveAsync();
+        if (!isActive || !running) {
+          return;
+        }
+
+        setIsTracking(true);
+
+        const meta = await getBackgroundTrackingMetaAsync();
+        if (!isActive || !meta?.busNumber) {
+          return;
+        }
+
+        setDriverInfo((prev) => ({
+          ...prev,
+          busNumber: prev.busNumber || normalizeBusNumber(meta.busNumber),
+        }));
+      } catch (error) {
+        console.error('Error checking background tracking state:', error);
+      }
+    };
+
+    syncExistingTrackingState();
+    return () => {
+      isActive = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -114,17 +153,104 @@ const DriverDashboard = ({ navigation }) => {
 
   const requestLocationPermission = async () => {
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Location permission is required to track the bus location.');
-        return false;
-      }
+      await ensureLocationPermissionsAsync();
       return true;
     } catch (error) {
-      console.error('Error requesting location permission:', error);
+      console.error('Error requesting location permissions:', error);
+      const message = error?.message ?? 'permissions-error';
+      if (message === 'foreground-permission-denied') {
+        Alert.alert(
+          'Permission Needed',
+          'Location permission is required to track the bus. Please allow access when prompted.'
+        );
+      } else if (message === 'background-permission-denied') {
+        Alert.alert(
+          'Background Access Needed',
+          'Allow background location so tracking continues when the app is not active.'
+        );
+      } else if (message === 'background-permission-blocked') {
+        Alert.alert(
+          'Enable Location in Settings',
+          'Location permissions are blocked. Open system settings to enable background tracking.'
+        );
+      } else {
+        Alert.alert('Permissions Error', 'Unable to request location access. Try again or restart the app.');
+      }
       return false;
     }
   };
+
+  const subscribeToForegroundLocation = async ({ normalizedBusNumber, driverName }) => {
+    if (locationSubscription) {
+      return locationSubscription;
+    }
+
+    try {
+      const subscription = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.High,
+          timeInterval: 2000,
+          distanceInterval: 5,
+        },
+        async (location) => {
+          const newLocationData = {
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+            timestamp: new Date().toISOString(),
+            busNumber: normalizedBusNumber,
+            driverName,
+            speed: location.coords.speed || 0,
+            heading: location.coords.heading || 0,
+            accuracy: location.coords.accuracy || 0,
+            isTracking: true,
+          };
+
+          setCurrentLocation(newLocationData);
+          try {
+            await updateBusLocation(normalizedBusNumber, newLocationData);
+          } catch (updateError) {
+            console.error('❌ [DRIVER] Failed to update location:', updateError);
+          }
+        }
+      );
+
+      setLocationSubscription(subscription);
+      return subscription;
+    } catch (subscriptionError) {
+      console.error('❌ [DRIVER] Unable to subscribe to foreground location updates:', subscriptionError);
+      Alert.alert('Location Error', 'Unable to receive live updates. Check GPS settings and try again.');
+      return null;
+    }
+  };
+
+  useEffect(() => {
+    let isActive = true;
+
+    const resumeForegroundTracking = async () => {
+      if (!isTracking || locationSubscription) {
+        return;
+      }
+
+      try {
+        const meta = await getBackgroundTrackingMetaAsync();
+        if (!isActive || !meta?.busNumber) {
+          return;
+        }
+
+        await subscribeToForegroundLocation({
+          normalizedBusNumber: normalizeBusNumber(meta.busNumber),
+          driverName: meta.driverName || driverInfo.name || 'Driver',
+        });
+      } catch (error) {
+        console.error('Error resuming foreground tracking:', error);
+      }
+    };
+
+    resumeForegroundTracking();
+    return () => {
+      isActive = false;
+    };
+  }, [isTracking, locationSubscription, driverInfo.name]);
 
   const startLocationTracking = async () => {
     const hasPermission = await requestLocationPermission();
@@ -168,39 +294,31 @@ const DriverDashboard = ({ navigation }) => {
       };
 
       setCurrentLocation(locationData);
-      setIsTracking(true);
-
       await updateBusLocation(normalizedBusNumber, locationData);
 
-      const subscription = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.High,
-          timeInterval: 2000,
+      try {
+        await startBackgroundTrackingAsync({
+          busNumber: normalizedBusNumber,
+          driverName: driverInfo.name,
+          notificationTitle: 'SIET Bus Tracking Active',
+          notificationBody: `Tracking bus ${normalizedBusNumber}.`,
+          timeInterval: 4000,
           distanceInterval: 5,
-        },
-        async (location) => {
-          const newLocationData = {
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
-            timestamp: new Date().toISOString(),
-            busNumber: normalizedBusNumber,
-            driverName: driverInfo.name,
-            speed: location.coords.speed || 0,
-            heading: location.coords.heading || 0,
-            accuracy: location.coords.accuracy || 0,
-            isTracking: true,
-          };
+        });
+      } catch (backgroundError) {
+        console.warn('⚠️ Background tracking unavailable:', backgroundError);
+        Alert.alert(
+          'Background Tracking Limited',
+          'Live tracking will pause when the app is closed on this device. Build a development client to test full background updates.'
+        );
+      }
 
-          setCurrentLocation(newLocationData);
-          try {
-            await updateBusLocation(normalizedBusNumber, newLocationData);
-          } catch (error) {
-            console.error('❌ [DRIVER] Failed to update location:', error);
-          }
-        }
-      );
+      await subscribeToForegroundLocation({
+        normalizedBusNumber,
+        driverName: driverInfo.name,
+      });
 
-      setLocationSubscription(subscription);
+      setIsTracking(true);
       Alert.alert('Tracking Started', `Location tracking activated for bus ${normalizedBusNumber}.`);
     } catch (error) {
       console.error('❌ [DRIVER] Error starting location tracking:', error);
@@ -218,6 +336,12 @@ const DriverDashboard = ({ navigation }) => {
     if (locationSubscription) {
       locationSubscription.remove();
       setLocationSubscription(null);
+    }
+
+    try {
+      await stopBackgroundTrackingAsync();
+    } catch (error) {
+      console.error('❌ [DRIVER] Error stopping background tracking:', error);
     }
 
     if (driverInfo.busNumber) {

@@ -192,7 +192,7 @@ const BusLiveTrackingScreen = ({ route, navigation }) => {
         </TouchableOpacity>
       </View>
 
-      <MapView
+        <MapView
         ref={setMapRef}
         style={styles.map}
         initialRegion={{
