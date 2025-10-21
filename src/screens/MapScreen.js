@@ -56,6 +56,19 @@ const normaliseRouteStops = (rawStops) => {
 	return cleaned.length ? cleaned : DEFAULT_ROUTE_STOPS;
 };
 
+export const BusMarker = ({ coordinate, label }) => (
+	<Marker coordinate={coordinate} tracksViewChanges={false} anchor={{ x: 0.5, y: 0.5 }}>
+		<View style={styles.busMarkerGroup}>
+			<View style={styles.busMarkerCircle}>
+				<Text style={styles.busMarkerEmoji}>🚌</Text>
+			</View>
+			<View style={styles.busMarkerLabel}>
+				<Text style={styles.busMarkerLabelText}>{label}</Text>
+			</View>
+		</View>
+	</Marker>
+);
+
 const MapScreen = ({ route, navigation }) => {
 	const mapRef = useRef(null);
 
@@ -73,6 +86,11 @@ const MapScreen = ({ route, navigation }) => {
 	const [isBusTracking, setIsBusTracking] = useState(false);
 	const [studentLocation, setStudentLocation] = useState(null);
 	const [loading, setLoading] = useState(true);
+
+	const busMarkerLabel = useMemo(() => {
+		const raw = (busDisplayName || '').trim() || busId || 'Bus';
+		return raw.replace(/-+/g, '-');
+	}, [busDisplayName, busId]);
 
 	const initialRegion = useMemo(() => {
 		const firstStop = routeStops[0];
@@ -350,14 +368,7 @@ const MapScreen = ({ route, navigation }) => {
 						/>
 					))}
 
-					{isBusTracking && busLocation && (
-						<Marker
-							coordinate={busLocation}
-							title={busDisplayName || busId || 'Bus'}
-							description="Current bus position"
-							pinColor={COLORS.warning || '#FF8C00'}
-						/>
-					)}
+					{isBusTracking && busLocation && <BusMarker coordinate={busLocation} label={busMarkerLabel} />}
 
 					{studentLocation && (
 						<Marker
@@ -456,6 +467,41 @@ const styles = StyleSheet.create({
 	},
 	map: {
 		...StyleSheet.absoluteFillObject,
+	},
+	busMarkerGroup: {
+		alignItems: 'center',
+	},
+	busMarkerCircle: {
+		width: 56,
+		height: 56,
+		borderRadius: 28,
+		backgroundColor: '#FFC107',
+		borderWidth: 3,
+		borderColor: '#FF9800',
+		alignItems: 'center',
+		justifyContent: 'center',
+		shadowColor: '#000',
+		shadowOffset: { width: 0, height: 2 },
+		shadowOpacity: 0.3,
+		shadowRadius: 3,
+		elevation: 5,
+	},
+	busMarkerEmoji: {
+		fontSize: 28,
+	},
+	busMarkerLabel: {
+		marginTop: 4,
+		paddingHorizontal: 10,
+		paddingVertical: 5,
+		backgroundColor: '#FFC107',
+		borderRadius: 6,
+		borderWidth: 1,
+		borderColor: '#FF9800',
+	},
+	busMarkerLabelText: {
+		color: '#000',
+		fontSize: 12,
+		fontWeight: '700',
 	},
 	actionButtons: {
 		position: 'absolute',

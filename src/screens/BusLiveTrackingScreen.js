@@ -7,7 +7,6 @@ import {
   Alert,
   TouchableOpacity,
   ActivityIndicator,
-  Animated,
 } from 'react-native';
 import MapView, { Marker, AnimatedRegion, Polyline, UrlTile } from 'react-native-maps';
 import * as Location from 'expo-location';
@@ -22,6 +21,10 @@ const BusLiveTrackingScreen = ({ route, navigation }) => {
   const [busLocation, setBusLocation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [mapRef, setMapRef] = useState(null);
+  const rawBusLabel = bus?.displayName || bus?.name || bus?.busName || bus?.number || 'Bus';
+  const busDisplayName = typeof rawBusLabel === 'string'
+    ? rawBusLabel.replace(/-+/g, '-').trim() || 'Bus'
+    : 'Bus';
   
   const busCoordinate = useRef(
     new AnimatedRegion({
@@ -223,12 +226,14 @@ const BusLiveTrackingScreen = ({ route, navigation }) => {
             anchor={{ x: 0.5, y: 0.5 }}
             flat
             rotation={busLocation.heading || 0}
+            tracksViewChanges={false}
           >
-            <View style={styles.busMarkerContainer}>
-              <View
-                style={[styles.busMarker, { transform: [{ rotate: `${busLocation.heading || 0}deg` }] }]}
-              >
-                <Ionicons name="bus" size={22} color={COLORS.secondary} />
+            <View style={styles.busMarkerGroup}>
+              <View style={styles.busMarkerCircle}>
+                <Text style={styles.busMarkerEmoji}>🚌</Text>
+              </View>
+              <View style={styles.busMarkerLabel}>
+                <Text style={styles.busMarkerLabelText}>{busDisplayName}</Text>
               </View>
             </View>
           </Marker.Animated>
@@ -356,20 +361,40 @@ const styles = StyleSheet.create({
   map: {
     ...StyleSheet.absoluteFillObject,
   },
-  busMarker: {
-    backgroundColor: '#FFC107',
-    borderRadius: 16,
-    width: 32,
-    height: 32,
-    justifyContent: 'center',
+  busMarkerGroup: {
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: COLORS.white,
-    shadowColor: '#FFC107',
+  },
+  busMarkerCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#FFC107',
+    borderWidth: 3,
+    borderColor: '#FF9800',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
-    shadowRadius: 4,
+    shadowRadius: 3,
     elevation: 5,
+  },
+  busMarkerEmoji: {
+    fontSize: 28,
+  },
+  busMarkerLabel: {
+    marginTop: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: '#FFC107',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#FF9800',
+  },
+  busMarkerLabelText: {
+    color: '#000',
+    fontSize: 12,
+    fontWeight: '700',
   },
   stopMarker: {
     width: 18,
@@ -413,10 +438,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: COLORS.white,
     marginLeft: 10,
-  },
-  busMarkerContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   liveIndicator: {
     backgroundColor: COLORS.success,
