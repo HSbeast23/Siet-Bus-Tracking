@@ -16,7 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 
 import { COLORS, FONTS, RADIUS, SHADOWS, SPACING } from '../utils/constants';
-import { updateBusLocation, stopBusTracking } from '../services/locationService';
+import { updateBusLocation, stopBusTracking, getBusLocation } from '../services/locationService';
 import { authService } from '../services/authService';
 import {
   ensureLocationPermissionsAsync,
@@ -137,6 +137,23 @@ const DriverDashboard = ({ navigation }) => {
           licenseNumber: currentUser.licenseNumber || 'N/A',
           avatar: currentUser.avatar || '',
         });
+
+        try {
+          const backgroundActive = await isBackgroundTrackingActiveAsync();
+          if (!backgroundActive && normalizedBusNumber) {
+            const snapshot = await getBusLocation(normalizedBusNumber);
+            if (snapshot?.success && snapshot.data?.isTracking) {
+              console.log(
+                '🧹 [DRIVER] Firestore shows active tracking but background task is idle. Resetting bus status.'
+              );
+              await stopBusTracking(normalizedBusNumber, {
+                driverName: currentUser.name || 'Driver',
+              });
+            }
+          }
+        } catch (consistencyError) {
+          console.warn('⚠️ [DRIVER] Unable to reconcile tracking state:', consistencyError);
+        }
       } else {
         Alert.alert(
           'Authentication Required',
@@ -346,7 +363,11 @@ const DriverDashboard = ({ navigation }) => {
 
     if (driverInfo.busNumber) {
       try {
-        await stopBusTracking(normalizeBusNumber(driverInfo.busNumber));
+        await stopBusTracking(normalizeBusNumber(driverInfo.busNumber), {
+          driverName: driverInfo.name,
+          latitude: currentLocation?.latitude,
+          longitude: currentLocation?.longitude,
+        });
       } catch (error) {
         console.error('❌ [DRIVER] Error stopping tracking in Firestore:', error);
       }
