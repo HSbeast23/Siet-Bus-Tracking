@@ -1,7 +1,8 @@
-const os = require('os');
 const { getDefaultConfig } = require('expo/metro-config');
 
 const config = getDefaultConfig(__dirname);
-config.maxWorkers = Math.max(1, Math.min(4, os.cpus().length - 1));
+
+// Constrain Metro to a single worker to avoid Windows spawning issues
+config.maxWorkers = 1;
 
 module.exports = config;

@@ -8,6 +8,9 @@ export const COLORS = {
   black: '#000000',
   gray: '#757575',
   lightGray: '#E0E0E0',
+  textPrimary: '#1F2937',     // Dark gray for headings
+  textSecondary: '#4B5563',   // Muted gray for body copy
+  textMuted: '#9CA3AF',       // Subtle helper text
   danger: '#F44336',         // Red for emergency
   success: '#4CAF50',
   warning: '#FF9800',

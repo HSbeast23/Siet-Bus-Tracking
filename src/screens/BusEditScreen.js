@@ -631,6 +631,7 @@ const BusEditScreen = ({ navigation, route }) => {
                 autoCapitalize="characters"
                 onChangeText={setBusNumberInput}
                 placeholder="SIET-001"
+                placeholderTextColor={COLORS.textMuted}
               />
               <Text style={styles.label}>Display Name</Text>
               <TextInput
@@ -638,6 +639,7 @@ const BusEditScreen = ({ navigation, route }) => {
                 value={displayNameInput}
                 onChangeText={setDisplayNameInput}
                 placeholder="SIET - 001"
+                placeholderTextColor={COLORS.textMuted}
               />
               <TouchableOpacity
                 style={[styles.primaryButton, saving && styles.primaryButtonDisabled]}
@@ -678,18 +680,21 @@ const BusEditScreen = ({ navigation, route }) => {
                   value={studentForm.registerNumber}
                   autoCapitalize="characters"
                   placeholder="Register Number"
+                  placeholderTextColor={COLORS.textMuted}
                   onChangeText={(value) => setStudentForm((prev) => ({ ...prev, registerNumber: value }))}
                 />
                 <TextInput
                   style={styles.input}
                   value={studentForm.name}
                   placeholder="Student Name"
+                  placeholderTextColor={COLORS.textMuted}
                   onChangeText={(value) => setStudentForm((prev) => ({ ...prev, name: value }))}
                 />
                 <TextInput
                   style={styles.input}
                   value={studentForm.year}
                   placeholder="Year (e.g., 3rd Year)"
+                  placeholderTextColor={COLORS.textMuted}
                   onChangeText={(value) => setStudentForm((prev) => ({ ...prev, year: value }))}
                 />
                 <TextInput
@@ -697,18 +702,21 @@ const BusEditScreen = ({ navigation, route }) => {
                   value={studentForm.department}
                   autoCapitalize="characters"
                   placeholder="Department (e.g., CSE)"
+                  placeholderTextColor={COLORS.textMuted}
                   onChangeText={(value) => setStudentForm((prev) => ({ ...prev, department: value }))}
                 />
                 <TextInput
                   style={styles.input}
                   value={studentForm.boardingPoint}
                   placeholder="Boarding Point"
+                  placeholderTextColor={COLORS.textMuted}
                   onChangeText={(value) => setStudentForm((prev) => ({ ...prev, boardingPoint: value }))}
                 />
                 <TextInput
                   style={styles.input}
                   value={studentForm.password}
                   placeholder="Password"
+                  placeholderTextColor={COLORS.textMuted}
                   onChangeText={(value) => setStudentForm((prev) => ({ ...prev, password: value }))}
                 />
                 <TouchableOpacity style={styles.primaryButton} onPress={handleAddStudent}>
@@ -795,6 +803,7 @@ const BusEditScreen = ({ navigation, route }) => {
                   style={styles.input}
                   value={driverForm.userId}
                   placeholder="Driver User ID"
+                  placeholderTextColor={COLORS.textMuted}
                   autoCapitalize="none"
                   onChangeText={(value) => setDriverForm((prev) => ({ ...prev, userId: value }))}
                 />
@@ -802,6 +811,7 @@ const BusEditScreen = ({ navigation, route }) => {
                   style={styles.input}
                   value={driverForm.password}
                   placeholder="Password"
+                  placeholderTextColor={COLORS.textMuted}
                   secureTextEntry
                   onChangeText={(value) => setDriverForm((prev) => ({ ...prev, password: value }))}
                 />
@@ -809,12 +819,14 @@ const BusEditScreen = ({ navigation, route }) => {
                   style={styles.input}
                   value={driverForm.name}
                   placeholder="Driver Name (optional)"
+                  placeholderTextColor={COLORS.textMuted}
                   onChangeText={(value) => setDriverForm((prev) => ({ ...prev, name: value }))}
                 />
                 <TextInput
                   style={styles.input}
                   value={driverForm.phone}
                   placeholder="Phone (optional)"
+                  placeholderTextColor={COLORS.textMuted}
                   keyboardType="phone-pad"
                   onChangeText={(value) => setDriverForm((prev) => ({ ...prev, phone: value }))}
                 />
@@ -847,6 +859,7 @@ const BusEditScreen = ({ navigation, route }) => {
                     style={styles.input}
                     value={coAdminForm.userId}
                     placeholder="Co-Admin User ID"
+                    placeholderTextColor={COLORS.textMuted}
                     autoCapitalize="none"
                     onChangeText={(value) => setCoAdminForm((prev) => ({ ...prev, userId: value }))}
                   />
@@ -854,6 +867,7 @@ const BusEditScreen = ({ navigation, route }) => {
                     style={styles.input}
                     value={coAdminForm.password}
                     placeholder="Password"
+                    placeholderTextColor={COLORS.textMuted}
                     secureTextEntry
                     onChangeText={(value) => setCoAdminForm((prev) => ({ ...prev, password: value }))}
                   />
@@ -861,12 +875,14 @@ const BusEditScreen = ({ navigation, route }) => {
                     style={styles.input}
                     value={coAdminForm.name}
                     placeholder="Name (optional)"
+                    placeholderTextColor={COLORS.textMuted}
                     onChangeText={(value) => setCoAdminForm((prev) => ({ ...prev, name: value }))}
                   />
                   <TextInput
                     style={styles.input}
                     value={coAdminForm.phone}
                     placeholder="Phone (optional)"
+                    placeholderTextColor={COLORS.textMuted}
                     keyboardType="phone-pad"
                     onChangeText={(value) => setCoAdminForm((prev) => ({ ...prev, phone: value }))}
                   />

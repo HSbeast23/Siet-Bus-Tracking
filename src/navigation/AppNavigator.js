@@ -26,6 +26,7 @@ import CoAdminManagement from '../screens/CoAdminManagement';
 import CoAdminProfileScreen from '../screens/CoAdminProfileScreen';
 import DriverProfileScreen from '../screens/DriverProfileScreen';
 import CoAdminDetails from '../screens/CoAdminDetails';
+import BusEditScreen from '../screens/BusEditScreen';
 
 const Stack = createStackNavigator();
 
@@ -103,6 +104,11 @@ const AppNavigator = () => {
         name="BusDetails" 
         component={BusDetails} 
         options={{ title: 'Bus Details', headerShown: false }}
+      />
+      <Stack.Screen 
+        name="BusEdit" 
+        component={BusEditScreen} 
+        options={{ title: 'Edit Bus Details', headerShown: false }}
       />
       <Stack.Screen 
         name="BusLiveTracking" 
