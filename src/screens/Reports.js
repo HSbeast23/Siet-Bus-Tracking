@@ -107,7 +107,7 @@ const Reports = ({ navigation }) => {
 		(report) => {
 			const meta = STATUS_META[report.status] || STATUS_META.pending;
 			const reporterName = report.reportedByName || report.reportedBy || 'Unknown';
-			const reporterRole = report.reporterRole === 'coadmin' ? 'Co-Admin' : 'Student';
+			const reporterRole = report.reporterRole === 'coadmin' ? 'Bus Incharge' : 'Student';
 			const iconName = report.reporterRole === 'coadmin' ? 'shield-checkmark' : 'person';
 
 			return (
@@ -210,7 +210,7 @@ const Reports = ({ navigation }) => {
 						<Text style={styles.infoTitle}>Bus Coordination Reports</Text>
 					</View>
 					<Text style={styles.infoSubtitle}>
-						Review submissions from co-admins and students. Monitor bus-specific concerns and
+						Review submissions from bus incharges and students. Monitor bus-specific concerns and
 						follow up on coordination notes in one place.
 					</Text>
 				</View>
@@ -236,7 +236,7 @@ const Reports = ({ navigation }) => {
 					</View>
 				</View>
 
-				{renderSection('Co-Admin Reports', coadminReports, 'No reports from co-admins yet')}
+				{renderSection('Bus Incharge Reports', coadminReports, 'No reports from bus incharges yet')}
 				{renderSection('Student Reports', studentReports, 'No student reports submitted')}
 
 				<View style={{ height: SPACING.xl }} />

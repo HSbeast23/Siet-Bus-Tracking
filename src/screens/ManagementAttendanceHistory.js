@@ -154,7 +154,7 @@ const ManagementAttendanceHistory = ({ navigation }) => {
             <Ionicons name="calendar-outline" size={64} color={COLORS.textSecondary} />
             <Text style={styles.emptyTitle}>No attendance history recorded yet</Text>
             <Text style={styles.emptySubtitle}>
-              Once co-admins submit attendance, you will see their daily submissions grouped by bus.
+              Once bus incharges submit attendance, you will see their daily submissions grouped by bus.
             </Text>
           </View>
         ) : (

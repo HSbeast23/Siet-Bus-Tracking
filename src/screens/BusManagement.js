@@ -68,7 +68,7 @@ const BusManagement = ({ navigation, route }) => {
           let filtered = busesData;
           if (isCoAdmin && normalizedFilterBusId) {
             filtered = busesData.filter((bus) => normalizeBusNumber(bus.busNumber || bus.id) === normalizedFilterBusId);
-            console.log(`🔒 [BUS MGMT] Co-Admin filter applied: ${filtered.length} bus(es)`);
+            console.log(`🔒 [BUS MGMT] Bus Incharge filter applied: ${filtered.length} bus(es)`);
           }
 
           setRawBuses(filtered);
@@ -137,14 +137,17 @@ const BusManagement = ({ navigation, route }) => {
   };
 
   const handleBusPress = (bus) => {
+    const resolvedRole = role || 'management';
+
     if (isSelectMode) {
       navigation.navigate('MapScreen', {
         busId: bus.number,
-        role: 'management',
+        role: resolvedRole,
       });
       return;
     }
-    navigation.navigate('BusDetails', { bus });
+
+    navigation.navigate('BusDetails', { bus, role: resolvedRole });
   };
 
   return (

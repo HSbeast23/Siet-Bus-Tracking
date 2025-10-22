@@ -24,7 +24,7 @@ const DriverManagement = ({ navigation, route }) => {
   const [driverStats, setDriverStats] = useState({ total: 0, active: 0, authenticated: 0 });
   const [refreshing, setRefreshing] = useState(false);
 
-  // Get params from navigation (for Co-Admin filtering)
+  // Get params from navigation (for Bus Incharge filtering)
   const { busId: filterBusId, role } = route.params || {};
   const isCoAdmin = role === 'coadmin';
 

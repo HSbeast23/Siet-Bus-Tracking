@@ -3,14 +3,14 @@ import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SHADOWS } from '../utils/constants';
 
-const CoAdminBottomNav = ({ activeTab, navigation, busId }) => {
+const BusInchargeBottomNav = ({ activeTab, navigation, busId }) => {
   const navItems = useMemo(
     () => [
       {
         key: 'home',
         label: 'Home',
         icon: 'home',
-        action: () => navigation?.navigate?.('CoAdminDashboard'),
+  action: () => navigation?.navigate?.('CoAdminDashboard'),
       },
       {
         key: 'track',
@@ -31,7 +31,7 @@ const CoAdminBottomNav = ({ activeTab, navigation, busId }) => {
         key: 'profile',
         label: 'Profile',
         icon: 'person-circle',
-        action: () => navigation?.navigate?.('CoAdminProfile'),
+  action: () => navigation?.navigate?.('CoAdminProfile'),
       },
     ],
     [navigation, busId]
@@ -140,4 +140,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default CoAdminBottomNav;
+export default BusInchargeBottomNav;

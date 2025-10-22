@@ -17,7 +17,7 @@ import { attendanceService } from '../services/attendanceService';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
 
-const CoAdminAttendanceHistory = ({ route, navigation }) => {
+const BusInchargeAttendanceHistory = ({ route, navigation }) => {
   const { busId } = route.params || {};
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -575,4 +575,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default CoAdminAttendanceHistory;
+export default BusInchargeAttendanceHistory;

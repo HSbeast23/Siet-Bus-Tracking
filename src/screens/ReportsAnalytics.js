@@ -289,7 +289,7 @@ const ReportsAnalytics = ({ navigation }) => {
           <View style={[styles.statCard, styles.statCardWide, { backgroundColor: '#FFECB3' }]}>
             <Ionicons name="shield-checkmark" size={24} color="#8B4513" />
             <Text style={styles.statNumber}>{stats.fromCoAdmins}</Text>
-            <Text style={styles.statLabel}>From Co-Admins</Text>
+            <Text style={styles.statLabel}>From Bus Incharges</Text>
           </View>
         </View>
       </View>
@@ -319,7 +319,7 @@ const ReportsAnalytics = ({ navigation }) => {
             color={activeTab === 'coadmins' ? '#8B4513' : '#666'} 
           />
           <Text style={[styles.tabText, activeTab === 'coadmins' && styles.activeTabText]}>
-            Co-Admin Reports ({coadminReports.length})
+            Bus Incharge Reports ({coadminReports.length})
           </Text>
         </TouchableOpacity>
       </View>
@@ -335,7 +335,7 @@ const ReportsAnalytics = ({ navigation }) => {
           <View style={styles.emptyContainer}>
             <Ionicons name="document-text-outline" size={64} color="#CCC" />
             <Text style={styles.emptyText}>
-              No {activeTab === 'students' ? 'student' : 'co-admin'} reports yet
+              No {activeTab === 'students' ? 'student' : 'bus incharge'} reports yet
             </Text>
           </View>
         ) : (

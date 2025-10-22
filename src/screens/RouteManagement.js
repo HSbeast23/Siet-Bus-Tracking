@@ -22,7 +22,7 @@ const RouteManagement = ({ navigation, route }) => {
   const [activeStudentCounts, setActiveStudentCounts] = useState({});
   const [loading, setLoading] = useState(true);
 
-  // Get params from navigation (for Co-Admin filtering)
+  // Get params from navigation (for Bus Incharge filtering)
   const { busId: filterBusId, role } = route.params || {};
   const isCoAdmin = role === 'coadmin';
   const normalizedFilterBusId = filterBusId ? normalizeBusNumber(filterBusId) : null;

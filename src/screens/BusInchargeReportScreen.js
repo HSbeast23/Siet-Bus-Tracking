@@ -17,11 +17,10 @@ import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../utils/constants';
 import { authService } from '../services/authService';
 import { reportsService } from '../services/reportsService';
 
-const StudentReportScreen = ({ navigation }) => {
+const BusInchargeReportScreen = ({ navigation }) => {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
-  const [recipient, setRecipient] = useState('management'); // 'management' or 'coadmin'
 
   React.useEffect(() => {
     loadUserInfo();
@@ -29,8 +28,8 @@ const StudentReportScreen = ({ navigation }) => {
 
   const loadUserInfo = async () => {
     const user = await authService.getCurrentUser();
-    if (!user || user.role !== 'student') {
-      Alert.alert('Error', 'You must be logged in as a student');
+    if (!user || user.role !== 'coadmin') {
+      Alert.alert('Error', 'You must be logged in as Bus Incharge');
       navigation.goBack();
       return;
     }
@@ -53,21 +52,17 @@ const StudentReportScreen = ({ navigation }) => {
       const reportData = {
         message: message.trim(),
         reportedBy: currentUser.name,
-        reportedByName: currentUser.name,
-        reporterRole: 'student',
+        reporterRole: 'coadmin',
         reporterEmail: currentUser.email,
-        busNumber: currentUser.busNumber,
-        registerNumber: currentUser.registerNumber,
-        recipientRole: recipient // 'management' or 'coadmin'
+        busNumber: currentUser.busId
       };
 
       const result = await reportsService.submitReport(reportData);
 
       if (result.success) {
-  const recipientName = recipient === 'management' ? 'Management' : 'Bus Incharge';
         Alert.alert(
           'Success',
-          `Your report has been sent to ${recipientName}`,
+          'Your report has been sent to Management',
           [{ text: 'OK', onPress: () => navigation.goBack() }]
         );
         setMessage('');
@@ -93,97 +88,58 @@ const StudentReportScreen = ({ navigation }) => {
           <TouchableOpacity onPress={() => navigation.goBack()}>
             <Ionicons name="arrow-back" size={24} color={COLORS.white} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Submit Report</Text>
+          <Text style={styles.headerTitle}>Report to Management</Text>
           <View style={{ width: 24 }} />
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          {/* Student Info Card */}
+          {/* Bus Incharge Info Card */}
           {currentUser && (
             <View style={styles.infoCard}>
+              <View style={styles.infoHeader}>
+                <Ionicons name="shield-checkmark" size={28} color="#8B4513" />
+                <Text style={styles.infoTitle}>Bus Incharge Information</Text>
+              </View>
               <View style={styles.infoRow}>
-                <Ionicons name="person" size={20} color={COLORS.primary} />
+                <Ionicons name="person" size={20} color="#8B4513" />
                 <Text style={styles.infoLabel}>Name:</Text>
                 <Text style={styles.infoValue}>{currentUser.name}</Text>
               </View>
               <View style={styles.infoRow}>
-                <Ionicons name="school" size={20} color={COLORS.primary} />
-                <Text style={styles.infoLabel}>Register#:</Text>
-                <Text style={styles.infoValue}>{currentUser.registerNumber}</Text>
+                <Ionicons name="id-card" size={20} color="#8B4513" />
+                <Text style={styles.infoLabel}>ID:</Text>
+                <Text style={styles.infoValue}>{currentUser.id}</Text>
               </View>
               <View style={styles.infoRow}>
-                <Ionicons name="bus" size={20} color={COLORS.primary} />
-                <Text style={styles.infoLabel}>Bus:</Text>
-                <Text style={styles.infoValue}>{currentUser.busNumber}</Text>
+                <Ionicons name="bus" size={20} color="#8B4513" />
+                <Text style={styles.infoLabel}>Assigned Bus:</Text>
+                <Text style={styles.infoValue}>{currentUser.busId}</Text>
               </View>
             </View>
           )}
-
-          {/* Recipient Selector */}
-          <View style={styles.recipientCard}>
-            <Text style={styles.recipientLabel}>Send Report To:</Text>
-            <View style={styles.recipientOptions}>
-              <TouchableOpacity
-                style={[
-                  styles.recipientButton,
-                  recipient === 'management' && styles.recipientButtonActive
-                ]}
-                onPress={() => setRecipient('management')}
-              >
-                <Ionicons 
-                  name="briefcase" 
-                  size={20} 
-                  color={recipient === 'management' ? COLORS.white : COLORS.primary} 
-                />
-                <Text style={[
-                  styles.recipientButtonText,
-                  recipient === 'management' && styles.recipientButtonTextActive
-                ]}>
-                  Management
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.recipientButton,
-                  recipient === 'coadmin' && styles.recipientButtonActive
-                ]}
-                onPress={() => setRecipient('coadmin')}
-              >
-                <Ionicons 
-                  name="shield-checkmark" 
-                  size={20} 
-                  color={recipient === 'coadmin' ? COLORS.white : '#8B4513'} 
-                />
-                <Text style={[
-                  styles.recipientButtonText,
-                  recipient === 'coadmin' && styles.recipientButtonTextActive
-                ]}>
-                  Bus Incharge
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
 
           {/* Instructions */}
           <View style={styles.instructionsCard}>
             <Ionicons name="information-circle" size={24} color={COLORS.info} />
             <Text style={styles.instructionsText}>
-              Write your message below. This will be sent to {recipient === 'management' ? 'Management' : 'your Bus Incharge'} for review.
+              As a Bus Incharge, you can report bus coordination issues, driver concerns, or student matters directly to Management.
             </Text>
           </View>
 
           {/* Message Input */}
           <View style={styles.inputCard}>
-            <Text style={styles.inputLabel}>Your Message</Text>
+            <Text style={styles.inputLabel}>Coordination Report</Text>
+            <Text style={styles.inputSubLabel}>
+              Describe the issue or concern in detail
+            </Text>
             <TextInput
               style={styles.textInput}
-              placeholder="Type your message here..."
+              placeholder="Example: Bus maintenance required, driver schedule change needed, student attendance concerns..."
               placeholderTextColor={COLORS.textSecondary}
               value={message}
               onChangeText={setMessage}
               multiline
-              numberOfLines={10}
+              numberOfLines={12}
               textAlignVertical="top"
               editable={!loading}
             />
@@ -201,18 +157,23 @@ const StudentReportScreen = ({ navigation }) => {
             ) : (
               <>
                 <Ionicons name="send" size={20} color={COLORS.white} />
-                <Text style={styles.submitButtonText}>Send Report</Text>
+                <Text style={styles.submitButtonText}>Send Report to Management</Text>
               </>
             )}
           </TouchableOpacity>
 
           {/* Note */}
           <View style={styles.noteCard}>
-            <Text style={styles.noteText}>
-              📝 Your report will include your name, register number, and bus number.
-              {'\n'}
-              ⏱️ Management will review and respond as soon as possible.
-            </Text>
+            <Ionicons name="shield-checkmark" size={20} color="#8B4513" />
+            <View style={styles.noteContent}>
+              <Text style={styles.noteTitle}>Bus Incharge Reporting</Text>
+              <Text style={styles.noteText}>
+                • Your report will be labeled as "Bus Incharge Report"
+                {'\n'}• It will include your name and bus number
+                {'\n'}• Management will prioritize coordinator reports
+                {'\n'}• You'll receive a response within 24 hours
+              </Text>
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -232,7 +193,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: COLORS.primary,
+    backgroundColor: '#8B4513',
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
     ...SHADOWS.md,
@@ -251,7 +212,23 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.md,
     padding: SPACING.md,
     marginBottom: SPACING.md,
+    borderLeftWidth: 4,
+    borderLeftColor: '#8B4513',
     ...SHADOWS.sm,
+  },
+  infoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+    paddingBottom: SPACING.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.gray + '20',
+  },
+  infoTitle: {
+    fontSize: 16,
+    fontFamily: FONTS.bold,
+    color: COLORS.textPrimary,
+    marginLeft: SPACING.sm,
   },
   infoRow: {
     flexDirection: 'row',
@@ -263,55 +240,13 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
     color: COLORS.textSecondary,
     marginLeft: SPACING.sm,
-    width: 80,
+    width: 110,
   },
   infoValue: {
     fontSize: 14,
     fontFamily: FONTS.bold,
     color: COLORS.textPrimary,
     flex: 1,
-  },
-  recipientCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
-    marginBottom: SPACING.md,
-    ...SHADOWS.sm,
-  },
-  recipientLabel: {
-    fontSize: 14,
-    fontFamily: FONTS.bold,
-    color: COLORS.textPrimary,
-    marginBottom: SPACING.sm,
-  },
-  recipientOptions: {
-    flexDirection: 'row',
-    gap: SPACING.sm,
-  },
-  recipientButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: SPACING.md,
-    paddingHorizontal: SPACING.sm,
-    borderRadius: RADIUS.sm,
-    borderWidth: 2,
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.white,
-  },
-  recipientButtonActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  recipientButtonText: {
-    fontSize: 14,
-    fontFamily: FONTS.bold,
-    color: COLORS.primary,
-    marginLeft: SPACING.xs,
-  },
-  recipientButtonTextActive: {
-    color: COLORS.white,
   },
   instructionsCard: {
     flexDirection: 'row',
@@ -337,9 +272,15 @@ const styles = StyleSheet.create({
     ...SHADOWS.sm,
   },
   inputLabel: {
-    fontSize: 14,
+    fontSize: 15,
     fontFamily: FONTS.bold,
     color: COLORS.textPrimary,
+    marginBottom: SPACING.xs,
+  },
+  inputSubLabel: {
+    fontSize: 12,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
     marginBottom: SPACING.sm,
   },
   textInput: {
@@ -350,7 +291,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.gray + '30',
     borderRadius: RADIUS.sm,
     padding: SPACING.md,
-    height: 200,
+    height: 220,
     backgroundColor: COLORS.background,
   },
   charCount: {
@@ -361,7 +302,7 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   submitButton: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: '#8B4513',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -380,11 +321,23 @@ const styles = StyleSheet.create({
     marginLeft: SPACING.sm,
   },
   noteCard: {
+    flexDirection: 'row',
     backgroundColor: '#FFF3E0',
     borderRadius: RADIUS.md,
     padding: SPACING.md,
     borderLeftWidth: 4,
-    borderLeftColor: COLORS.warning,
+    borderLeftColor: '#8B4513',
+    alignItems: 'flex-start',
+  },
+  noteContent: {
+    flex: 1,
+    marginLeft: SPACING.sm,
+  },
+  noteTitle: {
+    fontSize: 14,
+    fontFamily: FONTS.bold,
+    color: COLORS.textPrimary,
+    marginBottom: SPACING.xs,
   },
   noteText: {
     fontSize: 12,
@@ -394,4 +347,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default StudentReportScreen;
+export default BusInchargeReportScreen;

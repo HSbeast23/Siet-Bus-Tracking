@@ -29,7 +29,7 @@ const CoAdminReportScreen = ({ navigation }) => {
   const loadUserInfo = async () => {
     const user = await authService.getCurrentUser();
     if (!user || user.role !== 'coadmin') {
-      Alert.alert('Error', 'You must be logged in as Co-Admin');
+      Alert.alert('Error', 'You must be logged in as Bus Incharge');
       navigation.goBack();
       return;
     }
@@ -93,12 +93,12 @@ const CoAdminReportScreen = ({ navigation }) => {
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          {/* Co-Admin Info Card */}
+          {/* Bus Incharge Info Card */}
           {currentUser && (
             <View style={styles.infoCard}>
               <View style={styles.infoHeader}>
                 <Ionicons name="shield-checkmark" size={28} color="#8B4513" />
-                <Text style={styles.infoTitle}>Co-Admin Information</Text>
+                <Text style={styles.infoTitle}>Bus Incharge Information</Text>
               </View>
               <View style={styles.infoRow}>
                 <Ionicons name="person" size={20} color="#8B4513" />
@@ -122,7 +122,7 @@ const CoAdminReportScreen = ({ navigation }) => {
           <View style={styles.instructionsCard}>
             <Ionicons name="information-circle" size={24} color={COLORS.info} />
             <Text style={styles.instructionsText}>
-              As a Co-Admin, you can report bus coordination issues, driver concerns, or student matters directly to Management.
+              As a Bus Incharge, you can report bus coordination issues, driver concerns, or student matters directly to Management.
             </Text>
           </View>
 
@@ -166,9 +166,9 @@ const CoAdminReportScreen = ({ navigation }) => {
           <View style={styles.noteCard}>
             <Ionicons name="shield-checkmark" size={20} color="#8B4513" />
             <View style={styles.noteContent}>
-              <Text style={styles.noteTitle}>Co-Admin Reporting</Text>
+              <Text style={styles.noteTitle}>Bus Incharge Reporting</Text>
               <Text style={styles.noteText}>
-                • Your report will be labeled as "Co-Admin Report"
+                • Your report will be labeled as "Bus Incharge Report"
                 {'\n'}• It will include your name and bus number
                 {'\n'}• Management will prioritize coordinator reports
                 {'\n'}• You'll receive a response within 24 hours

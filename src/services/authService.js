@@ -454,7 +454,7 @@ class AuthService {
     try {
       const currentUser = await this.getCurrentUser();
       if (!currentUser) {
-        throw new Error('No active co-admin session');
+  throw new Error('No active bus incharge session');
       }
 
       const normalizedBus = normalizeBusNumber(
@@ -486,7 +486,7 @@ class AuthService {
           };
         }
       } catch (apiError) {
-        console.warn('Co-admin profile API update failed, using local merge:', apiError?.message || apiError);
+  console.warn('Bus incharge profile API update failed, using local merge:', apiError?.message || apiError);
       }
 
       try {
@@ -496,7 +496,7 @@ class AuthService {
           await setDoc(docRef, profileUpdate, { merge: true });
         }
       } catch (firestoreError) {
-        console.error('Error persisting co-admin profile to Firestore:', firestoreError);
+  console.error('Error persisting bus incharge profile to Firestore:', firestoreError);
       }
 
       const mergedProfile = {
@@ -509,7 +509,7 @@ class AuthService {
       await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(mergedProfile));
       return mergedProfile;
     } catch (error) {
-      console.error('Error updating co-admin profile:', error);
+  console.error('Error updating bus incharge profile:', error);
       throw error;
     }
   }

@@ -16,7 +16,7 @@ import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
 import { authService } from '../services/authService';
 
-const CoAdminLoginScreen = ({ navigation }) => {
+const BusInchargeLoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -252,4 +252,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default CoAdminLoginScreen;
+export default BusInchargeLoginScreen;

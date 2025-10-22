@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONTS, RADIUS, SHADOWS, SPACING } from '../utils/constants';
 import { registeredUsersStorage } from '../services/registeredUsersStorage';
 
-const CoAdminManagement = ({ navigation }) => {
+const BusInchargeManagement = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [coadmins, setCoadmins] = useState([]);
@@ -333,4 +333,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default CoAdminManagement;
+export default BusInchargeManagement;

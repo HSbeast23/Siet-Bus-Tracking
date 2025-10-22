@@ -164,7 +164,7 @@ class ReportsService {
     }
   }
 
-  // Get reports by bus number (for Co-Admin)
+  // Get reports by bus number (for Bus Incharge)
   async getReportsByBus(busNumber) {
     try {
       const q = query(

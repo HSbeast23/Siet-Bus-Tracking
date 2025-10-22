@@ -210,7 +210,7 @@ class RegisteredUsersStorage {
         };
       });
     } catch (error) {
-      console.error('Error getting co-admins:', error);
+  console.error('Error getting bus incharges:', error);
       return [];
     }
   }

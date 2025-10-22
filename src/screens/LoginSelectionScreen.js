@@ -22,7 +22,7 @@ const LoginSelectionScreen = ({ navigation }) => {
       onPress: () => navigation.navigate('ManagementLogin')
     },
     {
-      title: 'Co-Admin',
+  title: 'Bus Incharge',
       subtitle: 'Coordinator Portal',
       icon: 'shield-checkmark',
       color: '#8B4513',

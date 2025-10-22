@@ -29,7 +29,7 @@ const formatRole = (value) => {
     .replace(/\b\w/g, (match) => match.toUpperCase());
 };
 
-const CoAdminDetails = ({ route, navigation }) => {
+const BusInchargeDetails = ({ route, navigation }) => {
   const coadmin = route.params?.coadmin;
 
   if (!coadmin) {
@@ -349,4 +349,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default CoAdminDetails;
+export default BusInchargeDetails;

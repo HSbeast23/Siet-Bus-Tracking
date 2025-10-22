@@ -209,7 +209,7 @@ const BusEditScreen = ({ navigation, route }) => {
   const handleCoAdminRemoval = useCallback(
     (coAdmin) => {
       Alert.alert(
-        'Remove Co-Admin',
+        'Remove Bus Incharge',
         `Remove ${coAdmin.name || coAdmin.userId} from ${currentBusId}?`,
         [
           { text: 'Cancel', style: 'cancel' },
@@ -224,8 +224,8 @@ const BusEditScreen = ({ navigation, route }) => {
                 await deleteDoc(doc(db, 'buses', currentBusId, 'staff', 'coadmin'));
                 await loadBusData();
               } catch (err) {
-                console.error('❌ [BUS EDIT] Failed to remove co-admin:', err);
-                Alert.alert('Action failed', 'Unable to remove the co-admin. Please try again.');
+                console.error('❌ [BUS EDIT] Failed to remove bus incharge:', err);
+                Alert.alert('Action failed', 'Unable to remove the bus incharge. Please try again.');
               } finally {
                 setSaving(false);
               }
@@ -384,10 +384,10 @@ const BusEditScreen = ({ navigation, route }) => {
   const handleAddCoAdmin = useCallback(async () => {
     const userId = coAdminForm.userId.trim();
     const password = coAdminForm.password.trim();
-    const name = coAdminForm.name.trim() || 'Co-Admin';
+    const name = coAdminForm.name.trim() || 'Bus Incharge';
 
     if (!userId || !password) {
-      Alert.alert('Missing details', 'Co-admin user ID and password are required.');
+      Alert.alert('Missing details', 'Bus Incharge user ID and password are required.');
       return;
     }
 
@@ -436,8 +436,8 @@ const BusEditScreen = ({ navigation, route }) => {
       setShowCoAdminForm(false);
       await loadBusData();
     } catch (err) {
-      console.error('❌ [BUS EDIT] Failed to add co-admin:', err);
-      Alert.alert('Action failed', 'Unable to add the co-admin. Please try again.');
+        console.error('❌ [BUS EDIT] Failed to add bus incharge:', err);
+        Alert.alert('Action failed', 'Unable to add the bus incharge. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -656,7 +656,7 @@ const BusEditScreen = ({ navigation, route }) => {
                 )}
               </TouchableOpacity>
               <Text style={styles.helperText}>
-                Updating the bus number will migrate all linked students, drivers, and co-admins to the new number.
+                Updating the bus number will migrate all linked students, drivers, and bus incharges to the new number.
               </Text>
             </View>
           )}
@@ -843,13 +843,13 @@ const BusEditScreen = ({ navigation, route }) => {
           {!isCoAdmin && (
             <View style={styles.card}>
               {renderSectionHeader(
-                `Co-Admins (${coAdmins.length})`,
+                `Bus Incharge Accounts (${coAdmins.length})`,
                 <TouchableOpacity
                   style={styles.inlineAction}
                   onPress={() => setShowCoAdminForm((prev) => !prev)}
                 >
                   <Ionicons name={showCoAdminForm ? 'remove' : 'add'} size={18} color={COLORS.primary} />
-                  <Text style={styles.inlineActionText}>{showCoAdminForm ? 'Cancel' : 'Add Co-Admin'}</Text>
+                  <Text style={styles.inlineActionText}>{showCoAdminForm ? 'Cancel' : 'Add Bus Incharge'}</Text>
                 </TouchableOpacity>
               )}
 
@@ -858,7 +858,7 @@ const BusEditScreen = ({ navigation, route }) => {
                   <TextInput
                     style={styles.input}
                     value={coAdminForm.userId}
-                    placeholder="Co-Admin User ID"
+                    placeholder="Bus Incharge User ID"
                     placeholderTextColor={COLORS.textMuted}
                     autoCapitalize="none"
                     onChangeText={(value) => setCoAdminForm((prev) => ({ ...prev, userId: value }))}
@@ -888,13 +888,13 @@ const BusEditScreen = ({ navigation, route }) => {
                   />
                   <TouchableOpacity style={styles.primaryButton} onPress={handleAddCoAdmin}>
                     <Ionicons name="person-add" size={18} color={COLORS.white} />
-                    <Text style={styles.primaryButtonText}>Create Co-Admin Account</Text>
+                    <Text style={styles.primaryButtonText}>Create Bus Incharge Account</Text>
                   </TouchableOpacity>
                 </View>
               )}
 
               {coAdmins.length === 0 ? (
-                <Text style={styles.emptyText}>No co-admins assigned yet.</Text>
+                  <Text style={styles.emptyText}>No bus incharges assigned yet.</Text>
               ) : (
                 coAdmins.map((coAdmin) => (
                   <View key={coAdmin.id || coAdmin.userId} style={styles.listItem}>

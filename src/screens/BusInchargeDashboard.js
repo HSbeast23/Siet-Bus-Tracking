@@ -16,9 +16,9 @@ import { authService } from '../services/authService';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
 import { normalizeBusNumber } from '../services/locationService';
-import CoAdminBottomNav from '../components/CoAdminBottomNav';
+import BusInchargeBottomNav from '../components/BusInchargeBottomNav';
 
-const CoAdminDashboard = ({ navigation }) => {
+const BusInchargeDashboard = ({ navigation }) => {
   const [user, setUser] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -166,7 +166,7 @@ const CoAdminDashboard = ({ navigation }) => {
         subtitle: 'View student reports',
         icon: 'document-text',
         color: COLORS.warning,
-        onPress: () => navigation.navigate('CoAdminReportScreen', { busId: userBusId }),
+  onPress: () => navigation.navigate('CoAdminReportScreen', { busId: userBusId }),
       },
       {
         key: 'map',
@@ -256,7 +256,7 @@ const CoAdminDashboard = ({ navigation }) => {
           </ScrollView>
         )}
 
-        <CoAdminBottomNav
+        <BusInchargeBottomNav
           activeTab="home"
           navigation={navigation}
           busId={normalizedBusId}
@@ -384,4 +384,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default CoAdminDashboard;
+export default BusInchargeDashboard;

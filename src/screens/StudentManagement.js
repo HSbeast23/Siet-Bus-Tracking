@@ -26,7 +26,7 @@ const StudentManagement = ({ navigation, route }) => {
   const [loading, setLoading] = useState(true);
   const [studentStats, setStudentStats] = useState({ total: 0, byYear: {}, byDepartment: {}, active: 0 });
 
-  // Get params from navigation (for Co-Admin filtering)
+  // Get params from navigation (for Bus Incharge filtering)
   const { busId: filterBusId, role } = route.params || {};
   const isCoAdmin = role === 'coadmin';
   const normalizedFilterBusId = filterBusId ? normalizeBusNumber(filterBusId) : null;
@@ -45,7 +45,7 @@ const StudentManagement = ({ navigation, route }) => {
   const loadStudentData = async () => {
     try {
       setLoading(true);
-      console.log(`🔍 [STUDENT MGMT] Loading students... Role: ${role}, Filter Bus ID: ${normalizedFilterBusId}, Is Co-Admin: ${isCoAdmin}`);
+  console.log(`🔍 [STUDENT MGMT] Loading students... Role: ${role}, Filter Bus ID: ${normalizedFilterBusId}, Is Bus Incharge: ${isCoAdmin}`);
       
   let allStudents = await registeredUsersStorage.getAllStudents({ forceRefresh: true });
       console.log(`📦 [STUDENT MGMT] Total students from Firebase: ${allStudents.length}`);
@@ -56,9 +56,9 @@ const StudentManagement = ({ navigation, route }) => {
         console.log(`🚌 [STUDENT MGMT] Unique student bus numbers:`, busNumbers);
       }
       
-      // 🔒 Filter for Co-Admin: Show ONLY their assigned bus students
+  // 🔒 Filter for Bus Incharge: Show ONLY their assigned bus students
       if (isCoAdmin && normalizedFilterBusId) {
-        console.log(`🔒 [STUDENT MGMT] Applying Co-Admin filter for bus: ${normalizedFilterBusId}`);
+  console.log(`🔒 [STUDENT MGMT] Applying Bus Incharge filter for bus: ${normalizedFilterBusId}`);
         const beforeFilter = allStudents.length;
         allStudents = allStudents.filter(student => {
           const match = normalizeBusNumber(student.busNumber) === normalizedFilterBusId;
@@ -67,7 +67,7 @@ const StudentManagement = ({ navigation, route }) => {
           }
           return match;
         });
-        console.log(`✅ [STUDENT MGMT] Co-Admin filter result: ${allStudents.length}/${beforeFilter} student(s) for ${normalizedFilterBusId}`);
+  console.log(`✅ [STUDENT MGMT] Bus Incharge filter result: ${allStudents.length}/${beforeFilter} student(s) for ${normalizedFilterBusId}`);
       }
       
   const stats = await registeredUsersStorage.getStudentStats(allStudents);

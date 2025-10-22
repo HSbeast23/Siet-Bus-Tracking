@@ -17,7 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONTS, RADIUS, SHADOWS, SPACING } from '../utils/constants';
 import { authService } from '../services/authService';
-import CoAdminBottomNav from '../components/CoAdminBottomNav';
+import BusInchargeBottomNav from '../components/BusInchargeBottomNav';
 import { normalizeBusNumber } from '../services/locationService';
 import { uploadImageToCloudinary } from '../services/cloudinaryService';
 import { CLOUDINARY_UPLOAD_FOLDER } from '@env';
@@ -28,7 +28,7 @@ const TEAM_ROLES = [
   { key: 'operations', label: 'Operations Support' },
 ];
 
-const CoAdminProfileScreen = ({ navigation }) => {
+const BusInchargeProfileScreen = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [profile, setProfile] = useState(null);
@@ -245,7 +245,7 @@ const CoAdminProfileScreen = ({ navigation }) => {
           </ScrollView>
         )}
 
-        <CoAdminBottomNav activeTab="profile" navigation={navigation} busId={activeBusId} />
+  <BusInchargeBottomNav activeTab="profile" navigation={navigation} busId={activeBusId} />
       </View>
 
       <Modal
@@ -496,4 +496,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default CoAdminProfileScreen;
+export default BusInchargeProfileScreen;

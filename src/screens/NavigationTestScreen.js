@@ -15,7 +15,7 @@ const NavigationTestScreen = ({ navigation }) => {
     { name: 'Login', title: 'Unified Login' },
     { name: 'StudentDashboard', title: 'Student Dashboard' },
     { name: 'DriverDashboard', title: 'Driver Dashboard' },
-    { name: 'CoAdminDashboard', title: 'Co-Admin Dashboard' },
+  { name: 'CoAdminDashboard', title: 'Bus Incharge Dashboard' },
     { name: 'ManagementDashboard', title: 'Management Dashboard' },
   ];
 

@@ -3,7 +3,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import WelcomeScreen from '../screens/WelcomeScreen';
 import UnifiedLoginScreen from '../screens/UnifiedLoginScreen';
 import ManagementDashboard from '../screens/ManagementDashboard';
-import CoAdminDashboard from '../screens/CoAdminDashboard';
+import BusInchargeDashboard from '../screens/BusInchargeDashboard';
 import DriverDashboard from '../screens/DriverDashboard';
 import StudentDashboard from '../screens/StudentDashboard';
 import StudentProfileScreen from '../screens/StudentProfileScreen';
@@ -22,10 +22,10 @@ import Reports from '../screens/Reports';
 import StudentReportScreen from '../screens/StudentReportScreen';
 import StudentReportHistoryScreen from '../screens/StudentReportHistoryScreen';
 import FeedbackScreen from '../screens/FeedbackScreen';
-import CoAdminManagement from '../screens/CoAdminManagement';
-import CoAdminProfileScreen from '../screens/CoAdminProfileScreen';
+import BusInchargeManagement from '../screens/BusInchargeManagement';
+import BusInchargeProfileScreen from '../screens/BusInchargeProfileScreen';
 import DriverProfileScreen from '../screens/DriverProfileScreen';
-import CoAdminDetails from '../screens/CoAdminDetails';
+import BusInchargeDetails from '../screens/BusInchargeDetails';
 import BusEditScreen from '../screens/BusEditScreen';
 
 const Stack = createStackNavigator();
@@ -62,17 +62,17 @@ const AppNavigator = () => {
       />
       <Stack.Screen 
         name="CoAdminManagement" 
-        component={CoAdminManagement} 
+        component={BusInchargeManagement} 
         options={{ title: 'Bus Incharge Management', headerShown: false }}
       />
       <Stack.Screen 
         name="CoAdminDetails" 
-        component={CoAdminDetails} 
+        component={BusInchargeDetails} 
         options={{ title: 'Bus Incharge Details', headerShown: false }}
       />
       <Stack.Screen 
         name="CoAdminDashboard" 
-        component={CoAdminDashboard} 
+        component={BusInchargeDashboard} 
         options={{ title: 'Bus Incharge Dashboard', headerShown: false }}
       />
       <Stack.Screen 
@@ -172,7 +172,7 @@ const AppNavigator = () => {
       />
       <Stack.Screen 
         name="CoAdminProfile" 
-        component={CoAdminProfileScreen} 
+        component={BusInchargeProfileScreen} 
         options={{ title: 'Bus Incharge Profile', headerShown: false }}
       />
       <Stack.Screen 
