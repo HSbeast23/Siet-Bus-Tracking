@@ -27,6 +27,7 @@ import BusInchargeProfileScreen from '../screens/BusInchargeProfileScreen';
 import DriverProfileScreen from '../screens/DriverProfileScreen';
 import BusInchargeDetails from '../screens/BusInchargeDetails';
 import BusEditScreen from '../screens/BusEditScreen';
+import BusInchargeReportScreen from '../screens/BusInchargeReportScreen';
 
 const Stack = createStackNavigator();
 
@@ -159,6 +160,11 @@ const AppNavigator = () => {
         name="Reports" 
         component={Reports} 
         options={{ title: 'Reports', headerShown: false }}
+      />
+      <Stack.Screen 
+        name="BusInchargeReportScreen" 
+        component={BusInchargeReportScreen} 
+        options={{ title: 'Bus Incharge Reports', headerShown: false }}
       />
       <Stack.Screen 
         name="StudentReportScreen" 

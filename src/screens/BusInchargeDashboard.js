@@ -166,7 +166,8 @@ const BusInchargeDashboard = ({ navigation }) => {
         subtitle: 'View student reports',
         icon: 'document-text',
         color: COLORS.warning,
-  onPress: () => navigation.navigate('CoAdminReportScreen', { busId: userBusId }),
+        onPress: () =>
+          navigation.navigate('BusInchargeReportScreen', { busId: userBusId }),
       },
       {
         key: 'map',
