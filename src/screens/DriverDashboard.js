@@ -533,30 +533,6 @@ const DriverDashboard = ({ navigation }) => {
           </View>
         </View>
 
-        <View style={styles.actionsContainer}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <ActionTile
-            icon="map"
-            iconColor={COLORS.primary}
-            title="View Route"
-            subtitle="See your assigned route"
-            onPress={() => Alert.alert('Route Info', 'Route information feature coming soon!')}
-          />
-          <ActionTile
-            icon="people"
-            iconColor={COLORS.accent}
-            title="My Students"
-            subtitle="View students on your route"
-            onPress={() => Alert.alert('Students', 'Student list feature coming soon!')}
-          />
-          <ActionTile
-            icon="call"
-            iconColor={COLORS.danger}
-            title="Emergency Contact"
-            subtitle="Call management in emergency"
-            onPress={() => Alert.alert('Emergency', 'Emergency contacts feature coming soon!')}
-          />
-        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -568,19 +544,6 @@ const TrackingMetric = ({ icon, label, value }) => (
     <Text style={styles.metricLabel}>{label}</Text>
     <Text style={styles.metricValue}>{value}</Text>
   </View>
-);
-
-const ActionTile = ({ icon, iconColor, title, subtitle, onPress }) => (
-  <TouchableOpacity style={styles.actionTile} onPress={onPress}>
-    <View style={[styles.actionIcon, { backgroundColor: `${iconColor}22` }]}>
-      <Ionicons name={icon} size={20} color={iconColor} />
-    </View>
-    <View style={styles.actionContent}>
-      <Text style={styles.actionTitle}>{title}</Text>
-      <Text style={styles.actionSubtitle}>{subtitle}</Text>
-    </View>
-    <Ionicons name="chevron-forward" size={20} color={COLORS.gray} />
-  </TouchableOpacity>
 );
 
 const styles = StyleSheet.create({
@@ -793,47 +756,6 @@ const styles = StyleSheet.create({
     fontSize: FONTS.sizes.sm,
     color: COLORS.secondary,
     marginTop: 2,
-  },
-  actionsContainer: {
-    marginHorizontal: SPACING.lg,
-    marginTop: SPACING.xl,
-  },
-  sectionTitle: {
-    fontFamily: FONTS.bold,
-    fontSize: FONTS.sizes.lg,
-    color: COLORS.secondary,
-    marginBottom: SPACING.md,
-  },
-  actionTile: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.white,
-    padding: SPACING.md,
-    borderRadius: RADIUS.md,
-    marginBottom: SPACING.sm,
-    ...SHADOWS.sm,
-  },
-  actionIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: SPACING.md,
-  },
-  actionContent: {
-    flex: 1,
-  },
-  actionTitle: {
-    fontFamily: FONTS.semiBold,
-    fontSize: FONTS.sizes.md,
-    color: COLORS.black,
-  },
-  actionSubtitle: {
-    fontFamily: FONTS.regular,
-    fontSize: FONTS.sizes.xs,
-    color: COLORS.gray,
-    marginTop: 4,
   },
   loadingContainer: {
     flex: 1,

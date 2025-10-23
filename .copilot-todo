@@ -1,0 +1,3 @@
+- [ ] Remove mock performance data from src/screens/DriverDetails.js
+- [ ] Display only driver fields sourced from authenticated data in src/screens/DriverDetails.js
+- [ ] Clean up unused imports and styles in src/screens/DriverDetails.js

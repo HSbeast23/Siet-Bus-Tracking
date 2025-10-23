@@ -6,13 +6,10 @@ import {
   StyleSheet,
   SafeAreaView,
   ScrollView,
-  Dimensions,
   Image,
 } from 'react-native';
 import { COLORS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
-
-const { width } = Dimensions.get('window');
 
 const DriverDetails = ({ route, navigation }) => {
   const { driver } = route.params;
@@ -25,13 +22,17 @@ const DriverDetails = ({ route, navigation }) => {
     return authenticated ? COLORS.success : COLORS.warning;
   };
 
-  // Mock performance data
-  const performanceData = {
-    totalTrips: 145,
-    onTimePercentage: 92.5,
-    studentRating: 4.7,
-    fuelEfficiency: 11.2,
-    distanceCovered: 2840
+  const renderOptionalInfo = (label, value, fallback = null) => {
+    if (!value && fallback === null) {
+      return null;
+    }
+
+    return (
+      <View style={styles.infoRow}>
+        <Text style={styles.infoLabel}>{label}</Text>
+        <Text style={styles.infoValue}>{value || fallback}</Text>
+      </View>
+    );
   };
 
   return (
@@ -73,40 +74,14 @@ const DriverDetails = ({ route, navigation }) => {
           </View>
         </View>
 
-        {/* Performance Stats */}
-        <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <Ionicons name="car" size={24} color={COLORS.primary} />
-            <Text style={styles.statNumber}>{performanceData.totalTrips}</Text>
-            <Text style={styles.statLabel}>Total Trips</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Ionicons name="time" size={24} color={COLORS.success} />
-            <Text style={styles.statNumber}>{performanceData.onTimePercentage}%</Text>
-            <Text style={styles.statLabel}>On Time</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Ionicons name="star" size={24} color={COLORS.warning} />
-            <Text style={styles.statNumber}>{performanceData.studentRating}/5</Text>
-            <Text style={styles.statLabel}>Rating</Text>
-          </View>
-        </View>
-
         {/* Additional Info */}
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Performance Details</Text>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Distance Covered:</Text>
-            <Text style={styles.infoValue}>{performanceData.distanceCovered} km</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Fuel Efficiency:</Text>
-            <Text style={styles.infoValue}>{performanceData.fuelEfficiency} km/l</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Last Login:</Text>
-            <Text style={styles.infoValue}>{driver.lastLogin}</Text>
-          </View>
+          <Text style={styles.sectionTitle}>Driver Details</Text>
+          {renderOptionalInfo('Email', driver.email)}
+          {renderOptionalInfo('License Number', driver.licenseNumber)}
+          {renderOptionalInfo('Address', driver.address)}
+          {renderOptionalInfo('Emergency Contact', driver.emergencyContact)}
+          {renderOptionalInfo('Last Login', driver.lastLogin, 'Never')}
         </View>
 
         {/* Action Buttons */}
@@ -227,34 +202,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
   },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  statCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
-    padding: 15,
-    alignItems: 'center',
-    flex: 1,
-    marginHorizontal: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 3,
-  },
-  statNumber: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: COLORS.secondary,
-    marginVertical: 5,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: COLORS.gray,
-  },
   sectionCard: {
     backgroundColor: COLORS.white,
     borderRadius: 15,
@@ -288,6 +235,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: COLORS.secondary,
+    marginLeft: 16,
+    flexShrink: 1,
+    textAlign: 'right',
   },
   actionButtons: {
     flexDirection: 'row',
