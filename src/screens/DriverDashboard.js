@@ -45,7 +45,6 @@ const DriverDashboard = ({ navigation }) => {
   const [currentLocation, setCurrentLocation] = useState(null);
   const [locationSubscription, setLocationSubscription] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [menuVisible, setMenuVisible] = useState(false);
 
   useEffect(() => {
     loadDriverData();
@@ -392,7 +391,6 @@ const DriverDashboard = ({ navigation }) => {
             if (isTracking) {
               await stopLocationTracking();
             }
-            setMenuVisible(false);
             const success = await authService.logout();
             if (success) {
               navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
@@ -414,8 +412,11 @@ const DriverDashboard = ({ navigation }) => {
   );
 
   const navigateToProfile = () => {
-    setMenuVisible(false);
     navigation.navigate('DriverProfile');
+  };
+
+  const handleNotificationsPress = () => {
+    Alert.alert('Notifications', 'You are all caught up for now.');
   };
 
   if (loading) {
@@ -432,48 +433,25 @@ const DriverDashboard = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Ionicons name="person" size={20} color={COLORS.white} />
+        <View style={styles.headerLeftNoIcon}>
           <Text style={styles.headerTitle}>Driver Dashboard</Text>
         </View>
         <View style={styles.headerActions}>
-          <TouchableOpacity
-            style={styles.iconButton}
-            onPress={() => setMenuVisible((prev) => !prev)}
-          >
-            <Ionicons name="person-circle" size={26} color={COLORS.white} />
+          <TouchableOpacity style={styles.iconButton} onPress={handleNotificationsPress}>
+            <Ionicons name="notifications-outline" size={22} color={COLORS.white} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.iconButton} onPress={handleLogout}>
-            <Ionicons name="log-out" size={22} color={COLORS.white} />
+            <Ionicons name="log-out-outline" size={22} color={COLORS.white} />
           </TouchableOpacity>
         </View>
       </View>
-
-      {menuVisible && (
-        <TouchableOpacity
-          activeOpacity={1}
-          style={styles.menuBackdrop}
-          onPress={() => setMenuVisible(false)}
-        >
-          <View style={styles.menuSheet}>
-            <TouchableOpacity style={styles.menuOption} onPress={navigateToProfile}>
-              <Ionicons name="create" size={18} color={COLORS.secondary} />
-              <Text style={styles.menuOptionText}>Edit Profile</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.menuOption} onPress={navigateToProfile}>
-              <Ionicons name="image" size={18} color={COLORS.secondary} />
-              <Text style={styles.menuOptionText}>Update Photo</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      )}
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         <View style={styles.heroSection}>
           <View style={styles.heroLeft}>
             <Text style={styles.greeting}>Welcome,</Text>
             <Text style={styles.heroName}>{driverInfo.name}</Text>
-            <Text style={styles.heroSub}>Here's your dashboard for today.</Text>
+            <Text style={styles.heroSub}>Here's your dashboard </Text>
 
             <View style={styles.heroMetaRow}>
               <View style={styles.heroMetaTile}>
@@ -624,11 +602,6 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: RADIUS.lg,
     ...SHADOWS.md,
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-  },
   headerTitle: {
     fontSize: FONTS.sizes.lg,
     fontFamily: FONTS.bold,
@@ -640,39 +613,15 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
   },
   iconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    padding: 6,
+    borderRadius: RADIUS.round,
     backgroundColor: 'rgba(255,255,255,0.22)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  menuBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.1)',
-    justifyContent: 'flex-start',
-    alignItems: 'flex-end',
-    paddingHorizontal: SPACING.lg,
-    paddingTop: 88,
-  },
-  menuSheet: {
-    backgroundColor: COLORS.white,
-    borderRadius: RADIUS.md,
-    paddingVertical: SPACING.xs,
-    width: 200,
-    ...SHADOWS.md,
-  },
-  menuOption: {
+  headerLeftNoIcon: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.sm,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-  },
-  menuOptionText: {
-    fontFamily: FONTS.medium,
-    fontSize: FONTS.sizes.sm,
-    color: COLORS.secondary,
   },
   heroSection: {
     marginHorizontal: SPACING.lg,
