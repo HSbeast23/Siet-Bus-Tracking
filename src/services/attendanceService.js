@@ -1,4 +1,26 @@
 import { Linking } from 'react-native';
+
+let cachedMailComposer;
+const loadMailComposer = () => {
+  if (cachedMailComposer !== undefined) {
+    return cachedMailComposer;
+  }
+
+  try {
+    const mod = require('expo-mail-composer');
+    const resolved = mod?.default && mod.default.composeAsync ? mod.default : mod;
+    if (resolved?.composeAsync && resolved?.isAvailableAsync) {
+      cachedMailComposer = resolved;
+    } else {
+      cachedMailComposer = null;
+    }
+  } catch (error) {
+    console.warn('[AttendanceService] expo-mail-composer module unavailable:', error?.message || error);
+    cachedMailComposer = null;
+  }
+
+  return cachedMailComposer;
+};
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from './firebaseConfig';
 import { normalizeBusNumber } from './locationService';
@@ -107,13 +129,41 @@ class AttendanceService {
   }
 
   // Submit full attendance for the day by preparing an email draft
-  async submitAttendance(busNumber, attendanceRecords, submittedBy) {
+  async tryMailComposer(subject, body) {
     try {
-      const today = this.getTodayDate();
-      const emailBody = this.buildEmailBody(busNumber, attendanceRecords, submittedBy, today);
-      const subject = encodeURIComponent(`Bus ${busNumber} Attendance - ${today}`);
-      const body = encodeURIComponent(emailBody);
-      const mailtoUrl = `mailto:${this.submissionEmail}?subject=${subject}&body=${body}`;
+      const composer = loadMailComposer();
+      if (!composer) {
+        return false;
+      }
+
+      const isAvailable = await composer.isAvailableAsync();
+      if (!isAvailable) {
+        return false;
+      }
+
+      const result = await composer.composeAsync({
+        recipients: [this.submissionEmail],
+        subject,
+        body,
+      });
+
+      const status = result?.status;
+      if (typeof status === 'string' && status.toLowerCase() === 'cancelled') {
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('MailComposer composeAsync failed:', error);
+      return false;
+    }
+  }
+
+  async tryMailTo(subject, body) {
+    try {
+      const encodedSubject = encodeURIComponent(subject);
+      const encodedBody = encodeURIComponent(body);
+      const mailtoUrl = `mailto:${this.submissionEmail}?subject=${encodedSubject}&body=${encodedBody}`;
 
       const canOpen = await Linking.canOpenURL(mailtoUrl);
       if (!canOpen) {
@@ -129,6 +179,30 @@ class AttendanceService {
         success: true,
         message: 'Attendance email drafted. Please review and send it from your mail app.'
       };
+    } catch (error) {
+      console.error('Error opening mailto URL:', error);
+      return {
+        success: false,
+        error: 'Failed to open the email composer. Please try again.'
+      };
+    }
+  }
+
+  async submitAttendance(busNumber, attendanceRecords, submittedBy) {
+    try {
+      const today = this.getTodayDate();
+      const subject = `Bus ${busNumber} Attendance - ${today}`;
+      const emailBody = this.buildEmailBody(busNumber, attendanceRecords, submittedBy, today);
+
+      const composerHandled = await this.tryMailComposer(subject, emailBody);
+      if (composerHandled) {
+        return {
+          success: true,
+          message: 'Attendance email drafted. Please review and send it from your mail app.'
+        };
+      }
+
+      return await this.tryMailTo(subject, emailBody);
     } catch (error) {
       console.error('Error preparing attendance email:', error);
       return {

@@ -69,23 +69,33 @@ const AttendanceView = ({ navigation }) => {
         });
       });
 
+      const defaultMarkedBy = currentUser?.name || currentUser?.email || 'Bus Incharge';
+
+      const normalizeStatus = (status) => {
+        if (status === 'present' || status === 'absent') {
+          return status;
+        }
+        return 'present';
+      };
+
       // Merge students with their attendance status
       const studentsWithStatus = fetchedStudents.map(student => {
         const existing = existingStatusMap.get(student.id);
         if (existing) {
+          const normalizedStatus = normalizeStatus(existing.attendanceStatus);
           return {
             ...student,
-            attendanceStatus: existing.attendanceStatus,
-            markedAt: existing.markedAt,
-            markedBy: existing.markedBy,
+            attendanceStatus: normalizedStatus,
+            markedAt: existing.markedAt || null,
+            markedBy: existing.markedBy || defaultMarkedBy,
           };
         }
 
         return {
           ...student,
-          attendanceStatus: 'unmarked',
+          attendanceStatus: 'present',
           markedAt: null,
-          markedBy: null,
+          markedBy: defaultMarkedBy,
         };
       });
 
@@ -124,7 +134,9 @@ const AttendanceView = ({ navigation }) => {
 
   const handleSubmitAttendance = async () => {
     // Check if all students are marked
-    const unmarkedStudents = students.filter(s => s.attendanceStatus === 'unmarked');
+    const unmarkedStudents = students.filter(
+      (s) => !['present', 'absent'].includes(s.attendanceStatus)
+    );
     
     if (unmarkedStudents.length > 0) {
       Alert.alert(
@@ -146,7 +158,9 @@ const AttendanceView = ({ navigation }) => {
       // Prepare attendance data
   const submitter = currentUser?.name || currentUser?.email || 'Bus Incharge';
       const attendanceRecords = students.map(student => {
-        const resolvedStatus = student.attendanceStatus === 'unmarked' ? 'absent' : student.attendanceStatus;
+        const resolvedStatus = ['present', 'absent'].includes(student.attendanceStatus)
+          ? student.attendanceStatus
+          : 'present';
         const resolvedMarkedAt = student.markedAt instanceof Date
           ? student.markedAt
           : new Date(student.markedAt || Date.now());
@@ -200,12 +214,12 @@ const AttendanceView = ({ navigation }) => {
 
   const calculateAttendancePercentage = () => {
     if (students.length === 0) return 0;
-    const boardedCount = students.filter(s => s.attendanceStatus === 'present').length;
+    const boardedCount = students.filter((s) => s.attendanceStatus === 'present').length;
     return Math.round((boardedCount / students.length) * 100);
   };
 
   const getBoardedCount = () => students.filter(s => s.attendanceStatus === 'present').length;
-  const getNotBoardedCount = () => students.filter(s => s.attendanceStatus === 'absent' || s.attendanceStatus === 'unmarked').length;
+  const getNotBoardedCount = () => students.filter(s => s.attendanceStatus === 'absent').length;
 
   const resolveStatusMeta = (status) => {
     if (status === 'present') {
@@ -214,7 +228,7 @@ const AttendanceView = ({ navigation }) => {
     if (status === 'absent') {
       return { label: 'Not Boarded', color: '#F44336', tone: '#FFEBEE' };
     }
-    return { label: 'Awaiting', color: '#FFA000', tone: '#FFF8E1' };
+    return { label: 'Boarded', color: '#4CAF50', tone: '#E8F5E9' };
   };
 
   return (
@@ -242,30 +256,18 @@ const AttendanceView = ({ navigation }) => {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
         >
-          {/* Bus Incharge Info */}
-          <View style={styles.coAdminCard}>
-            <View style={styles.coAdminHeader}>
-              <Ionicons name="person-circle" size={24} color="#8B4513" />
-              <View style={styles.coAdminInfo}>
-                <Text style={styles.coAdminName}>Welcome, {currentUser?.name}</Text>
-                <Text style={styles.coAdminId}>{currentUser?.id}</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Bus Info */}
-          <View style={styles.busInfoCard}>
-            <View style={styles.busInfoHeader}>
-              <Ionicons name="bus" size={24} color={COLORS.secondary} />
-              <Text style={styles.busInfoTitle}>Bus: {busId}</Text>
-            </View>
-            <Text style={styles.busInfoSubtitle}>
-              {students.length} Registered Students
+          {/* Summary Header */}
+          <View style={styles.summaryHeader}>
+            <Text style={styles.summaryTitle}>
+              {busId ? `Bus ${busId}` : 'Assigned Bus'}
+            </Text>
+            <Text style={styles.summarySubtitle}>
+              {students.length} registered student{students.length === 1 ? '' : 's'}
             </Text>
             {isSubmitted && (
-              <View style={styles.submittedBadge}>
-                <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
-                <Text style={styles.submittedText}>Attendance Submitted</Text>
+              <View style={styles.summaryBadge}>
+                <Ionicons name="checkmark-circle" size={14} color="#4CAF50" />
+                <Text style={styles.summaryBadgeText}>Attendance Submitted</Text>
               </View>
             )}
           </View>
@@ -273,7 +275,7 @@ const AttendanceView = ({ navigation }) => {
           {/* Stats Cards */}
           <View style={styles.statsContainer}>
             <View style={[styles.statCard, { backgroundColor: '#E8F5E9' }]}>
-              <Ionicons name="checkmark-circle" size={32} color="#4CAF50" />
+              <Ionicons name="checkmark-circle" size={26} color="#4CAF50" />
               <Text style={[styles.statValue, { color: '#4CAF50' }]}>
                 {getBoardedCount()}
               </Text>
@@ -281,7 +283,7 @@ const AttendanceView = ({ navigation }) => {
             </View>
 
             <View style={[styles.statCard, { backgroundColor: '#FFEBEE' }]}>
-              <Ionicons name="close-circle" size={32} color="#F44336" />
+              <Ionicons name="close-circle" size={26} color="#F44336" />
               <Text style={[styles.statValue, { color: '#F44336' }]}>
                 {getNotBoardedCount()}
               </Text>
@@ -289,7 +291,7 @@ const AttendanceView = ({ navigation }) => {
             </View>
 
             <View style={[styles.statCard, { backgroundColor: '#E3F2FD' }]}>
-              <Ionicons name="stats-chart" size={32} color="#2196F3" />
+              <Ionicons name="stats-chart" size={26} color="#2196F3" />
               <Text style={[styles.statValue, { color: '#2196F3' }]}>
                 {calculateAttendancePercentage()}%
               </Text>
@@ -364,7 +366,7 @@ const AttendanceView = ({ navigation }) => {
                                   ? new Date(student.markedAt.toDate()).toLocaleTimeString()
                                   : new Date(student.markedAt).toLocaleTimeString())
                               : null;
-                            return boardedTime ? `Boarded at ${boardedTime}` : 'Boarded and logged';
+                            return boardedTime ? `Boarded at ${boardedTime}` : 'Boarded';
                           }
                           if (student.attendanceStatus === 'absent') {
                             const markedTime = student.markedAt
@@ -376,7 +378,7 @@ const AttendanceView = ({ navigation }) => {
                               ? `Marked not boarded ${markedTime}`
                               : 'Marked as not boarded';
                           }
-                          return 'Awaiting confirmation';
+                          return 'Boarded';
                         })()}
                       </Text>
                     </View>
@@ -455,17 +457,6 @@ const AttendanceView = ({ navigation }) => {
             </TouchableOpacity>
           )}
 
-          {/* History Note */}
-          <View style={styles.historyNote}>
-            <Ionicons name="information-circle" size={20} color={COLORS.info} />
-            <Text style={styles.historyText}>
-              ✅ Real authenticated students from Firebase
-              {'\n'}✅ Daily boarding status with timestamps in-session
-              {'\n'}✅ Submission opens an email to haarhishhaarhish43@gmail.com
-              {'\n'}✅ Percentage calculations included
-            </Text>
-          </View>
-
           <View style={{ height: SPACING.xl }} />
         </ScrollView>
       )}
@@ -503,68 +494,40 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.bold,
     color: COLORS.white,
   },
-  coAdminCard: {
-    backgroundColor: '#FFF3E0',
-    margin: SPACING.lg,
+  summaryHeader: {
+    marginHorizontal: SPACING.lg,
+    marginTop: SPACING.lg,
     marginBottom: SPACING.sm,
+    backgroundColor: COLORS.white,
     padding: SPACING.md,
     borderRadius: RADIUS.md,
-    borderLeftWidth: 4,
-    borderLeftColor: '#8B4513',
+    ...SHADOWS.sm,
   },
-  coAdminHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  coAdminInfo: {
-    marginLeft: SPACING.sm,
-  },
-  coAdminName: {
+  summaryTitle: {
     fontSize: 16,
     fontFamily: FONTS.bold,
     color: COLORS.textPrimary,
   },
-  coAdminId: {
+  summarySubtitle: {
     fontSize: 13,
     fontFamily: FONTS.regular,
     color: COLORS.textSecondary,
-    marginTop: 2,
+    marginTop: 4,
   },
-  busInfoCard: {
-    backgroundColor: COLORS.white,
-    marginHorizontal: SPACING.lg,
-    marginBottom: SPACING.md,
-    padding: SPACING.lg,
-    borderRadius: RADIUS.lg,
-    ...SHADOWS.md,
-  },
-  busInfoHeader: {
+  summaryBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: SPACING.xs,
-  },
-  busInfoTitle: {
-    fontSize: 18,
-    fontFamily: FONTS.bold,
-    color: COLORS.textPrimary,
-    marginLeft: SPACING.sm,
-  },
-  busInfoSubtitle: {
-    fontSize: 14,
-    fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
-    marginLeft: 32,
-  },
-  submittedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    borderRadius: RADIUS.sm,
     marginTop: SPACING.sm,
-    marginLeft: 32,
   },
-  submittedText: {
-    fontSize: 13,
-    fontFamily: FONTS.bold,
-    color: '#4CAF50',
+  summaryBadgeText: {
+    fontSize: 11,
+    fontFamily: FONTS.medium,
+    color: '#2E7D32',
     marginLeft: SPACING.xs,
   },
   statsContainer: {
@@ -575,18 +538,18 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1,
     borderRadius: RADIUS.md,
-    padding: SPACING.md,
+    padding: SPACING.sm,
     marginHorizontal: SPACING.xs,
     alignItems: 'center',
     ...SHADOWS.sm,
   },
   statValue: {
-    fontSize: 24,
+    fontSize: 20,
     fontFamily: FONTS.bold,
     marginTop: SPACING.xs,
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: FONTS.regular,
     color: COLORS.textSecondary,
     marginTop: SPACING.xs,
@@ -763,22 +726,6 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.bold,
     color: COLORS.white,
     marginLeft: SPACING.sm,
-  },
-  historyNote: {
-    flexDirection: 'row',
-    backgroundColor: COLORS.info + '15',
-    margin: SPACING.lg,
-    padding: SPACING.md,
-    borderRadius: RADIUS.md,
-    alignItems: 'flex-start',
-  },
-  historyText: {
-    flex: 1,
-    fontSize: 12,
-    fontFamily: FONTS.regular,
-    color: COLORS.info,
-    marginLeft: SPACING.sm,
-    lineHeight: 18,
   },
 });
 

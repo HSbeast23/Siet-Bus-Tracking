@@ -843,14 +843,26 @@ const BusEditScreen = ({ navigation, route }) => {
           {!isCoAdmin && (
             <View style={styles.card}>
               {renderSectionHeader(
-                `Bus Incharge Accounts (${coAdmins.length})`,
-                <TouchableOpacity
-                  style={styles.inlineAction}
-                  onPress={() => setShowCoAdminForm((prev) => !prev)}
-                >
-                  <Ionicons name={showCoAdminForm ? 'remove' : 'add'} size={18} color={COLORS.primary} />
-                  <Text style={styles.inlineActionText}>{showCoAdminForm ? 'Cancel' : 'Add Bus Incharge'}</Text>
-                </TouchableOpacity>
+                `Bus Incharge${coAdmins.length ? ` (${coAdmins.length})` : ''}`,
+                <View style={styles.inlineActionGroup}>
+                  <TouchableOpacity
+                    style={styles.inlineAction}
+                    onPress={() => setShowCoAdminForm((prev) => !prev)}
+                  >
+                    <Ionicons
+                      name={showCoAdminForm ? 'remove' : 'add'}
+                      size={18}
+                      color={COLORS.primary}
+                    />
+                    <Text style={styles.inlineActionText} numberOfLines={1}>
+                      {showCoAdminForm
+                        ? 'Cancel'
+                        : coAdmins.length
+                        ? 'Replace Bus Incharge'
+                        : 'Add Bus Incharge'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               )}
 
               {showCoAdminForm && (
@@ -1050,6 +1062,8 @@ const styles = StyleSheet.create({
     marginLeft: SPACING.xs,
     color: COLORS.primary,
     fontFamily: FONTS.medium,
+    fontSize: 13,
+    flexShrink: 1,
   },
   emptyText: {
     color: COLORS.gray,
