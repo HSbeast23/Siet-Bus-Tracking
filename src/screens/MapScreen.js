@@ -220,7 +220,12 @@ const MapScreen = ({ route, navigation }) => {
 					unsubscribeFromBus = subscribeToBusLocation(
 						normalizedBus,
 						(snapshot) => {
-							const trackingActive = Boolean(snapshot?.isTracking);
+							const sessionMarker =
+								snapshot?.activeTrackingSession ?? snapshot?.trackingSessionId;
+							const trackingActive = Boolean(
+								snapshot?.isTracking &&
+								(sessionMarker !== undefined ? sessionMarker : snapshot?.isTracking)
+							);
 							const coords = snapshot?.currentLocation;
 							const hasValidCoords = Number.isFinite(coords?.latitude) && Number.isFinite(coords?.longitude);
 

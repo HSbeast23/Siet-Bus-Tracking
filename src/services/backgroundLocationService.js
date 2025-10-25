@@ -44,6 +44,7 @@ const ensureTaskDefined = () => {
         heading: backgroundLocation.coords.heading ?? 0,
         accuracy: backgroundLocation.coords.accuracy ?? 0,
         isTracking: true,
+        sessionId: meta.sessionId,
       };
 
       await updateBusLocation(meta.busNumber, locationPayload);
@@ -82,6 +83,7 @@ export const ensureLocationPermissionsAsync = async () => {
 export const startBackgroundTrackingAsync = async ({
   busNumber,
   driverName,
+  sessionId,
   notificationTitle,
   notificationBody,
   timeInterval = 5000,
@@ -94,7 +96,7 @@ export const startBackgroundTrackingAsync = async ({
 
   await AsyncStorage.setItem(
     META_STORAGE_KEY,
-    JSON.stringify({ busNumber: normalizedBusNumber, driverName })
+    JSON.stringify({ busNumber: normalizedBusNumber, driverName, sessionId })
   );
 
   const isRunning = await Location.hasStartedLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);

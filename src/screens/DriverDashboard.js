@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -45,6 +45,8 @@ const DriverDashboard = ({ navigation }) => {
   const [currentLocation, setCurrentLocation] = useState(null);
   const [locationSubscription, setLocationSubscription] = useState(null);
   const [loading, setLoading] = useState(true);
+  const trackingSessionRef = useRef(null);
+  const isStoppingRef = useRef(false);
 
   useEffect(() => {
     loadDriverData();
@@ -71,6 +73,8 @@ const DriverDashboard = ({ navigation }) => {
           ...prev,
           busNumber: prev.busNumber || normalizeBusNumber(meta.busNumber),
         }));
+        trackingSessionRef.current = meta.sessionId || trackingSessionRef.current;
+        isStoppingRef.current = false;
       } catch (error) {
         console.error('Error checking background tracking state:', error);
       }
@@ -196,7 +200,7 @@ const DriverDashboard = ({ navigation }) => {
     }
   };
 
-  const subscribeToForegroundLocation = async ({ normalizedBusNumber, driverName }) => {
+  const subscribeToForegroundLocation = async ({ normalizedBusNumber, driverName, sessionId }) => {
     if (locationSubscription) {
       return locationSubscription;
     }
@@ -209,6 +213,10 @@ const DriverDashboard = ({ navigation }) => {
           distanceInterval: 5,
         },
         async (location) => {
+          if (isStoppingRef.current) {
+            return;
+          }
+
           const newLocationData = {
             latitude: location.coords.latitude,
             longitude: location.coords.longitude,
@@ -219,6 +227,7 @@ const DriverDashboard = ({ navigation }) => {
             heading: location.coords.heading || 0,
             accuracy: location.coords.accuracy || 0,
             isTracking: true,
+            sessionId: sessionId || trackingSessionRef.current,
           };
 
           setCurrentLocation(newLocationData);
@@ -253,9 +262,11 @@ const DriverDashboard = ({ navigation }) => {
           return;
         }
 
+        trackingSessionRef.current = meta.sessionId || trackingSessionRef.current;
         await subscribeToForegroundLocation({
           normalizedBusNumber: normalizeBusNumber(meta.busNumber),
           driverName: meta.driverName || driverInfo.name || 'Driver',
+          sessionId: trackingSessionRef.current,
         });
       } catch (error) {
         console.error('Error resuming foreground tracking:', error);
@@ -275,6 +286,10 @@ const DriverDashboard = ({ navigation }) => {
     try {
       const normalizedBusNumber = normalizeBusNumber(driverInfo.busNumber);
       console.log(`🚀 [DRIVER] Starting tracking for bus: ${normalizedBusNumber}`);
+
+      isStoppingRef.current = false;
+      const sessionId = `${normalizedBusNumber}-${Date.now()}`;
+      trackingSessionRef.current = sessionId;
 
       let initialLocation;
       try {
@@ -307,6 +322,7 @@ const DriverDashboard = ({ navigation }) => {
         speed: initialLocation.coords.speed || 0,
         accuracy: initialLocation.coords.accuracy || 0,
         isTracking: true,
+        sessionId,
       };
 
       setCurrentLocation(locationData);
@@ -316,6 +332,7 @@ const DriverDashboard = ({ navigation }) => {
         await startBackgroundTrackingAsync({
           busNumber: normalizedBusNumber,
           driverName: driverInfo.name,
+          sessionId,
           notificationTitle: 'SIET Bus Tracking Active',
           notificationBody: `Tracking bus ${normalizedBusNumber}.`,
           timeInterval: 4000,
@@ -332,6 +349,7 @@ const DriverDashboard = ({ navigation }) => {
       await subscribeToForegroundLocation({
         normalizedBusNumber,
         driverName: driverInfo.name,
+        sessionId,
       });
 
       setIsTracking(true);
@@ -339,6 +357,8 @@ const DriverDashboard = ({ navigation }) => {
     } catch (error) {
       console.error('❌ [DRIVER] Error starting location tracking:', error);
       setIsTracking(false);
+      trackingSessionRef.current = null;
+      isStoppingRef.current = false;
       Alert.alert(
         'Location Unavailable',
         'Failed to start tracking. Ensure GPS is enabled or set a mock location if using an emulator.'
@@ -348,6 +368,8 @@ const DriverDashboard = ({ navigation }) => {
 
   const stopLocationTracking = async () => {
     console.log('🛑 [DRIVER] Stopping location tracking...');
+    isStoppingRef.current = true;
+    const sessionId = trackingSessionRef.current;
 
     if (locationSubscription) {
       locationSubscription.remove();
@@ -366,6 +388,7 @@ const DriverDashboard = ({ navigation }) => {
           driverName: driverInfo.name,
           latitude: currentLocation?.latitude,
           longitude: currentLocation?.longitude,
+          sessionId,
         });
       } catch (error) {
         console.error('❌ [DRIVER] Error stopping tracking in Firestore:', error);
@@ -374,6 +397,7 @@ const DriverDashboard = ({ navigation }) => {
 
     setIsTracking(false);
     setCurrentLocation(null);
+    trackingSessionRef.current = null;
   };
 
   const handleLogout = () => {

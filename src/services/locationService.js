@@ -17,6 +17,8 @@ import {
 const BUSES_COLLECTION = 'buses';
 const MIN_MOVEMENT_DISTANCE_METERS = 20;
 const MIN_UPDATE_INTERVAL_MS = 4000;
+const activeSessionByBus = new Map();
+const terminatedSessions = new Set();
 
 const toRadians = (degrees) => (degrees * Math.PI) / 180;
 
@@ -104,6 +106,17 @@ export const updateBusLocation = async (busNumber, locationData = {}) => {
   const normalizedBusNumber = normalizeBusNumber(busNumber);
   const now = Date.now();
   const isTrackingActive = locationData.isTracking === true;
+  const sessionId =
+    typeof locationData.sessionId === 'string' && locationData.sessionId.trim()
+      ? locationData.sessionId.trim()
+      : null;
+
+  if (isTrackingActive && sessionId && terminatedSessions.has(sessionId)) {
+    console.warn(
+      `⚠️ Ignoring stale tracking update for bus ${normalizedBusNumber} using terminated session ${sessionId}`
+    );
+    return { success: true, skipped: true, reason: 'terminated-session' };
+  }
 
     let latitude = Number(locationData.latitude);
     let longitude = Number(locationData.longitude);
@@ -132,6 +145,24 @@ export const updateBusLocation = async (busNumber, locationData = {}) => {
       return { success: true, skipped: true };
     }
 
+    if (isTrackingActive) {
+      if (sessionId) {
+        activeSessionByBus.set(normalizedBusNumber, sessionId);
+      } else {
+        activeSessionByBus.set(normalizedBusNumber, '__legacy__');
+      }
+    } else {
+      activeSessionByBus.set(normalizedBusNumber, null);
+      if (sessionId) {
+        terminatedSessions.add(sessionId);
+        if (terminatedSessions.size > 1000) {
+          const recent = Array.from(terminatedSessions).slice(-500);
+          terminatedSessions.clear();
+          recent.forEach((id) => terminatedSessions.add(id));
+        }
+      }
+    }
+
     const busRef = doc(db, BUSES_COLLECTION, normalizedBusNumber);
     const firestorePayload = {
       busNumber: normalizedBusNumber,
@@ -147,6 +178,8 @@ export const updateBusLocation = async (busNumber, locationData = {}) => {
       timestamp: serverTimestamp(),
       lastUpdate: new Date(now).toISOString(),
       isTracking: isTrackingActive,
+      activeTrackingSession: isTrackingActive ? sessionId : null,
+      trackingSessionId: sessionId,
       realtime: deleteField(),
     };
 
@@ -200,6 +233,7 @@ export const stopBusTracking = async (busNumber, options = {}) => {
       speed: 0,
       heading: 0,
       accuracy: 0,
+      sessionId: options?.sessionId,
     });
     
     console.log(`🛑 Tracking stopped for bus ${normalizedBusNumber}`);

@@ -61,7 +61,12 @@ const BusLiveTrackingScreen = ({ route, navigation }) => {
         
         console.log('📦 [ADMIN] Raw location data received:', JSON.stringify(locationData));
         
-        if (locationData && locationData.currentLocation) {
+        const isTrackingActive = Boolean(
+          locationData?.isTracking &&
+            (locationData?.activeTrackingSession ?? locationData?.trackingSessionId ?? locationData?.isTracking)
+        );
+
+        if (locationData && locationData.currentLocation && isTrackingActive) {
           console.log('📍 [ADMIN] Location update:', JSON.stringify(locationData.currentLocation));
           console.log('🔥 [ADMIN] Is tracking:', locationData.isTracking);
           console.log('🚀 [ADMIN] Speed:', locationData.speed);
@@ -72,7 +77,7 @@ const BusLiveTrackingScreen = ({ route, navigation }) => {
             longitude: locationData.currentLocation.longitude,
             timestamp: locationData.lastUpdate,
             driverName: locationData.driverName || bus.driver || 'Driver',
-            isTracking: locationData.isTracking,
+            isTracking: isTrackingActive,
             speed: locationData.speed,
             accuracy: locationData.accuracy,
             heading: locationData.heading || 0,
@@ -89,7 +94,7 @@ const BusLiveTrackingScreen = ({ route, navigation }) => {
           }).start();
           
           // Auto-follow camera with rotation when tracking
-          if (locationData.isTracking && mapRef) {
+          if (isTrackingActive && mapRef) {
             mapRef.animateCamera({
               center: {
                 latitude: newLocation.latitude,
@@ -103,9 +108,9 @@ const BusLiveTrackingScreen = ({ route, navigation }) => {
           
           console.log('✅ [ADMIN] Bus location state updated successfully');
           setLoading(false);
-        } else if (locationData && !locationData.isTracking) {
+        } else if (locationData && !isTrackingActive) {
           console.log('⚠️ [ADMIN] Bus stopped tracking - clearing map');
-          console.log('🛑 [ADMIN] isTracking:', locationData.isTracking);
+          console.log('🛑 [ADMIN] isTracking:', isTrackingActive);
           setBusLocation(null); // Clear location so marker disappears
           setLoading(false);
         } else {
