@@ -2,7 +2,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
 	ActivityIndicator,
 	Alert,
+	Animated,
+	Dimensions,
+	PanResponder,
 	SafeAreaView,
+	ScrollView,
 	StyleSheet,
 	Text,
 	TouchableOpacity,
@@ -56,6 +60,34 @@ const normaliseRouteStops = (rawStops) => {
 	return cleaned.length ? cleaned : DEFAULT_ROUTE_STOPS;
 };
 
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const SHEET_COLLAPSED_HEIGHT = 150;
+const SHEET_EXPANDED_HEIGHT = Math.min(420, SCREEN_HEIGHT * 0.62);
+const ARRIVAL_DISTANCE_THRESHOLD = 140; // meters
+const STOP_STATUS_COLORS = {
+	completed: '#34D399',
+	current: '#F59E0B',
+	next: '#38BDF8',
+	upcoming: 'rgba(255,255,255,0.35)',
+};
+
+const clamp = (value, min, max) => Math.max(min, Math.min(value, max));
+const toRad = (value) => (value * Math.PI) / 180;
+const haversineDistance = (pointA = {}, pointB = {}) => {
+	const { latitude: lat1, longitude: lon1 } = pointA;
+	const { latitude: lat2, longitude: lon2 } = pointB;
+	if (!Number.isFinite(lat1) || !Number.isFinite(lon1) || !Number.isFinite(lat2) || !Number.isFinite(lon2)) {
+		return Number.POSITIVE_INFINITY;
+	}
+
+	const EARTH_RADIUS = 6371000; // metres
+	const deltaLat = toRad(lat2 - lat1);
+	const deltaLon = toRad(lon2 - lon1);
+	const a = Math.sin(deltaLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(deltaLon / 2) ** 2;
+	const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+	return EARTH_RADIUS * c;
+};
+
 export const BusMarker = ({ coordinate, label }) => (
 	<Marker coordinate={coordinate} tracksViewChanges={false} anchor={{ x: 0.5, y: 0.5 }}>
 		<View style={styles.busMarkerGroup}>
@@ -86,11 +118,17 @@ const MapScreen = ({ route, navigation }) => {
 	const [isBusTracking, setIsBusTracking] = useState(false);
 	const [studentLocation, setStudentLocation] = useState(null);
 	const [loading, setLoading] = useState(true);
+	const sheetHeight = useRef(new Animated.Value(SHEET_COLLAPSED_HEIGHT)).current;
+	const sheetStartHeightRef = useRef(SHEET_COLLAPSED_HEIGHT);
+	const sheetExpandedRef = useRef(false);
+	const [sheetExpanded, setSheetExpanded] = useState(false);
 
 	const busMarkerLabel = useMemo(() => {
 		const raw = (busDisplayName || '').trim() || busId || 'Bus';
 		return raw.replace(/-+/g, '-');
 	}, [busDisplayName, busId]);
+
+	const busSpeed = Number(busLocation?.speed ?? 0);
 
 	const initialRegion = useMemo(() => {
 		const firstStop = routeStops[0];
@@ -123,6 +161,189 @@ const MapScreen = ({ route, navigation }) => {
 		}
 		return points;
 	}, [routeOnlyCoordinates, busLocation, studentLocation]);
+
+	const routeProgress = useMemo(() => {
+		if (!routeStops.length) {
+			return { stops: [], currentIndex: -1, nextIndex: -1 };
+		}
+
+		const enrichedStops = routeStops.map((stop) => ({
+			...stop,
+			distanceMeters: busLocation ? haversineDistance(busLocation, stop) : null,
+		}));
+
+		if (!busLocation || !isBusTracking) {
+			return {
+				stops: enrichedStops.map((stop, index) => ({
+					...stop,
+					status: index === 0 ? 'next' : 'upcoming',
+					etaLabel: stop.time ? `ETA ${stop.time}` : 'Upcoming stop',
+				})),
+				currentIndex: -1,
+				nextIndex: enrichedStops.length ? 0 : -1,
+			};
+		}
+
+		const distances = enrichedStops.map((stop) =>
+			typeof stop.distanceMeters === 'number' ? stop.distanceMeters : Number.POSITIVE_INFINITY
+		);
+
+		let nearestIndex = distances.reduce(
+			(best, distance, idx) => (distance < distances[best] ? idx : best),
+			0
+		);
+		const nearestDistance = distances[nearestIndex];
+
+		const isAtStop = nearestDistance <= ARRIVAL_DISTANCE_THRESHOLD;
+		const currentIndex = isAtStop ? nearestIndex : -1;
+		let nextIndex = isAtStop ? nearestIndex + 1 : nearestIndex;
+		if (nextIndex >= enrichedStops.length) {
+			nextIndex = -1;
+		}
+		const lastCompletedIndex = Math.max(nearestIndex - 1, -1);
+
+		const etaForDistance = (distance) => {
+			if (!Number.isFinite(distance)) {
+				return '';
+			}
+			if (busSpeed <= 0.5) {
+				return 'Awaiting movement';
+			}
+			const minutes = Math.max(Math.round((distance / Math.max(busSpeed, 0.1)) / 60), 1);
+			return minutes <= 1 ? 'Arriving now' : `Arriving in ${minutes} min`;
+		};
+
+		const decoratedStops = enrichedStops.map((stop, idx) => {
+			let status = 'upcoming';
+			if (idx <= lastCompletedIndex) {
+				status = 'completed';
+			}
+			if (isAtStop && idx === nearestIndex) {
+				status = 'current';
+			} else if (idx === nextIndex) {
+				status = 'next';
+			}
+
+			let etaLabel = '';
+			switch (status) {
+				case 'completed':
+					etaLabel = stop.time ? `Departed at ${stop.time}` : 'Departed';
+					break;
+				case 'current':
+					etaLabel = 'At stop';
+					break;
+				case 'next':
+					etaLabel = etaForDistance(stop.distanceMeters);
+					break;
+				default:
+					etaLabel = stop.time ? `Scheduled ${stop.time}` : 'Upcoming stop';
+			}
+
+			return {
+				...stop,
+				status,
+				etaLabel,
+			};
+		});
+
+		return { stops: decoratedStops, currentIndex, nextIndex };
+	}, [routeStops, busLocation, isBusTracking, busSpeed]);
+
+	const currentStop = routeProgress.currentIndex >= 0 ? routeProgress.stops[routeProgress.currentIndex] : null;
+	const nextStop = routeProgress.nextIndex >= 0 ? routeProgress.stops[routeProgress.nextIndex] : null;
+	const routeHasStops = routeProgress.stops.length > 0;
+	const isRouteCompleted =
+		routeHasStops &&
+		routeProgress.nextIndex === -1 &&
+		routeProgress.currentIndex >= routeProgress.stops.length - 1;
+
+	const summaryCurrentName = currentStop?.name || (isBusTracking ? 'En route' : 'Awaiting GPS fix');
+	const summaryCurrentEta = currentStop?.etaLabel || (routeHasStops ? 'Waiting for live update' : 'Add route stops');
+	const summaryNextName = isRouteCompleted
+		? 'Route complete'
+		: nextStop?.name || (routeHasStops ? routeProgress.stops[0].name : 'No upcoming stop');
+	const summaryNextEta = isRouteCompleted
+		? 'All stops covered'
+		: nextStop?.etaLabel || (routeHasStops ? 'Awaiting departure' : 'Add route stops');
+	const summaryCurrentEtaColor = currentStop ? '#34D399' : 'rgba(226,232,240,0.7)';
+	const summaryNextEtaColor = isRouteCompleted
+		? '#60A5FA'
+		: nextStop
+			? '#38BDF8'
+			: 'rgba(226,232,240,0.7)';
+
+	const animateSheet = useCallback(
+		(expand) => {
+			const target = expand ? SHEET_EXPANDED_HEIGHT : SHEET_COLLAPSED_HEIGHT;
+			sheetExpandedRef.current = expand;
+			setSheetExpanded(expand);
+			Animated.spring(sheetHeight, {
+				toValue: target,
+				useNativeDriver: false,
+				damping: 18,
+				stiffness: 140,
+			}).start();
+		},
+		[sheetHeight]
+	);
+
+	const handleSheetToggle = useCallback(() => {
+		animateSheet(!sheetExpandedRef.current);
+	}, [animateSheet]);
+
+	const panResponder = useMemo(
+		() =>
+			PanResponder.create({
+				onMoveShouldSetPanResponder: (_, gesture) => {
+					if (Math.abs(gesture.dy) <= Math.abs(gesture.dx) || Math.abs(gesture.dy) <= 6) {
+						return false;
+					}
+					if (!sheetExpandedRef.current && gesture.dy < 0) {
+						return true;
+					}
+					if (sheetExpandedRef.current && gesture.dy > 0) {
+						return true;
+					}
+					return false;
+				},
+				onPanResponderGrant: () => {
+					sheetStartHeightRef.current = sheetExpandedRef.current
+						? SHEET_EXPANDED_HEIGHT
+						: SHEET_COLLAPSED_HEIGHT;
+				},
+				onPanResponderMove: (_, gesture) => {
+					const nextHeight = clamp(
+						sheetStartHeightRef.current - gesture.dy,
+						SHEET_COLLAPSED_HEIGHT,
+						SHEET_EXPANDED_HEIGHT
+					);
+					sheetHeight.setValue(nextHeight);
+				},
+				onPanResponderRelease: (_, gesture) => {
+					const projectedHeight = clamp(
+						sheetStartHeightRef.current - gesture.dy,
+						SHEET_COLLAPSED_HEIGHT,
+						SHEET_EXPANDED_HEIGHT
+					);
+					const midpoint = (SHEET_COLLAPSED_HEIGHT + SHEET_EXPANDED_HEIGHT) / 2;
+					animateSheet(projectedHeight > midpoint);
+				},
+				onPanResponderTerminate: () => {
+					animateSheet(sheetExpandedRef.current);
+				},
+			}),
+		[animateSheet, sheetHeight]
+	);
+
+	const actionButtonsBottom = useMemo(
+		() =>
+			sheetHeight.interpolate({
+				inputRange: [SHEET_COLLAPSED_HEIGHT, SHEET_EXPANDED_HEIGHT],
+				outputRange: [SHEET_COLLAPSED_HEIGHT + 24, SHEET_EXPANDED_HEIGHT + 24],
+				extrapolate: 'clamp',
+			}),
+		[sheetHeight]
+	);
 
 	const ensureStudentLocation = useCallback(async () => {
 		try {
@@ -230,7 +451,15 @@ const MapScreen = ({ route, navigation }) => {
 							const hasValidCoords = Number.isFinite(coords?.latitude) && Number.isFinite(coords?.longitude);
 
 							if (trackingActive && hasValidCoords) {
-								setBusLocation({ latitude: Number(coords.latitude), longitude: Number(coords.longitude) });
+								const normalizedSpeed = Number(snapshot?.speed ?? coords?.speed ?? 0);
+								const normalizedHeading = Number(snapshot?.heading ?? coords?.heading ?? 0);
+								setBusLocation({
+									latitude: Number(coords.latitude),
+									longitude: Number(coords.longitude),
+									speed: Number.isFinite(normalizedSpeed) ? normalizedSpeed : 0,
+									heading: Number.isFinite(normalizedHeading) ? normalizedHeading : 0,
+									updatedAt: snapshot?.lastUpdate || Date.now(),
+								});
 								setIsBusTracking(true);
 							} else {
 								setBusLocation(null);
@@ -385,7 +614,7 @@ const MapScreen = ({ route, navigation }) => {
 					)}
 				</MapView>
 
-				<View style={styles.actionButtons}>
+				<Animated.View style={[styles.actionButtons, { bottom: actionButtonsBottom }]}>
 					<TouchableOpacity style={styles.circleButton} onPress={fitRoute}>
 						<Ionicons name="navigate" size={20} color="#FFFFFF" />
 					</TouchableOpacity>
@@ -407,7 +636,7 @@ const MapScreen = ({ route, navigation }) => {
 							<Ionicons name="scan" size={20} color="#FFFFFF" />
 						</TouchableOpacity>
 					)}
-				</View>
+				</Animated.View>
 
 				{!!routeWarning && (
 					<View style={styles.warningBanner}>
@@ -422,15 +651,98 @@ const MapScreen = ({ route, navigation }) => {
 						<Text style={styles.routeLoaderText}>Fetching OSRM route…</Text>
 					</View>
 				)}
-			</View>
 
-			<View style={styles.footer}>
-				<Text style={styles.footerLabel}>Stops • {routeStops.length}</Text>
-				<View style={styles.footerDivider} />
-				<Text style={styles.footerLabel}>Role • {role.charAt(0).toUpperCase() + role.slice(1)}</Text>
-				{busId ? (
-					<Text style={styles.footerLabel}>Bus • {isBusTracking ? 'Live' : 'Offline'}</Text>
-				) : null}
+				<Animated.View
+					style={[styles.routeSheet, { height: sheetHeight }]}
+					{...panResponder.panHandlers}
+				>
+					<TouchableOpacity activeOpacity={0.8} onPress={handleSheetToggle}>
+						<View style={styles.sheetHandle} />
+					</TouchableOpacity>
+
+					<View style={styles.sheetSummaryRow}>
+						<View style={styles.sheetSummaryItem}>
+							<View style={[styles.sheetIconCircle, { backgroundColor: '#10B981' }]}>
+								<Ionicons name="bus" size={20} color="#FFFFFF" />
+							</View>
+							<View style={styles.sheetSummaryTexts}>
+								<Text style={styles.sheetSummaryLabel}>Current Stop</Text>
+								<Text style={styles.sheetSummaryTitle} numberOfLines={1}>
+									{summaryCurrentName}
+								</Text>
+								<Text style={[styles.sheetSummaryEta, { color: summaryCurrentEtaColor }]}>
+									{summaryCurrentEta}
+								</Text>
+							</View>
+						</View>
+						<View style={styles.sheetSeparator} />
+						<View style={styles.sheetSummaryItem}>
+							<View style={[styles.sheetIconCircle, { backgroundColor: '#2563EB' }]}>
+								<Ionicons name="navigate" size={20} color="#FFFFFF" />
+							</View>
+							<View style={styles.sheetSummaryTexts}>
+								<Text style={styles.sheetSummaryLabel}>Next Stop</Text>
+								<Text style={styles.sheetSummaryTitle} numberOfLines={1}>
+									{summaryNextName}
+								</Text>
+								<Text style={[styles.sheetSummaryEta, { color: summaryNextEtaColor }]}>
+									{summaryNextEta}
+								</Text>
+							</View>
+						</View>
+					</View>
+
+					<ScrollView
+						style={styles.sheetStopsList}
+						contentContainerStyle={styles.sheetStopsContent}
+						showsVerticalScrollIndicator={false}
+						scrollEnabled={sheetExpanded}
+					>
+						{routeProgress.stops.map((stop, idx) => {
+							const isLast = idx === routeProgress.stops.length - 1;
+							const statusColor = STOP_STATUS_COLORS[stop.status] || STOP_STATUS_COLORS.upcoming;
+							return (
+								<View key={stop.id || `${stop.name}-${idx}`} style={styles.stopRow}>
+									<View style={styles.timelineContainer}>
+										<View style={[styles.timelineDot, { backgroundColor: statusColor }]} />
+										{!isLast && (
+											<View
+												style={[
+													styles.timelineLine,
+													{
+														backgroundColor:
+															stop.status === 'completed' || stop.status === 'current'
+																? 'rgba(52,211,153,0.45)'
+																: 'rgba(255,255,255,0.15)',
+													},
+												]}
+											/>
+										)}
+									</View>
+									<View style={styles.stopInfo}>
+										<Text
+											style={[
+												styles.stopName,
+												stop.status === 'completed' && styles.stopNameCompleted,
+												stop.status === 'current' && styles.stopNameCurrent,
+												stop.status === 'next' && styles.stopNameNext,
+											]}
+											numberOfLines={2}
+										>
+											{stop.name}
+										</Text>
+										{!!stop.etaLabel && <Text style={styles.stopEta}>{stop.etaLabel}</Text>}
+									</View>
+									{stop.time ? <Text style={styles.stopTime}>{stop.time}</Text> : null}
+								</View>
+							);
+						})}
+
+						{!routeHasStops && (
+							<Text style={styles.sheetEmptyText}>No stops configured for this route.</Text>
+						)}
+					</ScrollView>
+				</Animated.View>
 			</View>
 		</SafeAreaView>
 	);
@@ -511,7 +823,7 @@ const styles = StyleSheet.create({
 	actionButtons: {
 		position: 'absolute',
 		right: 16,
-		bottom: 32,
+		bottom: SHEET_COLLAPSED_HEIGHT + 24,
 		gap: 12,
 	},
 	circleButton: {
@@ -562,25 +874,134 @@ const styles = StyleSheet.create({
 		fontSize: 12,
 		fontWeight: '500',
 	},
-	footer: {
+	routeSheet: {
+		position: 'absolute',
+		left: 16,
+		right: 16,
+		bottom: 16,
+		backgroundColor: '#0F172A',
+		borderRadius: 24,
+		paddingHorizontal: 20,
+		paddingTop: 12,
+		paddingBottom: 20,
+		overflow: 'hidden',
+		shadowColor: '#000',
+		shadowOffset: { width: 0, height: 6 },
+		shadowOpacity: 0.25,
+		shadowRadius: 16,
+		elevation: 12,
+	},
+	sheetHandle: {
+		width: 46,
+		height: 5,
+		borderRadius: 999,
+		backgroundColor: 'rgba(255,255,255,0.25)',
+		alignSelf: 'center',
+		marginBottom: 12,
+	},
+	sheetSummaryRow: {
 		flexDirection: 'row',
 		alignItems: 'center',
-		justifyContent: 'space-evenly',
-		paddingVertical: 12,
-		paddingHorizontal: 16,
-		borderTopWidth: StyleSheet.hairlineWidth,
-		borderTopColor: '#E5E7EB',
-		backgroundColor: '#FFFFFF',
+		justifyContent: 'space-between',
 	},
-	footerLabel: {
-		fontSize: 13,
-		color: '#1F2937',
+	sheetSummaryItem: {
+		flex: 1,
+		flexDirection: 'row',
+		alignItems: 'center',
+	},
+	sheetIconCircle: {
+		width: 44,
+		height: 44,
+		borderRadius: 22,
+		alignItems: 'center',
+		justifyContent: 'center',
+		marginRight: 12,
+	},
+	sheetSummaryTexts: {
+		flex: 1,
+	},
+	sheetSummaryLabel: {
+		color: 'rgba(248,250,252,0.7)',
+		fontSize: 11,
+		fontWeight: '600',
+		letterSpacing: 0.5,
+		textTransform: 'uppercase',
+		marginBottom: 2,
+	},
+	sheetSummaryTitle: {
+		color: '#F8FAFC',
+		fontSize: 16,
+		fontWeight: '700',
+	},
+	sheetSummaryEta: {
+		marginTop: 4,
+		color: '#34D399',
+		fontSize: 12,
 		fontWeight: '500',
 	},
-	footerDivider: {
+	sheetSeparator: {
 		width: StyleSheet.hairlineWidth,
-		height: 16,
-		backgroundColor: '#E5E7EB',
+		height: 56,
+		backgroundColor: 'rgba(255,255,255,0.15)',
+		marginHorizontal: 12,
+	},
+	sheetStopsList: {
+		marginTop: 16,
+	},
+	sheetStopsContent: {
+		paddingBottom: 24,
+	},
+	stopRow: {
+		flexDirection: 'row',
+		alignItems: 'flex-start',
+		gap: 12,
+		marginBottom: 16,
+	},
+	timelineContainer: {
+		alignItems: 'center',
+	},
+	timelineDot: {
+		width: 12,
+		height: 12,
+		borderRadius: 6,
+	},
+	timelineLine: {
+		width: 2,
+		flex: 1,
+		marginTop: 4,
+	},
+	stopInfo: {
+		flex: 1,
+	},
+	stopName: {
+		color: '#E2E8F0',
+		fontSize: 14,
+		fontWeight: '600',
+	},
+	stopNameCompleted: {
+		color: 'rgba(226,232,240,0.55)',
+		textDecorationLine: 'line-through',
+	},
+	stopNameCurrent: {
+		color: '#FBBF24',
+	},
+	stopNameNext: {
+		color: '#38BDF8',
+	},
+	stopEta: {
+		marginTop: 4,
+		color: 'rgba(226,232,240,0.75)',
+		fontSize: 12,
+	},
+	stopTime: {
+		color: 'rgba(226,232,240,0.6)',
+		fontSize: 12,
+		fontVariant: ['tabular-nums'],
+	},
+	sheetEmptyText: {
+		color: 'rgba(226,232,240,0.75)',
+		textAlign: 'center',
+		fontSize: 13,
 	},
 	loaderContainer: {
 		flex: 1,
