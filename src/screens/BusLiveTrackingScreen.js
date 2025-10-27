@@ -3,11 +3,11 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   Alert,
   TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, AnimatedRegion, Polyline, UrlTile } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { COLORS, SAMPLE_STOPS } from '../utils/constants';

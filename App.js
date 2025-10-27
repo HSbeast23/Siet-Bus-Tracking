@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, View, ActivityIndicator } from 'react-native';
-import * as Font from 'expo-font';
+import { View, ActivityIndicator } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
   useFonts,
   Poppins_300Light,
@@ -31,9 +31,11 @@ export default function App() {
   }
 
   return (
-    <NavigationContainer>
-      <AppNavigator />
-      <StatusBar style="auto" />
-    </NavigationContainer>
+    <SafeAreaProvider>
+      <NavigationContainer>
+        <AppNavigator />
+        <StatusBar style="auto" />
+      </NavigationContainer>
+    </SafeAreaProvider>
   );
 }

@@ -5,9 +5,9 @@ import {
   TouchableOpacity,
   StyleSheet,
   Image,
-  Dimensions,
-  SafeAreaView
+  Dimensions
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
 

@@ -5,13 +5,13 @@ import {
 	Animated,
 	Dimensions,
 	PanResponder,
-	SafeAreaView,
 	ScrollView,
 	StyleSheet,
 	Text,
 	TouchableOpacity,
 	View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, Polyline, UrlTile } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';

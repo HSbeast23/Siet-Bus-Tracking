@@ -4,10 +4,10 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   ActivityIndicator
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
