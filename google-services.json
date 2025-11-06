@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "320610474479",
+    "firebase_url": "https://iet-bus-tracking-default-rtdb.firebaseio.com",
+    "project_id": "iet-bus-tracking",
+    "storage_bucket": "iet-bus-tracking.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:320610474479:android:bfa6926501c8a3a2077e1a",
+        "android_client_info": {
+          "package_name": "siet.com"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAIWmje7La9fVx_LY_a74R2hmUIuO-bhF8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

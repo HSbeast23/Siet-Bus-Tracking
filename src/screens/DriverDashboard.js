@@ -25,6 +25,7 @@ import {
   isBackgroundTrackingActiveAsync,
   getBackgroundTrackingMetaAsync,
 } from '../services/backgroundLocationService';
+import { notifyBusTrackingStarted } from '../services/pushNotificationService';
 
 // Normalize bus number to handle variations (SIET--005 → SIET-005)
 const normalizeBusNumber = (busNumber) => {
@@ -353,6 +354,14 @@ const DriverDashboard = ({ navigation }) => {
       });
 
       setIsTracking(true);
+      try {
+        await notifyBusTrackingStarted({
+          busNumber: normalizedBusNumber,
+          driverName: driverInfo.name,
+        });
+      } catch (notificationError) {
+        console.warn('Push notification dispatch failed:', notificationError);
+      }
       Alert.alert('Tracking Started', `Location tracking activated for bus ${normalizedBusNumber}.`);
     } catch (error) {
       console.error('❌ [DRIVER] Error starting location tracking:', error);

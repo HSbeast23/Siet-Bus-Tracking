@@ -26,12 +26,14 @@
       "bundleIdentifier": "com.haarhish.sietbusapp"
     },
     "android": {
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
       "permissions": [
+        "POST_NOTIFICATIONS",
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
@@ -43,7 +45,12 @@
           "apiKey": "AIzaSyD1bqjTHy6PJGbWP8yz-XKGJ6ws18f4Xew"
         }
       },
-      "package": "com.haarhish.sietbusapp"
+      "package": "siet.com"
+    },
+    "notification": {
+      "icon": "./assets/notification-icon.png",
+      "color": "#1D4ED8",
+      "androidMode": "default"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -69,7 +76,14 @@
           }
         }
       ],
-      "expo-mail-composer"
+      "expo-mail-composer",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#1D4ED8"
+        }
+      ]
     ],
     "extra": {
       "eas": {

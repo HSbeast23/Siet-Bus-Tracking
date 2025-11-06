@@ -12,6 +12,7 @@ import { db } from './firebaseConfig';
 import { normalizeBusNumber } from './locationService';
 import { CONFIG } from '../utils/constants';
 import { userAPI } from './api';
+import { registerPushTokenAsync } from './pushNotificationService';
 
 const AUTH_TOKEN_KEY = 'authToken';
 const CURRENT_USER_KEY = 'currentUser';
@@ -205,6 +206,14 @@ class AuthService {
       await AsyncStorage.setItem(CURRENT_USER_KEY, JSON.stringify(sessionUser));
 
       await this.updateLastLogin(userDocId);
+
+      if (['student', 'coadmin'].includes(trimmedRole)) {
+        try {
+          await registerPushTokenAsync(sessionUser);
+        } catch (tokenError) {
+          console.warn('Unable to register push token:', tokenError);
+        }
+      }
 
       return {
         success: true,
