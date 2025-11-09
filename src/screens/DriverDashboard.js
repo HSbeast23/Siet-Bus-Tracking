@@ -134,6 +134,7 @@ const DriverDashboard = ({ navigation }) => {
       if (currentUser) {
         const normalizedBusNumber = normalizeBusNumber(currentUser.busNumber || currentUser.busId || '');
         setDriverInfo({
+          uid: currentUser.uid || currentUser.id || currentUser.userId || null,
           name: currentUser.name || 'Driver',
           busNumber: normalizedBusNumber,
           email: currentUser.email || '',
@@ -358,6 +359,7 @@ const DriverDashboard = ({ navigation }) => {
         await notifyBusTrackingStarted({
           busNumber: normalizedBusNumber,
           driverName: driverInfo.name,
+          excludeUid: driverInfo.uid || null,
         });
       } catch (notificationError) {
         console.warn('Push notification dispatch failed:', notificationError);

@@ -39,13 +39,20 @@ async function getRecipientsForBus(busNumber) {
   const recipientsQuery = query(
     collection(db, 'users'),
     where('busNumber', '==', busNumber),
-    where('role', 'in', ['student', 'incharge'])
+    // include both 'coadmin' and legacy 'incharge' labels used in the codebase
+    where('role', 'in', ['student', 'coadmin', 'incharge'])
   );
 
   const snapshot = await getDocs(recipientsQuery);
   return snapshot.docs
-    .map((docSnapshot) => docSnapshot.data().expoPushToken)
-    .filter(Boolean);
+    .map((docSnapshot) => {
+      const data = docSnapshot.data();
+      return {
+        uid: docSnapshot.id,
+        token: data?.expoPushToken || null,
+      };
+    })
+    .filter((r) => r && r.token);
 }
 
 function chunkTokens(tokens, size = 90) {
@@ -75,12 +82,23 @@ async function sendExpoPush(chunk, message) {
   });
 }
 
-export async function notifyBusTrackingStarted({ busNumber, driverName }) {
-  const tokens = await getRecipientsForBus(busNumber);
-  if (!tokens.length) {
-    console.info(`No push recipients registered for bus ${busNumber}`);
+export async function notifyBusTrackingStarted({ busNumber, driverName, excludeUid = null, excludeToken = null }) {
+  const recipients = await getRecipientsForBus(busNumber);
+  const filtered = recipients.filter((r) => {
+    if (!r || !r.token) return false;
+    if (excludeUid && r.uid === excludeUid) return false;
+    if (excludeToken && r.token === excludeToken) return false;
+    return true;
+  });
+
+  if (!filtered.length) {
+    console.info(`No push recipients registered for bus ${busNumber} after filtering out initiator`);
     return;
   }
+
+  const tokens = filtered.map((r) => r.token);
+
+  console.info(`Dispatching push to ${tokens.length} recipients for bus ${busNumber}`);
 
   const message = {
     title: `Bus ${busNumber} is now live`,
