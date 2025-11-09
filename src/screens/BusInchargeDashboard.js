@@ -17,6 +17,7 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
 import { normalizeBusNumber } from '../services/locationService';
 import BusInchargeBottomNav from '../components/BusInchargeBottomNav';
+import { registerPushTokenAsync } from '../services/pushNotificationService';
 
 const BusInchargeDashboard = ({ navigation }) => {
   const [user, setUser] = useState(null);
@@ -49,6 +50,15 @@ const BusInchargeDashboard = ({ navigation }) => {
         }
 
         setUser(currentUser);
+
+        try {
+          await registerPushTokenAsync({
+            ...currentUser,
+            role: currentUser.role || 'coadmin',
+          });
+        } catch (tokenError) {
+          console.warn('Bus incharge push token registration failed:', tokenError);
+        }
 
         const resolvedBusId = normalizeBusNumber(
           currentUser.busId || currentUser.busNumber || ''

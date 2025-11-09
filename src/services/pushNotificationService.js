@@ -1,38 +1,77 @@
 import * as Notifications from 'expo-notifications';
+import { Alert, Platform } from 'react-native';
 import { collection, doc, getDocs, query, setDoc, where } from 'firebase/firestore';
 import { db } from './firebaseConfig';
 
 const PROJECT_ID = '7ccd10d2-9d0a-439a-8816-260ef2b9d6b6';
 
 export async function registerPushTokenAsync(user) {
-  const { status } = await Notifications.requestPermissionsAsync();
-  if (status !== 'granted') {
-    console.warn('Push permission not granted');
+  try {
+    if (!user) {
+      console.warn('registerPushTokenAsync called without user context');
+      return null;
+    }
+
+    const identifier = user.uid || user.id || user.userId;
+    if (!identifier) {
+      console.warn('Unable to persist push token: missing user identifier', user);
+      return null;
+    }
+
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+
+    if (existingStatus !== 'granted') {
+      const permissionResult = await Notifications.requestPermissionsAsync();
+      finalStatus = permissionResult.status;
+    }
+
+    if (finalStatus !== 'granted') {
+      console.warn('Push permission denied for user', identifier, 'status:', finalStatus);
+      if (Platform.OS === 'android') {
+        Alert.alert(
+          'Enable Notifications',
+          'Please allow notifications in system settings so you can receive live bus alerts.'
+        );
+      }
+      return null;
+    }
+
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync('tracking-alerts', {
+        name: 'Tracking Alerts',
+        importance: Notifications.AndroidImportance.HIGH,
+        sound: 'default',
+        enableVibrate: true,
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      });
+    }
+
+    const tokenResponse = await Notifications.getExpoPushTokenAsync({ projectId: PROJECT_ID });
+    const expoPushToken = tokenResponse.data;
+
+    if (!expoPushToken) {
+      console.warn('Expo returned empty push token for user', identifier);
+      return null;
+    }
+
+    await setDoc(
+      doc(db, 'users', identifier),
+      {
+        expoPushToken,
+        role: user.role,
+        busNumber: user.busNumber ?? user.busId ?? null,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+
+    console.info('Registered push token for user', identifier);
+    return expoPushToken;
+  } catch (error) {
+    console.error('Failed to register push token:', error);
     return null;
   }
-
-  await Notifications.setNotificationChannelAsync('tracking-alerts', {
-    name: 'Tracking Alerts',
-    importance: Notifications.AndroidImportance.HIGH,
-    sound: 'default',
-    enableVibrate: true,
-    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-  });
-
-  const tokenResponse = await Notifications.getExpoPushTokenAsync({ projectId: PROJECT_ID });
-  const expoPushToken = tokenResponse.data;
-
-  await setDoc(
-    doc(db, 'users', user.uid),
-    {
-      expoPushToken,
-      role: user.role,
-      busNumber: user.busNumber ?? null,
-    },
-    { merge: true }
-  );
-
-  return expoPushToken;
 }
 
 async function getRecipientsForBus(busNumber) {

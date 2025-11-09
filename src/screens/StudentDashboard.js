@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { authService } from '../services/authService';
 import StudentBottomNav from '../components/StudentBottomNav';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../utils/constants';
+import { registerPushTokenAsync } from '../services/pushNotificationService';
 
 const QUICK_ACTIONS = [
   {
@@ -83,6 +84,15 @@ const StudentDashboard = ({ navigation }) => {
         year: currentUser.year || 'Year',
         busNumber: currentUser.busNumber || 'N/A',
       });
+
+      try {
+        await registerPushTokenAsync({
+          ...currentUser,
+          role: currentUser.role || 'student',
+        });
+      } catch (tokenError) {
+        console.warn('Student push token registration failed:', tokenError);
+      }
       setLoading(false);
     } catch (error) {
       console.error('Error loading student data:', error);
