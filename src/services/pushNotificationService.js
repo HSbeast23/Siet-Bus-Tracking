@@ -103,7 +103,7 @@ function chunkTokens(tokens, size = 90) {
 }
 
 async function sendExpoPush(chunk, message) {
-  await fetch('https://exp.host/--/api/v2/push/send', {
+  const response = await fetch('https://exp.host/--/api/v2/push/send', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -119,6 +119,13 @@ async function sendExpoPush(chunk, message) {
       }))
     ),
   });
+
+  try {
+    const json = await response.json();
+    console.info('Expo push response', JSON.stringify(json));
+  } catch (parseError) {
+    console.warn('Unable to parse Expo push response', parseError);
+  }
 }
 
 export async function notifyBusTrackingStarted({ busNumber, driverName, excludeUid = null, excludeToken = null }) {

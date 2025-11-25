@@ -1,10 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
 	ActivityIndicator,
+	Alert,
+	Modal,
 	RefreshControl,
 	ScrollView,
 	StyleSheet,
 	Text,
+	TextInput,
 	TouchableOpacity,
 	View,
 } from 'react-native';
@@ -24,6 +27,10 @@ const Reports = ({ navigation }) => {
 	const [refreshing, setRefreshing] = useState(false);
 	const [studentReports, setStudentReports] = useState([]);
 	const [coadminReports, setCoadminReports] = useState([]);
+	const [responseModalVisible, setResponseModalVisible] = useState(false);
+	const [selectedReport, setSelectedReport] = useState(null);
+	const [responseMessage, setResponseMessage] = useState('');
+	const [actionLoading, setActionLoading] = useState(false);
 
 	const formatTimestamp = useCallback((rawTimestamp) => {
 		if (!rawTimestamp) {
@@ -82,6 +89,86 @@ const Reports = ({ navigation }) => {
 		setRefreshing(true);
 		await loadReports();
 	}, [loadReports]);
+
+	const removeReportLocally = useCallback((reportId) => {
+		setStudentReports((prev) => prev.filter((item) => item.id !== reportId));
+		setCoadminReports((prev) => prev.filter((item) => item.id !== reportId));
+	}, []);
+
+	const openResponseModal = useCallback((report) => {
+		setSelectedReport(report);
+		setResponseMessage('');
+		setResponseModalVisible(true);
+	}, []);
+
+	const closeResponseModal = useCallback(() => {
+		setResponseModalVisible(false);
+		setSelectedReport(null);
+		setResponseMessage('');
+	}, []);
+
+	const handleSubmitResponse = useCallback(async () => {
+		if (!selectedReport) {
+			return;
+		}
+
+		if (!responseMessage.trim()) {
+			Alert.alert('Response Required', 'Please enter a response message.');
+			return;
+		}
+
+		try {
+			setActionLoading(true);
+			const removeResult = await reportsService.removeReport(selectedReport.id);
+			if (!removeResult.success) {
+				Alert.alert('Error', removeResult.error || 'Failed to clear the report.');
+				return;
+			}
+
+			removeReportLocally(selectedReport.id);
+			Alert.alert('Response Sent', responseMessage.trim());
+			closeResponseModal();
+		} catch (error) {
+			console.error('Error responding to report:', error);
+			Alert.alert('Error', 'Unable to clear the report right now.');
+		} finally {
+			setActionLoading(false);
+		}
+	}, [closeResponseModal, removeReportLocally, responseMessage, selectedReport]);
+
+	const handleClearReport = useCallback(
+		(report) => {
+			Alert.alert(
+				'Clear Report',
+				'Are you sure you want to remove this report?',
+				[
+					{ text: 'Cancel', style: 'cancel' },
+					{
+						text: 'Clear',
+						style: 'destructive',
+						onPress: async () => {
+							try {
+								setActionLoading(true);
+								const removeResult = await reportsService.removeReport(report.id);
+								if (!removeResult.success) {
+									Alert.alert('Error', removeResult.error || 'Failed to remove report.');
+									return;
+								}
+								removeReportLocally(report.id);
+							} catch (error) {
+								console.error('Error clearing report:', error);
+								Alert.alert('Error', 'Unable to remove the report at this time.');
+							} finally {
+								setActionLoading(false);
+							}
+						},
+					},
+				],
+				{ cancelable: true }
+			);
+		},
+		[removeReportLocally]
+	);
 
 	const combinedReports = useMemo(
 		() => [...coadminReports, ...studentReports],
@@ -151,23 +238,35 @@ const Reports = ({ navigation }) => {
 						) : null}
 					</View>
 
-					{report.response ? (
-						<View style={styles.responseContainer}>
-							<Text style={styles.responseLabel}>Management Response</Text>
-							<Text style={styles.responseText}>{report.response}</Text>
-						</View>
-					) : null}
+					<View style={styles.actionsRow}>
+						<TouchableOpacity
+							style={styles.respondButton}
+							onPress={() => openResponseModal(report)}
+							disabled={actionLoading}
+						>
+							<Ionicons name="chatbox-ellipses" size={16} color={COLORS.white} />
+							<Text style={styles.respondButtonText}>Respond & Clear</Text>
+						</TouchableOpacity>
+						<TouchableOpacity
+							style={styles.clearButton}
+							onPress={() => handleClearReport(report)}
+							disabled={actionLoading}
+						>
+							<Ionicons name="trash" size={16} color={COLORS.danger} />
+							<Text style={styles.clearButtonText}>Clear</Text>
+						</TouchableOpacity>
+					</View>
 				</View>
 			);
 		},
-		[formatTimestamp]
+		[actionLoading, formatTimestamp, handleClearReport, openResponseModal]
 	);
 
 	if (loading) {
 		return (
 			<SafeAreaView style={styles.loadingContainer}>
 				<ActivityIndicator size="large" color={COLORS.primary} />
-				<Text style={styles.loadingText}>Loading latest reports…</Text>
+				<Text style={styles.loadingText}>Loading latest reports...</Text>
 			</SafeAreaView>
 		);
 	}
@@ -241,6 +340,56 @@ const Reports = ({ navigation }) => {
 
 				<View style={{ height: SPACING.xl }} />
 			</ScrollView>
+			<Modal
+				visible={responseModalVisible}
+				animationType="slide"
+				transparent
+				onRequestClose={closeResponseModal}
+			>
+				<View style={styles.modalOverlay}>
+					<View style={styles.modalContent}>
+						<View style={styles.modalHeader}>
+							<Text style={styles.modalTitle}>
+								{selectedReport
+									? `Respond to ${selectedReport.reportedByName || selectedReport.reportedBy || 'Reporter'}`
+									: 'Respond to Report'}
+							</Text>
+							<TouchableOpacity onPress={closeResponseModal} disabled={actionLoading}>
+								<Ionicons name="close" size={22} color={COLORS.textSecondary} />
+							</TouchableOpacity>
+						</View>
+						<Text style={styles.modalSubtitle}>Type a quick response before clearing the report.</Text>
+						<TextInput
+							style={styles.modalInput}
+							placeholder="Enter response..."
+							value={responseMessage}
+							onChangeText={setResponseMessage}
+							multiline
+							editable={!actionLoading}
+						/>
+						<View style={styles.modalActions}>
+							<TouchableOpacity
+								style={styles.modalCancel}
+								onPress={closeResponseModal}
+								disabled={actionLoading}
+							>
+								<Text style={styles.modalCancelText}>Cancel</Text>
+							</TouchableOpacity>
+							<TouchableOpacity
+								style={styles.modalSubmit}
+								onPress={handleSubmitResponse}
+								disabled={actionLoading}
+							>
+								{actionLoading ? (
+									<ActivityIndicator color={COLORS.white} />
+								) : (
+									<Text style={styles.modalSubmitText}>Send & Clear</Text>
+								)}
+							</TouchableOpacity>
+						</View>
+					</View>
+				</View>
+			</Modal>
 		</SafeAreaView>
 	);
 };
@@ -454,6 +603,112 @@ const styles = StyleSheet.create({
 		fontFamily: FONTS.regular,
 		color: COLORS.textPrimary,
 		lineHeight: 18,
+	},
+	actionsRow: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+		marginTop: SPACING.md,
+		gap: SPACING.sm,
+	},
+	respondButton: {
+		flex: 1,
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'center',
+		gap: SPACING.xs,
+		backgroundColor: COLORS.secondary,
+		paddingVertical: SPACING.sm,
+		borderRadius: RADIUS.sm,
+	},
+	respondButtonText: {
+		fontSize: 13,
+		fontFamily: FONTS.bold,
+		color: COLORS.white,
+	},
+	clearButton: {
+		paddingVertical: SPACING.sm,
+		paddingHorizontal: SPACING.md,
+		borderRadius: RADIUS.sm,
+		borderWidth: 1,
+		borderColor: `${COLORS.danger}40`,
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 6,
+	},
+	clearButtonText: {
+		fontSize: 13,
+		fontFamily: FONTS.medium,
+		color: COLORS.danger,
+	},
+	modalOverlay: {
+		flex: 1,
+		backgroundColor: 'rgba(0,0,0,0.35)',
+		justifyContent: 'center',
+		alignItems: 'center',
+		padding: SPACING.lg,
+	},
+	modalContent: {
+		width: '100%',
+		backgroundColor: COLORS.white,
+		borderRadius: RADIUS.md,
+		padding: SPACING.lg,
+	},
+	modalHeader: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+		marginBottom: SPACING.sm,
+	},
+	modalTitle: {
+		fontSize: 16,
+		fontFamily: FONTS.bold,
+		color: COLORS.textPrimary,
+	},
+	modalSubtitle: {
+		fontSize: 12,
+		fontFamily: FONTS.regular,
+		color: COLORS.textSecondary,
+		marginBottom: SPACING.sm,
+	},
+	modalInput: {
+		borderWidth: 1,
+		borderColor: `${COLORS.gray}30`,
+		borderRadius: RADIUS.sm,
+		padding: SPACING.md,
+		minHeight: 120,
+		textAlignVertical: 'top',
+		fontFamily: FONTS.regular,
+		color: COLORS.textPrimary,
+		marginBottom: SPACING.md,
+	},
+	modalActions: {
+		flexDirection: 'row',
+		justifyContent: 'flex-end',
+		gap: SPACING.sm,
+	},
+	modalCancel: {
+		paddingVertical: SPACING.sm,
+		paddingHorizontal: SPACING.lg,
+		borderRadius: RADIUS.sm,
+		borderWidth: 1,
+		borderColor: `${COLORS.gray}40`,
+	},
+	modalCancelText: {
+		fontSize: 13,
+		fontFamily: FONTS.medium,
+		color: COLORS.textSecondary,
+	},
+	modalSubmit: {
+		paddingVertical: SPACING.sm,
+		paddingHorizontal: SPACING.lg,
+		borderRadius: RADIUS.sm,
+		backgroundColor: COLORS.secondary,
+	},
+	modalSubmitText: {
+		fontSize: 13,
+		fontFamily: FONTS.bold,
+		color: COLORS.white,
 	},
 });
 

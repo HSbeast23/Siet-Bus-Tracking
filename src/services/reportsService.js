@@ -8,9 +8,10 @@ import {
   Timestamp,
   updateDoc,
   doc,
-  getDoc,
+  deleteDoc,
 } from 'firebase/firestore';
 import { db } from './firebaseConfig';
+import { normalizeBusNumber } from './locationService';
 
 class ReportsService {
   constructor() {
@@ -42,13 +43,21 @@ class ReportsService {
   // Submit report to Management
   async submitReport(reportData) {
     try {
+      const recipientRole = reportData.recipientRole || 'management';
+      const normalizedBusNumber = reportData.busNumber
+        ? normalizeBusNumber(reportData.busNumber)
+        : null;
+
       const report = {
         message: reportData.message,
         reportedBy: reportData.reportedBy, // Name of person reporting
         reporterRole: reportData.reporterRole, // 'student' or 'coadmin'
         reporterEmail: reportData.reporterEmail,
+        reportedByName: reportData.reportedByName || reportData.reportedBy,
         busNumber: reportData.busNumber || null,
+        busNumberNormalized: normalizedBusNumber,
         registerNumber: reportData.registerNumber || null, // For students
+        recipientRole,
         timestamp: Timestamp.now(),
         status: 'pending', // pending, acknowledged, resolved
         acknowledgedBy: null,
@@ -104,15 +113,19 @@ class ReportsService {
         })
       );
 
+      const managementReports = reportsWithNames.filter(
+        (report) => (report.recipientRole || 'management') === 'management'
+      );
+
       // Separate by source
-      const studentReports = reportsWithNames.filter(r => r.reporterRole === 'student');
-      const coadminReports = reportsWithNames.filter(r => r.reporterRole === 'coadmin');
+      const studentReports = managementReports.filter(r => r.reporterRole === 'student');
+      const coadminReports = managementReports.filter(r => r.reporterRole === 'coadmin');
 
       return {
         success: true,
         studentReports,
         coadminReports,
-        totalReports: reportsWithNames.length
+        totalReports: managementReports.length
       };
     } catch (error) {
       console.error('Error fetching reports:', error);
@@ -160,6 +173,58 @@ class ReportsService {
       return {
         success: false,
         reports: []
+      };
+    }
+  }
+
+  async getReportsForRecipient({ recipientRole, busNumber, reporterEmail }) {
+    try {
+      if (!recipientRole) {
+        throw new Error('recipientRole is required');
+      }
+
+      const filters = [where('recipientRole', '==', recipientRole)];
+
+      if (busNumber) {
+        // Filter in memory to avoid index requirements while supporting legacy data
+      }
+
+      if (reporterEmail) {
+        filters.push(where('reporterEmail', '==', reporterEmail));
+      }
+
+      const snapshot = await getDocs(query(this.reportsCollection, ...filters));
+      const reports = snapshot.docs.map((docSnap) => ({
+        id: docSnap.id,
+        ...docSnap.data(),
+      }));
+
+      reports.sort((a, b) => {
+        const timeA = a.timestamp?.toMillis?.() || 0;
+        const timeB = b.timestamp?.toMillis?.() || 0;
+        return timeB - timeA;
+      });
+
+      const normalizedTarget = busNumber ? normalizeBusNumber(busNumber) : '';
+      const finalReports = normalizedTarget
+        ? reports.filter((report) => {
+            const candidate = normalizeBusNumber(
+              report.busNumberNormalized || report.busNumber || ''
+            );
+            return candidate === normalizedTarget;
+          })
+        : reports;
+
+      return {
+        success: true,
+        reports: finalReports,
+      };
+    } catch (error) {
+      console.error('Error fetching recipient reports:', error);
+      return {
+        success: false,
+        reports: [],
+        error: error.message,
       };
     }
   }
@@ -235,6 +300,22 @@ class ReportsService {
       return {
         success: false,
         error: error.message
+      };
+    }
+  }
+
+  async removeReport(reportId) {
+    try {
+      const targetRef = doc(this.reportsCollection, reportId);
+      await deleteDoc(targetRef);
+      return {
+        success: true,
+      };
+    } catch (error) {
+      console.error('Error removing report:', error);
+      return {
+        success: false,
+        error: error.message,
       };
     }
   }
