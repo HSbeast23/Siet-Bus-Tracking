@@ -125,27 +125,17 @@ export const BUS_ROUTES = {
   'SIET-005': {
     name: 'SIET-005 Route',
     stops: [
-      // 🎯 CORRECTED ROUTE: Reverse order from destination to origin
-      // Stop 1: Final destination - SIET Campus
-      { name: 'SIET Campus (Sri Shakthi Institute)', time: '8:40 AM', latitude: 11.0658, longitude: 77.0034 },
-      // Stop 2: 100 Feet Road
-      { name: '100 Feet Road', time: '8:28 AM', latitude: 11.0598, longitude: 76.9123 },
-      // Stop 3: Sivanantha Colony
-      { name: 'Sivanantha Colony', time: '8:17 AM', latitude: 11.0389, longitude: 76.9278 },
-      // Stop 4: Puthu Palam (New Bridge)
-      { name: 'Puthu Palam', time: '8:05 AM', latitude: 11.0251, longitude: 76.9435 },
-      // Stop 5: Sai Baba Kovil
-      { name: 'Sai Baba Kovil', time: '7:52 AM', latitude: 11.0086, longitude: 76.9631 },
-      // Stop 6: Eri Company
-      { name: 'Eri Company', time: '7:40 AM', latitude: 11.0412, longitude: 76.9856 },
-      // Stop 7: Housing Unit
-      { name: 'Housing Unit', time: '7:28 AM', latitude: 11.0845, longitude: 76.9921 },
-      // Stop 8: Kavundampalayam
-      { name: 'Kavundampalayam', time: '7:15 AM', latitude: 11.0789, longitude: 76.9956 },
-      // Stop 9: Cheran Nagar
-      { name: 'Cheran Nagar', time: '7:10 AM', latitude: 11.0719, longitude: 76.9045 },
-      // Stop 10: GN Mills & Foot Tech Lab (Starting point)
-      { name: 'GN Mills (Foot Tech Lab)', time: '7:00 AM', latitude: 11.0719, longitude: 76.9045 }
+      { name: 'SIET College', time: '7:00 AM', latitude: 11.04104, longitude: 77.07738 },
+      { name: 'Chinniyapalayam', time: '7:08 AM', latitude: 11.055282, longitude: 77.065562 },
+      { name: '100 Feet', time: '7:16 AM', latitude: 11.024294, longitude: 76.959071 },
+      { name: 'Sivanantha Colony', time: '7:24 AM', latitude: 11.027139, longitude: 76.955725 },
+      { name: 'Pudhu Palam', time: '7:32 AM', latitude: 11.028487, longitude: 76.951412 },
+      { name: 'Saibaba Kovil', time: '7:40 AM', latitude: 11.036803, longitude: 76.950619 },
+      { name: 'Housing Unit', time: '7:48 AM', latitude: 11.038853, longitude: 76.949797 },
+      { name: 'Kavundampalayam', time: '7:56 AM', latitude: 11.044814, longitude: 76.947645 },
+      { name: 'Cheran Nagar', time: '8:04 AM', latitude: 11.051129, longitude: 76.946465 },
+      { name: 'GN Mills', time: '8:12 AM', latitude: 11.059732, longitude: 76.944896 },
+      { name: 'Food Testing Lab SIET', time: '8:20 AM', latitude: 11.065699, longitude: 76.942956 }
     ],
     distance: '28.7 km',
     duration: '100 min',
@@ -182,6 +172,26 @@ export const BUS_ROUTES = {
   // }
 };
 
+const FALLBACK_SAMPLE_STOPS = [
+  { latitude: 11.04104, longitude: 77.07738, name: 'SIET College' },
+  { latitude: 11.055282, longitude: 77.065562, name: 'Chinniyapalayam' },
+  { latitude: 11.024294, longitude: 76.959071, name: '100 Feet' },
+  { latitude: 11.027139, longitude: 76.955725, name: 'Sivanantha Colony' },
+  { latitude: 11.028487, longitude: 76.951412, name: 'Pudhu Palam' },
+  { latitude: 11.036803, longitude: 76.950619, name: 'Saibaba Kovil' },
+  { latitude: 11.038853, longitude: 76.949797, name: 'Housing Unit' },
+  { latitude: 11.044814, longitude: 76.947645, name: 'Kavundampalayam' },
+  { latitude: 11.051129, longitude: 76.946465, name: 'Cheran Nagar' },
+  { latitude: 11.059732, longitude: 76.944896, name: 'GN Mills' },
+  { latitude: 11.065699, longitude: 76.942956, name: 'Food Testing Lab SIET' },
+];
+
+export const SAMPLE_STOPS = (BUS_ROUTES['SIET-005']?.stops || FALLBACK_SAMPLE_STOPS).map((stop, index) => ({
+  latitude: Number(stop.latitude),
+  longitude: Number(stop.longitude),
+  name: stop.name || `Stop ${index + 1}`,
+}));
+
 // ⚠️ IMPORTANT: The normalizeBusNumber function in locationService.js handles these automatically
 // by converting SIET--005 → SIET-005, so the map will work correctly
 // These aliases are no longer needed but kept for reference
@@ -193,5 +203,6 @@ export default {
   RADIUS,
   SHADOWS,
   CONFIG,
-  BUS_ROUTES
+  BUS_ROUTES,
+  SAMPLE_STOPS
 };

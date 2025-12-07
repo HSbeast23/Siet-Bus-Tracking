@@ -5,12 +5,12 @@ export const DEFAULT_ROUTE_STOPS = [
     latitude: 11.04104,
     longitude: 77.07738,
   },
-//   {
-//     id: 'stop-2',
-//     name: 'Chinniyapalayam Cut',
-//     latitude: 11.04104,
-//     longitude: 77.07738,
-//   },
+  // {
+  //   id: 'stop-2',
+  //   name: 'Chinniyapalayam Cut',
+  //   latitude: 11.04104,
+  //   longitude: 77.07738,
+  // },
   {
     id: 'stop-3',
     name: 'Chinniyapalayam',

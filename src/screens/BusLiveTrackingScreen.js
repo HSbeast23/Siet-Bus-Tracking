@@ -8,24 +8,21 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import MapView, { Marker, AnimatedRegion, Polyline, UrlTile } from 'react-native-maps';
+import MapView, { Marker, AnimatedRegion, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { COLORS, SAMPLE_STOPS } from '../utils/constants';
 import { Ionicons } from '@expo/vector-icons';
 import { subscribeToBusLocation } from '../services/locationService';
 
-const OSM_TILE_URL = 'https://tile.openstreetmap.de/{z}/{x}/{y}.png';
-
 const BusLiveTrackingScreen = ({ route, navigation }) => {
   const { bus } = route.params; // Get bus details from navigation params
   const [busLocation, setBusLocation] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [mapRef, setMapRef] = useState(null);
+  const mapRef = useRef(null);
   const rawBusLabel = bus?.displayName || bus?.name || bus?.busName || bus?.number || 'Bus';
   const busDisplayName = typeof rawBusLabel === 'string'
     ? rawBusLabel.replace(/-+/g, '-').trim() || 'Bus'
     : 'Bus';
-  
   const busCoordinate = useRef(
     new AnimatedRegion({
       latitude: 11.0148359,
@@ -94,8 +91,8 @@ const BusLiveTrackingScreen = ({ route, navigation }) => {
           }).start();
           
           // Auto-follow camera with rotation when tracking
-          if (isTrackingActive && mapRef) {
-            mapRef.animateCamera({
+          if (isTrackingActive && mapRef.current) {
+            mapRef.current.animateCamera({
               center: {
                 latitude: newLocation.latitude,
                 longitude: newLocation.longitude,
@@ -147,8 +144,8 @@ const BusLiveTrackingScreen = ({ route, navigation }) => {
   }, [bus.number]);
 
   const centerMapOnBus = () => {
-    if (busLocation && mapRef) {
-      mapRef.animateToRegion({
+    if (busLocation && mapRef.current) {
+      mapRef.current.animateToRegion({
         latitude: busLocation.latitude,
         longitude: busLocation.longitude,
         latitudeDelta: 0.01,
@@ -160,9 +157,9 @@ const BusLiveTrackingScreen = ({ route, navigation }) => {
   };
 
   const showFullRoute = () => {
-    if (mapRef && busLocation) {
+    if (mapRef.current && busLocation) {
       const locations = [busLocation, ...SAMPLE_STOPS];
-      mapRef.fitToCoordinates(locations, {
+      mapRef.current.fitToCoordinates(locations, {
         edgePadding: { top: 80, right: 80, bottom: 80, left: 80 },
         animated: true,
       });
@@ -200,8 +197,8 @@ const BusLiveTrackingScreen = ({ route, navigation }) => {
         </TouchableOpacity>
       </View>
 
-        <MapView
-        ref={setMapRef}
+      <MapView
+        ref={mapRef}
         style={styles.map}
         initialRegion={{
           latitude: busLocation?.latitude || SAMPLE_STOPS[0].latitude,
@@ -209,20 +206,17 @@ const BusLiveTrackingScreen = ({ route, navigation }) => {
           latitudeDelta: 0.05,
           longitudeDelta: 0.05,
         }}
+        provider={PROVIDER_GOOGLE}
         showsUserLocation={false}
         showsMyLocationButton={false}
         rotateEnabled={true}
         pitchEnabled={false}
-        mapType="none"
+        mapType="standard"
+        zoomTapEnabled
+        zoomControlEnabled
+        moveOnMarkerPress={false}
+        loadingEnabled
       >
-        <UrlTile
-          urlTemplate={OSM_TILE_URL}
-          maximumZ={19}
-          zIndex={-1}
-          flipY={false}
-          onTileError={(error) => console.warn('OSM tile failed to load', error?.nativeEvent)}
-        />
-        
         {/* Bus Location Marker - Animated & Only show when actively tracking */}
         {busLocation && busLocation.isTracking && (
           <Marker.Animated
