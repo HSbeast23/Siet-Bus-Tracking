@@ -117,13 +117,6 @@ const baseExpoConfig = {
 			},
 		],
 		'expo-mail-composer',
-		[
-			'expo-notifications',
-			{
-				icon: './assets/notification-icon.png',
-				color: '#1D4ED8',
-			},
-		],
 		'expo-font',
 	],
 	extra: {

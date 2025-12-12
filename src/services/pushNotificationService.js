@@ -1,9 +1,106 @@
-import * as Notifications from 'expo-notifications';
-import { Alert, Platform } from 'react-native';
-import { collection, doc, getDocs, query, setDoc, where } from 'firebase/firestore';
+import messaging from '@react-native-firebase/messaging';
+import { Alert, PermissionsAndroid, Platform } from 'react-native';
+import { arrayUnion, doc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from './firebaseConfig';
+import { postJson } from './backendClient';
 
-const PROJECT_ID = '7ccd10d2-9d0a-439a-8816-260ef2b9d6b6';
+const AUTHORIZED_STATUSES = [
+  messaging.AuthorizationStatus.AUTHORIZED,
+  messaging.AuthorizationStatus.PROVISIONAL,
+];
+
+let tokenRefreshUnsubscribe = null;
+
+const resolveUserIdentifier = (user) => user?.uid || user?.id || user?.userId || null;
+
+async function ensureAndroidNotificationPermission() {
+  if (Platform.OS !== 'android') {
+    return true;
+  }
+
+  const permission = PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS;
+  if (!permission) {
+    return true;
+  }
+
+  const hasPermission = await PermissionsAndroid.check(permission);
+  if (hasPermission) {
+    return true;
+  }
+
+  const status = await PermissionsAndroid.request(permission);
+  return status === PermissionsAndroid.RESULTS.GRANTED;
+}
+
+async function ensureMessagingPermission() {
+  try {
+    const status = await messaging().hasPermission();
+    if (AUTHORIZED_STATUSES.includes(status)) {
+      return true;
+    }
+
+    const androidGranted = await ensureAndroidNotificationPermission();
+    if (!androidGranted) {
+      return false;
+    }
+
+    const newStatus = await messaging().requestPermission();
+    return AUTHORIZED_STATUSES.includes(newStatus);
+  } catch (error) {
+    console.warn('Unable to confirm messaging permission', error);
+    return false;
+  }
+}
+
+async function persistTokenForUser({ identifier, token, user }) {
+  const baseDoc = doc(db, 'users', identifier);
+  const userRecord = {
+    role: user?.role || 'student',
+    busNumber: user?.busNumber ?? user?.busId ?? null,
+    updatedAt: new Date().toISOString(),
+  };
+
+  await setDoc(baseDoc, userRecord, { merge: true });
+
+  try {
+    await updateDoc(baseDoc, {
+      fcmTokens: arrayUnion(token),
+      lastFcmToken: token,
+      updatedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.warn('Falling back to setDoc merge for token union', error);
+    await setDoc(
+      baseDoc,
+      {
+        fcmTokens: arrayUnion(token),
+        lastFcmToken: token,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+  }
+}
+
+function registerTokenRefreshListener(user) {
+  if (tokenRefreshUnsubscribe || !user) {
+    return;
+  }
+
+  const identifier = resolveUserIdentifier(user);
+  if (!identifier) {
+    return;
+  }
+
+  tokenRefreshUnsubscribe = messaging().onTokenRefresh(async (newToken) => {
+    try {
+      await persistTokenForUser({ identifier, token: newToken, user });
+      console.info('Updated refreshed FCM token for user', identifier);
+    } catch (error) {
+      console.warn('Failed to update refreshed FCM token', error);
+    }
+  });
+}
 
 export async function registerPushTokenAsync(user) {
   try {
@@ -12,146 +109,97 @@ export async function registerPushTokenAsync(user) {
       return null;
     }
 
-    const identifier = user.uid || user.id || user.userId;
+    const identifier = resolveUserIdentifier(user);
     if (!identifier) {
-      console.warn('Unable to persist push token: missing user identifier', user);
+      console.warn('Unable to persist FCM token: missing user identifier', user);
       return null;
     }
 
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
-
-    if (existingStatus !== 'granted') {
-      const permissionResult = await Notifications.requestPermissionsAsync();
-      finalStatus = permissionResult.status;
-    }
-
-    if (finalStatus !== 'granted') {
-      console.warn('Push permission denied for user', identifier, 'status:', finalStatus);
-      if (Platform.OS === 'android') {
-        Alert.alert(
-          'Enable Notifications',
-          'Please allow notifications in system settings so you can receive live bus alerts.'
-        );
-      }
+    const permissionGranted = await ensureMessagingPermission();
+    if (!permissionGranted) {
+      Alert.alert(
+        'Notifications Disabled',
+        'Enable notifications in system settings to receive live bus alerts.'
+      );
       return null;
     }
 
-    if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('tracking-alerts', {
-        name: 'Tracking Alerts',
-        importance: Notifications.AndroidImportance.HIGH,
-        sound: 'default',
-        enableVibrate: true,
-        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-      });
-    }
+    await messaging().setAutoInitEnabled(true);
+    const deviceToken = await messaging().getToken();
 
-    const tokenResponse = await Notifications.getExpoPushTokenAsync({ projectId: PROJECT_ID });
-    const expoPushToken = tokenResponse.data;
-
-    if (!expoPushToken) {
-      console.warn('Expo returned empty push token for user', identifier);
+    if (!deviceToken) {
+      console.warn('Firebase returned empty FCM token for user', identifier);
       return null;
     }
 
-    await setDoc(
-      doc(db, 'users', identifier),
-      {
-        expoPushToken,
-        role: user.role,
-        busNumber: user.busNumber ?? user.busId ?? null,
-        updatedAt: new Date().toISOString(),
-      },
-      { merge: true }
-    );
+    await persistTokenForUser({ identifier, token: deviceToken, user });
+    registerTokenRefreshListener(user);
 
-    console.info('Registered push token for user', identifier);
-    return expoPushToken;
+    console.info('Registered FCM token for user', identifier);
+    return deviceToken;
   } catch (error) {
-    console.error('Failed to register push token:', error);
+    console.error('Failed to register FCM token:', error);
     return null;
   }
 }
 
-async function getRecipientsForBus(busNumber) {
-  const recipientsQuery = query(
-    collection(db, 'users'),
-    where('busNumber', '==', busNumber),
-    // include both 'coadmin' and legacy 'incharge' labels used in the codebase
-    where('role', 'in', ['student', 'coadmin', 'incharge'])
-  );
-
-  const snapshot = await getDocs(recipientsQuery);
-  return snapshot.docs
-    .map((docSnapshot) => {
-      const data = docSnapshot.data();
-      return {
-        uid: docSnapshot.id,
-        token: data?.expoPushToken || null,
-      };
-    })
-    .filter((r) => r && r.token);
-}
-
-function chunkTokens(tokens, size = 90) {
-  const chunks = [];
-  for (let index = 0; index < tokens.length; index += size) {
-    chunks.push(tokens.slice(index, index + size));
-  }
-  return chunks;
-}
-
-async function sendExpoPush(chunk, message) {
-  const response = await fetch('https://exp.host/--/api/v2/push/send', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(
-      chunk.map((token) => ({
-        to: token,
-        title: message.title,
-        body: message.body,
-        data: message.data,
-        channelId: 'tracking-alerts',
-        sound: 'default',
-      }))
-    ),
-  });
-
-  try {
-    const json = await response.json();
-    console.info('Expo push response', JSON.stringify(json));
-  } catch (parseError) {
-    console.warn('Unable to parse Expo push response', parseError);
-  }
-}
-
-export async function notifyBusTrackingStarted({ busNumber, driverName, excludeUid = null, excludeToken = null }) {
-  const recipients = await getRecipientsForBus(busNumber);
-  const filtered = recipients.filter((r) => {
-    if (!r || !r.token) return false;
-    if (excludeUid && r.uid === excludeUid) return false;
-    if (excludeToken && r.token === excludeToken) return false;
-    return true;
-  });
-
-  if (!filtered.length) {
-    console.info(`No push recipients registered for bus ${busNumber} after filtering out initiator`);
-    return;
+export async function notifyBusTrackingStarted({
+  busNumber,
+  driverName,
+  excludeUid = null,
+  excludeToken = null,
+}) {
+  if (!busNumber) {
+    throw new Error('busNumber is required to trigger bus start notifications');
   }
 
-  const tokens = filtered.map((r) => r.token);
-
-  console.info(`Dispatching push to ${tokens.length} recipients for bus ${busNumber}`);
-
-  const message = {
-    title: `Bus ${busNumber} is now live`,
-    body: `${driverName ?? 'Driver'} started tracking. Check the live map for location updates.`,
-    data: { busNumber },
+  const payload = {
+    busNumber,
+    driverName,
+    initiatedBy: excludeUid || null,
+    excludeToken: excludeToken || null,
   };
 
-  const tokenChunks = chunkTokens(tokens);
-  await Promise.all(tokenChunks.map((chunk) => sendExpoPush(chunk, message)));
+  return postJson('/startBus', payload);
+}
+
+export async function sendUserNotification({ recipientUid, title, body, data }) {
+  if (!recipientUid) {
+    throw new Error('recipientUid is required for direct notifications');
+  }
+
+  return postJson('/notify', {
+    recipientUid,
+    title,
+    body,
+    data,
+  });
+}
+
+export function subscribeToForegroundNotifications(handler) {
+  return messaging().onMessage(async (remoteMessage) => {
+    handler?.(remoteMessage);
+  });
+}
+
+export function subscribeToNotificationOpens(handler) {
+  return messaging().onNotificationOpenedApp((remoteMessage) => {
+    handler?.(remoteMessage);
+  });
+}
+
+export async function getInitialNotification() {
+  try {
+    return await messaging().getInitialNotification();
+  } catch (error) {
+    console.warn('Failed to obtain initial notification', error);
+    return null;
+  }
+}
+
+export function cleanupNotificationListeners() {
+  if (typeof tokenRefreshUnsubscribe === 'function') {
+    tokenRefreshUnsubscribe();
+    tokenRefreshUnsubscribe = null;
+  }
 }

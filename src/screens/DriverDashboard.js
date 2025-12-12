@@ -26,6 +26,11 @@ import {
   getBackgroundTrackingMetaAsync,
 } from '../services/backgroundLocationService';
 import { notifyBusTrackingStarted } from '../services/pushNotificationService';
+import {
+  appendTripSessionEvent,
+  completeTripSession,
+  startTripSession,
+} from '../services/tripSessionService';
 
 // Normalize bus number to handle variations (SIET--005 → SIET-005)
 const normalizeBusNumber = (busNumber) => {
@@ -293,6 +298,29 @@ const DriverDashboard = ({ navigation }) => {
       const sessionId = `${normalizedBusNumber}-${Date.now()}`;
       trackingSessionRef.current = sessionId;
 
+      try {
+        await startTripSession({
+          sessionId,
+          busNumber: normalizedBusNumber,
+          driverUid: driverInfo.uid || null,
+          driverName: driverInfo.name,
+          metadata: {
+            email: driverInfo.email || null,
+            phone: driverInfo.phone || null,
+          },
+        });
+        await appendTripSessionEvent(sessionId, {
+          type: 'TRIP_STARTED',
+          title: `Bus ${normalizedBusNumber} trip started`,
+          body: `${driverInfo.name} began tracking at ${new Date().toLocaleTimeString()}`,
+          payload: {
+            busNumber: normalizedBusNumber,
+          },
+        });
+      } catch (tripSessionError) {
+        console.warn('Unable to create trip session document', tripSessionError);
+      }
+
       let initialLocation;
       try {
         initialLocation = await Location.getCurrentPositionAsync({
@@ -361,6 +389,14 @@ const DriverDashboard = ({ navigation }) => {
           driverName: driverInfo.name,
           excludeUid: driverInfo.uid || null,
         });
+        if (trackingSessionRef.current) {
+          await appendTripSessionEvent(trackingSessionRef.current, {
+            type: 'NOTIFICATION_DISPATCHED',
+            title: 'Push notification dispatched',
+            body: 'Students and staff were notified about the active trip.',
+            payload: { busNumber: normalizedBusNumber },
+          });
+        }
       } catch (notificationError) {
         console.warn('Push notification dispatch failed:', notificationError);
       }
@@ -401,6 +437,24 @@ const DriverDashboard = ({ navigation }) => {
           longitude: currentLocation?.longitude,
           sessionId,
         });
+        if (sessionId) {
+          try {
+            await completeTripSession(sessionId, {
+              latitude: currentLocation?.latitude || null,
+              longitude: currentLocation?.longitude || null,
+            });
+            await appendTripSessionEvent(sessionId, {
+              type: 'TRIP_STOPPED',
+              title: 'Tracking stopped',
+              body: `${driverInfo.name} stopped tracking`,
+              payload: {
+                busNumber: driverInfo.busNumber,
+              },
+            });
+          } catch (tripSessionError) {
+            console.warn('Unable to mark trip session completed', tripSessionError);
+          }
+        }
       } catch (error) {
         console.error('❌ [DRIVER] Error stopping tracking in Firestore:', error);
       }

@@ -1,4 +1,6 @@
 import { db } from './firebaseConfig';
+import { normalizeBusNumber } from '../utils/busNumber';
+import { updateTripSessionLocation } from './tripSessionService';
 import {
   doc,
   setDoc,
@@ -84,16 +86,6 @@ const shouldThrottleUpdate = (busNumber, latitude, longitude, timestamp) => {
 
 const clearThrottleState = (busNumber) => {
   throttleStateByBus.delete(busNumber);
-};
-
-export const normalizeBusNumber = (busNumber) => {
-  if (!busNumber) return '';
-  return busNumber
-    .toString()
-    .toUpperCase()
-    .replace(/\s+/g, '')
-    .replace(/-+/g, '-')
-    .trim();
 };
 
 // Update bus location (called by Driver or background task)
@@ -193,6 +185,23 @@ export const updateBusLocation = async (busNumber, locationData = {}) => {
       await setDoc(busRef, firestorePayload, { merge: true });
     } catch (firestoreError) {
       console.warn('⚠️ Unable to update Firestore bus location:', firestoreError);
+    }
+
+    if (sessionId) {
+      try {
+        await updateTripSessionLocation(sessionId, {
+          busNumber: normalizedBusNumber,
+          latitude,
+          longitude,
+          speed,
+          heading,
+          accuracy,
+          isTracking: !!isTrackingActive,
+          timestamp: new Date(now).toISOString(),
+        });
+      } catch (tripSessionError) {
+        console.warn('⚠️ Unable to sync trip session location:', tripSessionError);
+      }
     }
 
     if (isTrackingActive) {
@@ -394,3 +403,5 @@ export default {
   subscribeToBusLocation,
   subscribeToAllBuses
 };
+
+export { normalizeBusNumber } from '../utils/busNumber';

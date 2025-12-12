@@ -1,4 +1,4 @@
-# SIET Bus Tracking System
+# Colleg Bus System
 
 End-to-end mobile solution that keeps Sri Shakthi Institute buses connected with students, bus incharge staff, drivers, and management. Built with React Native (Expo SDK 54) and Firebase, the app delivers real-time bus tracking, attendance, reporting, and role-aware dashboards on Android and iOS.
 
@@ -8,7 +8,7 @@ End-to-end mobile solution that keeps Sri Shakthi Institute buses connected with
 
 - **Audience** – Students, Bus Incharge staff, Drivers, and Management.
 - **Core Value** – Live bus locations, incident reporting, attendance insights, and instant notifications in one place.
-- **Stack** – React Native + Expo, Firebase (Auth, Firestore), Expo Location/Task Manager, Expo Notifications, Google Maps via `react-native-maps` with OSRM routing overlays.
+- **Stack** – React Native + Expo, Firebase (Auth, Firestore), Expo Location/Task Manager, Firebase Cloud Messaging (FCM) via `@react-native-firebase/messaging` + Node.js relay, Google Maps via `react-native-maps` with OSRM routing overlays.
 - **Current Status (Nov 2025)** – Push token registration is automatic, management & bus incharge report inboxes support respond-and-clear, CSV seeding covers the majority of buses, and all navigation labels now use “Bus Incharge”.
 
 ---
@@ -28,25 +28,25 @@ End-to-end mobile solution that keeps Sri Shakthi Institute buses connected with
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
-│  Mobile Client (Expo)                                           │
+│  Mobile Client (Expo Dev Client)                                │
 │  • React Navigation stack (`AppNavigator`)                      │
 │  • Role-specific screens under `src/screens/`                   │
-│  • Expo Location + Task Manager for background GPS             │
-│  • Expo Notifications for push delivery                         │
-└──────────────┬──────────────────────────────────────────────────┘
-          │ Firestore / Auth REST
-┌──────────────▼──────────────────────────────────────────────────┐
+│  • Expo Location + Task Manager for background GPS              │
+│  • FCM tokens via `@react-native-firebase/messaging`            │
+└──────────────┬───────────────────────────────┬──────────────────┘
+               │ HTTPS                         │ Firestore/Auth SDK
+┌──────────────▼───────────────────────────────▼──────────────────┐
 │  Firebase Project                                               │
 │  • Auth: role-aware login with AsyncStorage persistence         │
 │  • Firestore: buses, users, attendance, reports collections     │
-│  • Security rules enforced via `firebaseConfig.js` setup         │
-└──────────────┬──────────────────────────────────────────────────┘
-          │ Admin import (optional)
-┌──────────────▼──────────────────────────────────────────────────┐
-│  Node Seeder (`scripts/importCSV.js`)                            │
-│  • Reads `Bus_data/*.csv`                                       │
-│  • Requires `serviceAccountKey.json`                            │
-│  • Populates buses, drivers, students collections               │
+│  • Security rules enforced via `firebaseConfig.js` setup        │
+└──────────────┬───────────────────────────────┬──────────────────┘
+          │ Admin import (optional)            │ FCM Admin send
+┌──────────────▼───────────────────────────────▼──────────────────┐
+│  Node Tooling                                                   │
+│  • `scripts/importCSV.js` seeder                                │
+│  • `server/` Express relay using Firebase Admin SDK             │
+│    (`sendBusStartNotification`)                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -70,9 +70,9 @@ End-to-end mobile solution that keeps Sri Shakthi Institute buses connected with
 
 ### Notifications
 
-- Tokens are registered through `registerPushTokenAsync` when each persona logs in.
-- `notifyBusTrackingStarted` sends targeted Expo pushes to riders and bus incharge staff for a specific bus.
-- Android notification channel `tracking-alerts` ensures high-priority delivery.
+- `registerPushTokenAsync` (client) requests FCM permission, stores tokens under `users/{uid}.fcmTokens`, and auto-refreshes on rotation.
+- `notifyBusTrackingStarted` calls the local Express relay (`POST /startBus`) which invokes Firebase Admin to multicase FCM messages for the target bus.
+- Android notifications use the `tracking-alerts` channel ID; iOS delivers via high-priority APNs payloads.
 
 ---
 
@@ -104,7 +104,7 @@ sietbusapp/
 - **Expo Dev Client** for custom native modules
 - **React Navigation** (stack & bottom tabs)
 - **Expo Location / Task Manager** for background GPS
-- **Expo Notifications** with Expo push service
+- **Firebase Cloud Messaging** via `@react-native-firebase/messaging` + Node.js Admin relay
 - **Firebase** Auth + Firestore (JS SDK v12)
 - **Cloudinary (optional)** for media uploads via `cloudinaryService.js`
 - **CSV Import** using `csv-parser` and Firebase Admin SDK
@@ -161,6 +161,42 @@ npm run ios       # expo run:ios (macOS)
 npm run build     # Gradle debug build inside android/
 npm run eas       # EAS cloud build (development profile)
 ```
+
+---
+
+## Notification Relay (Node.js Backend)
+
+1. **Install dependencies**
+
+```bash
+cd server
+npm install
+```
+
+2. **Configure environment**
+
+```bash
+cp .env.example .env
+```
+
+- Keep `PORT=4000` unless you need to avoid conflicts.
+- Ensure `FIREBASE_SERVICE_ACCOUNT_PATH` points to the `serviceAccountKey.json` placed in the repository root.
+- Optionally set `ALLOWED_ORIGINS` to a comma-separated list of Expo dev URLs (e.g., `http://localhost:19006`).
+
+3. **Start the server**
+
+```bash
+npm run dev
+```
+
+The Express server exposes:
+
+- `POST /startBus` → triggers `sendBusStartNotification(busNumber)` using Firebase Admin SDK.
+- `GET /health` → simple readiness probe.
+
+Update the mobile app’s `.env` with `EXPO_PUBLIC_NOTIFICATION_SERVER_URL`. For Android emulators use `http://10.0.2.2:4000`; for iOS simulators or physical devices use your machine’s LAN IP.
+
+When a driver taps **Start Track**, the client calls `/startBus` with the bus number, the backend gathers FCM tokens (`users/{uid}.fcmTokens`) and pushes notifications to all matched students and bus in-charge staff.
 
 ---
 
@@ -235,7 +271,7 @@ Mobile application that powers live tracking and coordination for the Sri Shakth
 - **Firebase** for auth persistence (with AsyncStorage) and Firestore for real-time data.
 - **Background GPS** provided by `expo-location` and `expo-task-manager`; location writes are throttled in `locationService.js` to minimize Firestore load.
 - **Maps & Routing** via `react-native-maps` (Google provider) with OSRM polyline generation (`utils/routePolylineConfig.js`) and straight-line fallback when routing is unavailable.
-- **Push Notifications** using `expo-notifications`, including Android channels and token storage per user.
+- **Push Notifications** via Firebase Cloud Messaging (FCM) using `@react-native-firebase/messaging` for tokens and a Node.js Firebase Admin relay for delivery.
 - **Reports Workflow** managed in `reportsService.js`, now supporting per-recipient inboxes and delete-on-response handling for management and bus incharge roles.
 
 ## Data & Service Layer
@@ -243,7 +279,7 @@ Mobile application that powers live tracking and coordination for the Sri Shakth
 - `src/services/authService.js` – role-aware authentication, session caching, and logout.
 - `src/services/backgroundLocationService.js` & `locationService.js` – normalize bus numbers, maintain active driver sessions, and push updates to Firestore.
 - `src/services/reportsService.js` – submission, recipient filtering, and cleanup of student/bus incharge reports.
-- `src/services/pushNotificationService.js` – token registration, Expo push payload delivery, and recipient selection per bus number.
+- `src/services/pushNotificationService.js` – token registration with FCM, relay calls to the Node.js backend, and recipient selection per bus number.
 - `src/services/attendanceService.js`, `reportsService.js`, `storage.js`, `cloudinaryService.js` – supportive utilities for attendance, reporting, local storage, and optional media uploads.
 
 ## Project Structure

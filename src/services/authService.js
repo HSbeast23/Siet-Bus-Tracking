@@ -207,7 +207,7 @@ class AuthService {
 
       await this.updateLastLogin(userDocId);
 
-      if (['student', 'coadmin'].includes(trimmedRole)) {
+      if (['student', 'coadmin', 'driver', 'management'].includes(trimmedRole)) {
         try {
           await registerPushTokenAsync(sessionUser);
         } catch (tokenError) {
