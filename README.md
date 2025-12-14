@@ -1,402 +1,105 @@
-# Colleg Bus System
+## 1. Project Title
 
-End-to-end mobile solution that keeps Sri Shakthi Institute buses connected with students, bus incharge staff, drivers, and management. Built with React Native (Expo SDK 54) and Firebase, the app delivers real-time bus tracking, attendance, reporting, and role-aware dashboards on Android and iOS.
+SiET Bus System
 
----
+## 2. Overview
 
-## At a Glance
+SiET Bus System is a React Native (Expo managed) mobile application that serves students, drivers, bus incharge staff, and management at SIET College. It delivers live bus tracking, route visibility, fleet status, and reporting workflows backed by Firebase services and a lightweight notification relay.
 
-- **Audience** – Students, Bus Incharge staff, Drivers, and Management.
-- **Core Value** – Live bus locations, incident reporting, attendance insights, and instant notifications in one place.
-- **Stack** – React Native + Expo, Firebase (Auth, Firestore), Expo Location/Task Manager, Firebase Cloud Messaging (FCM) via `@react-native-firebase/messaging` + Node.js relay, Google Maps via `react-native-maps` with OSRM routing overlays.
-- **Current Status (Nov 2025)** – Push token registration is automatic, management & bus incharge report inboxes support respond-and-clear, CSV seeding covers the majority of buses, and all navigation labels now use “Bus Incharge”.
+## 3. Problem Statement
 
----
+Campus commuters need a dependable way to know where each institute bus is, which stops are next, and how to raise transport issues. Transport staff likewise require real-time visibility into every bus, student ridership, and incident reports without switching tools.
 
-## Role-Based Experience
+## 4. Solution Description
 
-| Persona          | Highlights                                                                                                                                                                       |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Students**     | Unified login, real-time Google Maps view with native tiles, stop timeline/ETA, attendance history, and report submission to management or bus incharge.                         |
-| **Bus Incharge** | Dashboard shortcuts for bus/driver/student management, real-time tracking, attendance marking, student report inbox with respond & clear actions, plus escalation to management. |
-| **Drivers**      | Start/stop tracking workflow with background GPS, automatic throttling to reduce noise, profile tools, and attendance utilities.                                                 |
-| **Management**   | Fleet dashboards, analytics, attendance history, complete report board with respond & clear, CSV onboarding utilities, and direct access to live maps for any bus.               |
+The app centralizes live GPS feeds, route metadata, student rosters, and report handling on Android/iOS using a single Expo project. Firestore stores buses, routes, users, and reports; drivers update their position via background tasks; students and staff visualize each trip on Google Maps; and a Node/Express relay forwards Firebase Cloud Messaging notifications when trips start.
 
----
+## 5. Key Features
 
-## System Architecture
+- **Role-aware authentication:** `authService` validates students, drivers, bus incharge staff, and management against Firestore documents and cached credentials in [src/services/authService.js](src/services/authService.js).
+- **Live Google Maps tracking:** `MapScreen` (students/staff) and `BusLiveTrackingScreen` (management/bus incharge) render bus markers, stop timelines, and OSRM-derived polylines using `react-native-maps` with Google tiles in [src/screens/MapScreen.js](src/screens/MapScreen.js) and [src/screens/BusLiveTrackingScreen.js](src/screens/BusLiveTrackingScreen.js).
+- **Driver telemetry pipeline:** `DriverDashboard` orchestrates permission prompts, background tasks, Firestore writes, and trip session logging so buses broadcast continuously, as seen in [src/screens/DriverDashboard.js](src/screens/DriverDashboard.js), [src/services/backgroundLocationService.js](src/services/backgroundLocationService.js), and [src/services/locationService.js](src/services/locationService.js).
+- **Fleet management dashboards:** Management and bus incharge roles monitor every bus, driver status, and student count directly from Firestore subscriptions in [src/screens/BusManagement.js](src/screens/BusManagement.js) and inspect rosters plus stop lists in [src/screens/BusDetails.js](src/screens/BusDetails.js).
+- **Student self-service:** Students access quick actions, push notifications, and reporting tools inside [src/screens/StudentDashboard.js](src/screens/StudentDashboard.js) and [src/screens/StudentReportScreen.js](src/screens/StudentReportScreen.js), while `reportsService` persists and filters submissions in [src/services/reportsService.js](src/services/reportsService.js).
+- **Push notification relay:** Device tokens are captured via `@react-native-firebase/messaging` inside [src/services/pushNotificationService.js](src/services/pushNotificationService.js) and relayed through the Express server in [server/src/index.js](server/src/index.js) and [server/src/routes/busRoutes.js](server/src/routes/busRoutes.js), which invoke Firebase Admin helpers in [server/src/services/notificationService.js](server/src/services/notificationService.js).
+- **Route intelligence:** Stops, colors, and OSRM helpers live in [src/utils/constants.js](src/utils/constants.js) and [src/utils/routePolylineConfig.js](src/utils/routePolylineConfig.js), ensuring each bus shows consistent metadata even if Firestore data is incomplete.
 
-```
-┌────────────────────────────────────────────────────────────────┐
-│  Mobile Client (Expo Dev Client)                                │
-│  • React Navigation stack (`AppNavigator`)                      │
-│  • Role-specific screens under `src/screens/`                   │
-│  • Expo Location + Task Manager for background GPS              │
-│  • FCM tokens via `@react-native-firebase/messaging`            │
-└──────────────┬───────────────────────────────┬──────────────────┘
-               │ HTTPS                         │ Firestore/Auth SDK
-┌──────────────▼───────────────────────────────▼──────────────────┐
-│  Firebase Project                                               │
-│  • Auth: role-aware login with AsyncStorage persistence         │
-│  • Firestore: buses, users, attendance, reports collections     │
-│  • Security rules enforced via `firebaseConfig.js` setup        │
-└──────────────┬───────────────────────────────┬──────────────────┘
-          │ Admin import (optional)            │ FCM Admin send
-┌──────────────▼───────────────────────────────▼──────────────────┐
-│  Node Tooling                                                   │
-│  • `scripts/importCSV.js` seeder                                │
-│  • `server/` Express relay using Firebase Admin SDK             │
-│    (`sendBusStartNotification`)                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+## 6. Tech Stack
 
----
+- **React Native + Expo:** Single codebase for Android/iOS with Expo’s managed workflow so native modules (maps, task manager) and custom fonts configured in [App.js](App.js) run consistently.
+- **React Navigation:** `AppNavigator` in [src/navigation/AppNavigator.js](src/navigation/AppNavigator.js) defines the stack for every persona, simplifying guarded transitions between dashboards.
+- **Firebase (Auth, Firestore, Cloud Messaging):** Initialized in [src/services/firebaseConfig.js](src/services/firebaseConfig.js) to store users, buses, reports, and push tokens while keeping device sessions synced.
+- **Expo Location & Task Manager:** Background driver tracking is powered by `expo-location` and `expo-task-manager` so the GPS task defined in [src/services/backgroundLocationService.js](src/services/backgroundLocationService.js) keeps broadcasting even when minimized.
+- **react-native-maps (Google Maps SDK):** Provides performant vector maps and camera controls required for live tracking overlays.
+- **Node/Express + firebase-admin:** The backend under [server/](server) brokers push notifications without exposing server keys to the client.
 
-## Feature Capsules
+## 7. Google Maps Integration
 
-### Live Tracking
+- **Library:** Both map screens import `MapView`, `Marker`, `Polyline`, and `PROVIDER_GOOGLE` from `react-native-maps` (see [src/screens/MapScreen.js](src/screens/MapScreen.js) and [src/screens/BusLiveTrackingScreen.js](src/screens/BusLiveTrackingScreen.js)).
+- **Why Google Maps:** Native Google tiles provide reliable coverage for Coimbatore, precise camera control, and marker animations needed for live buses and stop sequencing.
+- **Rendering flow:** Stops are normalized, OSRM geometry is fetched via `buildOsrmRouteUrl`, and then the app fits all coordinates while overlaying animated bus markers. Firestore listeners (`subscribeToBusLocation`) push each location delta onto the map in realtime, and map refs call `fitToCoordinates` or `animateCamera` for follow mode.
 
-- `MapScreen` renders a native Google basemap using `react-native-maps` with `provider="google"`.
-- OSRM builds driving polylines between configured stops; failures gracefully fall back to straight segments.
-- `locationService.js` normalizes bus IDs, throttles updates (<20 m movement, <4 s interval ignored), and marks terminated driver sessions.
-- Drivers use the background location task (`driver-background-location-task`) so updates continue when the app is minimized.
+## 8. Application Flow
 
-### Reporting Workflow
+- Users land on `WelcomeScreen`, then `UnifiedLoginScreen` routes them by role via the stack configured in [src/navigation/AppNavigator.js](src/navigation/AppNavigator.js).
+- **Students:** After auth, `StudentDashboard` exposes quick actions (track bus, routes, reports). Selecting tracking opens `MapScreen`, which subscribes to Firestore buses and renders stops plus ETAs.
+- **Bus Incharge / Management:** Dashboards jump into `BusManagement` for fleet overview, `BusDetails` for rosters, and `BusLiveTrackingScreen` for focused tracking. They can traverse to route management, attendance, analytics, or reports as needed.
+- **Drivers:** `DriverDashboard` enforces permissions, starts/stops background tasks, updates Firestore via `updateBusLocation`, and pings the notification relay so riders get start alerts.
+- **Reports:** Students submit issues via `StudentReportScreen`; `reportsService` creates Firestore docs that management/bus incharge view through their respective report screens.
 
-- Students choose a recipient (management or bus incharge) in `StudentReportScreen`.
-- Bus incharge inbox (`BusInchargeReportScreen`) filters reports by bus, supports respond & clear or clear-only actions.
-- Management inbox (`Reports.js`) aggregates all management-targeted submissions, tracks counts (pending / acknowledged / resolved), and mirrors the respond & clear workflow.
-- Responses are acknowledged via alert and the Firestore document is deleted, ensuring no residual data after the reply.
+## 9. Project Structure
 
-### Notifications
+- **App entry:** [App.js](App.js) handles font loading, FCM token sync, and mounts `NavigationContainer`.
+- **Navigation:** [src/navigation](src/navigation) hosts the stack and any auxiliary navigators.
+- **Screens:** [src/screens](src/screens) contains persona-specific UI (dashboards, management tools, live maps, reports, attendance, etc.).
+- **Services:** [src/services](src/services) centralizes Firebase adapters (auth, location, push, reports, trip sessions, background tracking) plus HTTP clients.
+- **Utilities:** [src/utils](src/utils) stores theme constants, route definitions, and helper functions.
+- **Notification server:** [server](server) exposes `/startBus` and `/notify` endpoints using Express and Firebase Admin.
+- **Scripts & data:** [scripts](scripts) and [Bus_data](Bus_data) provide CSV import helpers for seeding Firestore.
 
-- `registerPushTokenAsync` (client) requests FCM permission, stores tokens under `users/{uid}.fcmTokens`, and auto-refreshes on rotation.
-- `notifyBusTrackingStarted` calls the local Express relay (`POST /startBus`) which invokes Firebase Admin to multicase FCM messages for the target bus.
-- Android notifications use the `tracking-alerts` channel ID; iOS delivers via high-priority APNs payloads.
-
----
-
-## Project Layout
-
-```
-sietbusapp/
-├── App.js                   # Expo bootstrap & font loading
-├── index.js                 # Entry point
-├── app.json                 # Expo manifest
-├── eas.json                 # EAS build profiles
-├── android/                 # Prebuild Android project (Expo run)
-├── assets/                  # Icons, images, fonts
-├── Bus_data/                # CSV files for seeding
-├── scripts/importCSV.js     # Firestore import utility (Firebase Admin)
-└── src/
-   ├── components/          # Shared UI, bottom nav, guards
-   ├── navigation/          # Stack navigator configuration
-   ├── screens/             # Feature screens grouped by persona
-   ├── services/            # Auth, reports, attendance, location, push
-   └── utils/               # Constants, route config, helpers
-```
-
----
-
-## Technology Stack
-
-- **React Native** 0.81 + **Expo** 54
-- **Expo Dev Client** for custom native modules
-- **React Navigation** (stack & bottom tabs)
-- **Expo Location / Task Manager** for background GPS
-- **Firebase Cloud Messaging** via `@react-native-firebase/messaging` + Node.js Admin relay
-- **Firebase** Auth + Firestore (JS SDK v12)
-- **Cloudinary (optional)** for media uploads via `cloudinaryService.js`
-- **CSV Import** using `csv-parser` and Firebase Admin SDK
-
----
-
-## Getting Started
-
-1. **Clone & Install**
-
-```bash
-git clone https://github.com/HSbeast23/Siet-Bus-Tracking.git
-cd Siet-Bus-Tracking/sietbusapp
-npm install
-```
-
-2. **Configure Environment** – create `.env` in the project root:
-
-```env
-EXPO_PUBLIC_FIREBASE_API_KEY=your_api_key
-EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=your_auth_domain
-EXPO_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
-EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=your_storage_bucket
-EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-EXPO_PUBLIC_FIREBASE_APP_ID=your_app_id
-EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID=your_measurement_id
-
-# Optional convenience credentials for demo logins
-EXPO_PUBLIC_MANAGEMENT_USERNAME=...
-EXPO_PUBLIC_MANAGEMENT_PASSWORD=...
-EXPO_PUBLIC_COADMIN_EMAIL=...
-EXPO_PUBLIC_COADMIN_PASSWORD=...
-EXPO_PUBLIC_COADMIN_NAME=...
-EXPO_PUBLIC_COADMIN_BUS_ID=...
-```
-
-> Variables must be prefixed with `EXPO_PUBLIC_` because they are imported at build time via `babel-plugin-dotenv-import`.
-
-3. **Run in Development**
-
-```bash
-npx expo start --dev-client
-```
-
-- Press `a` for Android emulator
-- Press `i` for iOS simulator (macOS only)
-- Or scan the QR with the Expo Dev Client on device
-
-4. **Native Builds (optional)**
-
-```bash
-npm run android   # expo run:android
-npm run ios       # expo run:ios (macOS)
-npm run build     # Gradle debug build inside android/
-npm run eas       # EAS cloud build (development profile)
-```
-
----
-
-## Notification Relay (Node.js Backend)
+## 10. Installation & Setup
 
 1. **Install dependencies**
 
-```bash
-cd server
-npm install
-```
+- `npm install` inside the project root.
+- `cd server && npm install` for the notification relay.
 
-2. **Configure environment**
+2. **Run the mobile app**
 
-```bash
-cp .env.example .env
-```
+- `npx expo start --dev-client` for local development.
+- `npm run android` or `npm run ios` to build a dedicated dev client with the required native modules.
 
-- Keep `PORT=4000` unless you need to avoid conflicts.
-- Ensure `FIREBASE_SERVICE_ACCOUNT_PATH` points to the `serviceAccountKey.json` placed in the repository root.
-- Optionally set `ALLOWED_ORIGINS` to a comma-separated list of Expo dev URLs (e.g., `http://localhost:19006`).
+3. **Run the notification relay**
 
-3. **Start the server**
+- `cd server && npm run dev` for live-reload, or `npm start` for a production-style launch.
 
-```bash
-npm run dev
-```
+4. **Optional build tooling**
 
-The Express server exposes:
+- `npm run build` (Gradle debug) and `npm run eas` (cloud builds) are configured in [package.json](package.json).
 
-- `POST /startBus` → triggers `sendBusStartNotification(busNumber)` using Firebase Admin SDK.
-- `GET /health` → simple readiness probe.
+## 11. Configuration Notes
 
-Update the mobile app’s `.env` with `EXPO_PUBLIC_NOTIFICATION_SERVER_URL`. For Android emulators use `http://10.0.2.2:4000`; for iOS simulators or physical devices use your machine’s LAN IP.
+- Firebase project credentials, notification relay endpoints, and Google Maps platform keys are intentionally excluded from the repository. Provide them through your secure Expo configuration or CI secrets before running builds so `firebaseConfig`, `pushNotificationService`, and the native map SDK can initialize correctly.
+- The client automatically infers the relay base URL (see [src/services/backendClient.js](src/services/backendClient.js)) but still expects a reachable server on port 4000 or whichever host you configure privately.
 
-When a driver taps **Start Track**, the client calls `/startBus` with the bus number, the backend gathers FCM tokens (`users/{uid}.fcmTokens`) and pushes notifications to all matched students and bus in-charge staff.
+## 12. Limitations
 
----
+- `CONFIG.API_BASE_URL` still points to a placeholder (`http://localhost:3000/api`); axios wrappers in [src/services/api.js](src/services/api.js) are present but not wired to live endpoints.
+- Route data depends on Firestore documents or the static config; if a bus lacks stop data, the map falls back to default stops and straight-line segments.
+- The notification relay only exposes `/startBus` and `/notify` and does not authenticate callers, so deploy behind a trusted network or add auth before production use.
+- Background GPS relies on Expo’s task manager; users must install a dev client or standalone build because Expo Go cannot execute background tasks with these native modules.
+- There is no automated testing or CI, so regressions must be caught manually.
 
-## Firestore Seeding (Optional but Recommended)
+## 13. Future Enhancements
 
-1. Place `serviceAccountKey.json` (Firebase Admin credential) in the repo root.
-2. Drop institute CSV exports into `Bus_data/` and adjust the file constant in `scripts/importCSV.js` if necessary.
-3. Execute the importer:
+1. Implement authenticated REST endpoints (or GraphQL) to back the axios client so management CRUD screens persist changes outside of Firestore-only logic.
+2. Add offline caching and retry queues for driver telemetry to cover poor network zones and reduce Firestore write contention.
+3. Extend the notification relay to broadcast arrival/departure events, include rate limiting, and secure it with API tokens or mutual TLS.
+4. Capture analytics/health metrics (e.g., background task uptime, OSRM latency) to surface issues to admins proactively.
 
-```bash
-node scripts/importCSV.js
-```
+## 14. Conclusion
 
-The script normalizes bus numbers, creates bus/driver/student documents, and ensures dashboards have baseline data.
-
----
-
-## Key Workflows
-
-### Driver Tracking Flow
-
-1. Driver logs in → push token stored in Firestore.
-2. Start tracking → `backgroundLocationService` registers GPS updates.
-3. `locationService.updateBusLocation` validates movement thresholds, normalizes bus IDs, and writes to Firestore.
-4. Students, bus incharge, and management map screens subscribe to bus documents for live updates.
-
-### Reporting Flow
-
-1. Student submits a report selecting either management or bus incharge.
-2. `reportsService.submitReport` writes document tagged with `recipientRole` and normalized bus number.
-3. Recipient inbox fetches with `reportsService.getReportsForRecipient` or `getAllReports`.
-4. Respond & Clear → `reportsService.removeReport` deletes the document after displaying a confirmation alert.
-
----
-
-## Troubleshooting
-
-- **No push notification** – confirm Firestore `users/{uid}` has `expoPushToken`, ensure device allowed notifications.
-- **Route polyline missing** – ensure at least two stops with valid coordinates are provided. If OSRM is unreachable, the app logs a fallback warning and shows a straight segment; verify network access to `router.project-osrm.org`.
-- **Driver updates stopped** – the session may have been marked as terminated (duplicate login or manual stop). Restart tracking to issue a new session ID.
-- **Expo build complains about new native module** – install via `expo install` and rebuild the dev client using `npm run android` or `npm run ios`.
-
----
-
-## Roadmap & Open Items
-
-- Complete CSV onboarding for the remaining bus routes.
-- Harden authentication (password reset, account recovery) and migrate secrets to Expo EAS secure storage.
-- Add automated testing (Jest + Detox) for core services and flows.
-- Expand Google Maps styling (traffic overlays, campus theming) and evaluate hosting a private OSRM instance to avoid public endpoint limits.
-
----
-
-## Maintainer & Support
-
-This application is maintained for the SIET transport coordination team. For deployment access or production support, contact **Haarhish** (WhatsApp: +91 76959 08575).
-
-# SIET Bus Tracking System
-
-Mobile application that powers live tracking and coordination for the Sri Shakthi Institute bus fleet. The app is built with React Native (Expo SDK 54) and integrates Firebase for authentication, Firestore sync, and background GPS updates. Four personas are supported: students, bus incharge staff, drivers, and management.
-
-## Personas & Capabilities
-
-- **Students** – Unified login, real-time Google Maps view with OSRM-powered polylines, stop timeline, attendance history, and report submission to either management or the assigned bus incharge.
-- **Bus Incharge** – Dashboard shortcuts for bus, driver, student, attendance, and map tools; receives student reports, can respond and clear them, and can escalate issues to management.
-- **Drivers** – Foreground/background GPS tracking with start/stop workflow, automatic push token registration, profile utilities, and attendance helpers.
-- **Management** – Fleet-wide dashboards, attendance and analytics screens, real-time reports board (respond & clear workflow), and CSV-based onboarding for buses, drivers, and students.
-
-## Architecture Highlights
-
-- **React Native + Expo** (SDK 54, RN 0.81) with custom dev client support.
-- **Firebase** for auth persistence (with AsyncStorage) and Firestore for real-time data.
-- **Background GPS** provided by `expo-location` and `expo-task-manager`; location writes are throttled in `locationService.js` to minimize Firestore load.
-- **Maps & Routing** via `react-native-maps` (Google provider) with OSRM polyline generation (`utils/routePolylineConfig.js`) and straight-line fallback when routing is unavailable.
-- **Push Notifications** via Firebase Cloud Messaging (FCM) using `@react-native-firebase/messaging` for tokens and a Node.js Firebase Admin relay for delivery.
-- **Reports Workflow** managed in `reportsService.js`, now supporting per-recipient inboxes and delete-on-response handling for management and bus incharge roles.
-
-## Data & Service Layer
-
-- `src/services/authService.js` – role-aware authentication, session caching, and logout.
-- `src/services/backgroundLocationService.js` & `locationService.js` – normalize bus numbers, maintain active driver sessions, and push updates to Firestore.
-- `src/services/reportsService.js` – submission, recipient filtering, and cleanup of student/bus incharge reports.
-- `src/services/pushNotificationService.js` – token registration with FCM, relay calls to the Node.js backend, and recipient selection per bus number.
-- `src/services/attendanceService.js`, `reportsService.js`, `storage.js`, `cloudinaryService.js` – supportive utilities for attendance, reporting, local storage, and optional media uploads.
-
-## Project Structure
-
-```
-sietbusapp/
-├── App.js                   # Expo bootstrap & font loading
-├── index.js                 # Entry point for Expo
-├── app.json                 # Expo manifest
-├── eas.json                 # EAS build profiles
-├── android/                 # Prebuild native Android project
-├── assets/                  # Images and other static assets
-├── Bus_data/                # CSV inputs for Firestore seeding
-├── scripts/importCSV.js     # Seeder script (requires Admin SDK key)
-└── src/
-   ├── components/          # Shared UI and navigation components
-   ├── navigation/          # `AppNavigator.js` stack definitions
-   ├── screens/             # Role-specific screens (>30)
-   ├── services/            # Firebase, auth, reports, location, etc.
-   └── utils/               # Constants, polyline config, helpers
-```
-
-## Prerequisites
-
-- Node.js 18 or newer
-- npm 9+ (ships with Node 18)
-- Expo CLI (`npm install -g expo-cli`) and Expo Go or the Expo Dev Client
-- Android Studio or Xcode (as needed for native builds)
-- Firebase project with Firestore and Authentication enabled
-
-## Setup
-
-1. **Clone & Install**
-
-```bash
-git clone https://github.com/HSbeast23/Siet-Bus-Tracking.git
-cd Siet-Bus-Tracking/sietbusapp
-npm install
-```
-
-2. **Configure Environment** – Create a `.env` file in the project root:
-
-```env
-EXPO_PUBLIC_FIREBASE_API_KEY=your_api_key
-EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=your_auth_domain
-EXPO_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
-EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=your_storage_bucket
-EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-EXPO_PUBLIC_FIREBASE_APP_ID=your_app_id
-EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID=your_measurement_id
-
-# Optional role defaults used by some login shortcuts
-EXPO_PUBLIC_MANAGEMENT_USERNAME=...
-EXPO_PUBLIC_MANAGEMENT_PASSWORD=...
-EXPO_PUBLIC_COADMIN_EMAIL=...
-EXPO_PUBLIC_COADMIN_PASSWORD=...
-EXPO_PUBLIC_COADMIN_NAME=...
-EXPO_PUBLIC_COADMIN_BUS_ID=...
-```
-
-These values are read via `babel-plugin-dotenv-import`; ensure keys start with `EXPO_PUBLIC_`. 3. **Run in Development**
-
-```bash
-npx expo start --dev-client
-```
-
-Press `a` for Android, `i` for iOS (macOS only), or scan the QR code with the Expo Dev Client. 4. **Native Builds (optional)**
-
-```bash
-npm run android   # expo run:android
-npm run ios       # expo run:ios (macOS)
-npm run build     # Gradle debug build inside android/
-```
-
-For cloud builds, use `npm run eas`.
-
-## Firestore Seeding (Optional)
-
-1. Place `serviceAccountKey.json` (Firebase Admin SDK credentials) in the project root.
-2. Add or update institute CSV exports under `Bus_data/`.
-3. Run the importer:
-
-```bash
-node scripts/importCSV.js
-```
-
-The script writes buses, drivers, and student documents with normalized bus numbers.
-
-## Push Notifications & Background Location
-
-- Tokens are registered through `registerPushTokenAsync`; ensure each persona logs in at least once so Firestore stores their Expo token.
-- Android push notifications require the generated channel (`tracking-alerts`); double-check device settings if notifications do not arrive.
-- Drivers must grant both foreground and background location permissions. The background task (`driver-background-location-task`) continues sending updates even when the app is minimized.
-
-## Reporting Workflow (November 2025)
-
-- Students can route reports to management or their bus incharge from `StudentReportScreen`.
-- Bus incharge staff see an inbox of student submissions and can respond-and-clear or clear-only each item.
-- Management’s `Reports` screen mirrors the respond-and-clear workflow and tracks counts of pending, acknowledged, and resolved items.
-- Responses are intentionally not persisted; acknowledging a report fires an alert to confirm the reply and deletes the document from Firestore.
-
-## Known Issues & Next Steps
-
-- Remaining CSV onboarding (30+ buses) still needs to be completed.
-- Secrets should be migrated to secure storage / Expo EAS secrets before production builds.
-- Automated testing (unit + end-to-end) is not yet implemented.
-- Map tiles rely on public OSM servers; consider hosting if rate limited.
-
-## Troubleshooting
-
-- **No push received** – confirm the user has a token stored in Firestore and that the device allowed notifications.
-- **Map polyline missing** – OSRM routing may have failed; inspect Metro logs for `routeWarning` messages.
-- **Driver location stale** – ensure background permissions remain granted and the driver session has not been flagged as terminated in `locationService.js`.
-
-## Support
-
-This project is maintained for the SIET transport team. For access or deployment questions contact Haarhish (WhatsApp: +91 76959 08575).
+SiET Bus System ties together live GPS tracking, fleet oversight, and student communications with a pragmatic Expo + Firebase stack. By combining Firestore listeners, Google Maps rendering, and a minimal FCM relay, the app gives every campus personal the same real-time source of truth. Configure your private credentials, seed Firestore with the latest bus data, and run both the Expo client and notification server to operate it in production.
 
 # SIET Bus Tracking System`````# SIET Bus Tracking System# SIET Bus Tracking System
 
@@ -564,7 +267,7 @@ sietbusapp/
 
    ```bash## �️ Technologies
 
-   git clone https://github.com/HSbeast23/Siet-Bus-Tracking.git
+   git clone https://github.com/Haarhish-vs/Siet-Bus-Tracking.git
 
    cd Siet-Bus-Tracking/sietbusapp- **React Native** - Mobile app framework
 
@@ -768,5 +471,5 @@ This project is for educational purposes.
 
 ## 👥 Support
 
-For issues or questions, please contact Haarhish .
+For issues or questions, please contact Haarhish VS  .
 Whatsapp number : 7695908575.
