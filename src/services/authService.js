@@ -302,6 +302,16 @@ class AuthService {
 
   async logout() {
     try {
+      try {
+        const currentUser = await this.getCurrentUser();
+        if (currentUser) {
+          await registerPushTokenAsync(currentUser); // ensure last token cached
+          await require('./pushNotificationService').removePushTokenForUser(currentUser);
+        }
+      } catch (tokenCleanupError) {
+        console.warn('Logout token cleanup failed:', tokenCleanupError);
+      }
+
       await AsyncStorage.removeItem(AUTH_TOKEN_KEY);
       await AsyncStorage.removeItem(CURRENT_USER_KEY);
       return true;

@@ -114,6 +114,10 @@ async function sendBusStartNotification(busNumber, { driverName, initiatedBy, ex
     tokens,
   });
 
+  console.info(
+    `FCM multicast -> bus ${busNumber} | tokens=${tokens.length} | success=${response.successCount} | failure=${response.failureCount}`
+  );
+
   const invalidIndexes = response.responses
     .map((item, index) => (item.success ? null : index))
     .filter((index) => index !== null && index !== undefined);
@@ -177,6 +181,10 @@ async function sendDirectNotification(recipientUid, { title, body, data } = {}) 
     },
     tokens,
   });
+
+  console.info(
+    `FCM direct -> uid=${recipientUid} | tokens=${tokens.length} | success=${response.successCount} | failure=${response.failureCount}`
+  );
 
   const notRegisteredIndexes = response.responses
     .map((item, index) =>

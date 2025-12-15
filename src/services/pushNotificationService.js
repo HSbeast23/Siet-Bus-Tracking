@@ -1,8 +1,9 @@
 import messaging from '@react-native-firebase/messaging';
 import { Alert, PermissionsAndroid, Platform } from 'react-native';
-import { arrayUnion, doc, setDoc, updateDoc } from 'firebase/firestore';
+import { arrayRemove, arrayUnion, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from './firebaseConfig';
 import { postJson } from './backendClient';
+import { normalizeBusNumber } from '../utils/busNumber';
 
 const AUTHORIZED_STATUSES = [
   messaging.AuthorizationStatus.AUTHORIZED,
@@ -10,6 +11,7 @@ const AUTHORIZED_STATUSES = [
 ];
 
 let tokenRefreshUnsubscribe = null;
+let cachedToken = null;
 
 const resolveUserIdentifier = (user) => user?.uid || user?.id || user?.userId || null;
 
@@ -54,9 +56,11 @@ async function ensureMessagingPermission() {
 
 async function persistTokenForUser({ identifier, token, user }) {
   const baseDoc = doc(db, 'users', identifier);
+  const normalizedBusNumber = normalizeBusNumber(user?.busNumber ?? user?.busId ?? null);
   const userRecord = {
     role: user?.role || 'student',
-    busNumber: user?.busNumber ?? user?.busId ?? null,
+    // Normalize busNumber so server lookups match the driver's normalized bus id
+    busNumber: normalizedBusNumber || null,
     updatedAt: new Date().toISOString(),
   };
 
@@ -80,6 +84,8 @@ async function persistTokenForUser({ identifier, token, user }) {
       { merge: true }
     );
   }
+
+  cachedToken = token;
 }
 
 function registerTokenRefreshListener(user) {
@@ -140,6 +146,79 @@ export async function registerPushTokenAsync(user) {
   } catch (error) {
     console.error('Failed to register FCM token:', error);
     return null;
+  }
+}
+
+export async function removePushTokenForUser(user) {
+  try {
+    const identifier = resolveUserIdentifier(user);
+    if (!identifier) {
+      return;
+    }
+
+    // Try to use the cached token; if missing, fetch current token
+    let token = cachedToken;
+    try {
+      if (!token) {
+        token = await messaging().getToken();
+      }
+    } catch (err) {
+      // ignore fetch errors
+    }
+
+    const baseDoc = doc(db, 'users', identifier);
+    const payload = {
+      updatedAt: new Date().toISOString(),
+    };
+
+    const updates = [];
+    if (token) {
+      updates.push(
+        updateDoc(baseDoc, {
+          ...payload,
+          fcmTokens: arrayRemove(token),
+        }).catch(async () => {
+          await setDoc(
+            baseDoc,
+            {
+              ...payload,
+              fcmTokens: arrayRemove(token),
+            },
+            { merge: true }
+          );
+        })
+      );
+    }
+
+    updates.push(
+      updateDoc(baseDoc, {
+        lastFcmToken: null,
+        updatedAt: new Date().toISOString(),
+      }).catch(async () => {
+        await setDoc(
+          baseDoc,
+          {
+            lastFcmToken: null,
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      })
+    );
+
+    await Promise.all(updates);
+
+    try {
+      if (token) {
+        await messaging().deleteToken(token);
+      } else {
+        await messaging().deleteToken();
+      }
+    } catch (deleteError) {
+      console.warn('Failed to delete FCM token locally', deleteError);
+    }
+  } catch (error) {
+    console.warn('Failed to remove push token on logout', error);
   }
 }
 
