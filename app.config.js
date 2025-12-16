@@ -1,7 +1,11 @@
+require('dotenv').config();
 const { withAndroidManifest } = require('@expo/config-plugins');
 
-// NOTE: keep this in sync with any environment variables you use in CI/CD.
-const GOOGLE_MAPS_API_KEY = 'AIzaSyD1bqjTHy6PJGbWP8yz-XKGJ6ws18f4Xew';
+const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
+
+if (!GOOGLE_MAPS_API_KEY) {
+	throw new Error('Missing EXPO_PUBLIC_GOOGLE_MAPS_API_KEY in .env');
+}
 
 const withSingleFcmColorMeta = (config) =>
 	withAndroidManifest(config, (config) => {
