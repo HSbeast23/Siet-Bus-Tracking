@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -7,28 +7,12 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  TouchableOpacity,
-  Modal,
-  Pressable,
-  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, Input } from '../components/ui';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../utils/constants';
 import { authService } from '../services/authService';
-
-const BUS_OPTIONS = Array.from({ length: 28 }, (_, index) => {
-  const busId = `SIET-${String(index + 1).padStart(3, '0')}`;
-  return { key: busId, label: busId };
-});
-
-const ROLE_OPTIONS = [
-  { key: 'student', label: 'Student', icon: 'school' },
-  { key: 'driver', label: 'Driver', icon: 'bus' },
-  { key: 'coadmin', label: 'Bus Incharge', icon: 'shield-checkmark' },
-  { key: 'management', label: 'Management', icon: 'briefcase' },
-];
 
 const ROLE_ROUTE_MAP = {
   student: 'StudentDashboard',
@@ -37,92 +21,13 @@ const ROLE_ROUTE_MAP = {
   management: 'ManagementDashboard',
 };
 
-const DropdownField = ({
-  label,
-  value,
-  placeholder,
-  options,
-  onSelect,
-  icon,
-  disabled,
-}) => {
-  const [visible, setVisible] = useState(false);
-
-  const selectedOption = useMemo(
-    () => options.find((option) => option.key === value),
-    [options, value]
-  );
-
-  const handleSelect = (option) => {
-    onSelect(option.key);
-    setVisible(false);
-  };
-
-  return (
-    <View style={styles.dropdownContainer}>
-      {label && <Text style={styles.dropdownLabel}>{label}</Text>}
-      <TouchableOpacity
-        style={[styles.dropdownTrigger, disabled && styles.dropdownDisabled]}
-        activeOpacity={0.7}
-        onPress={() => !disabled && setVisible(true)}
-      >
-        {icon && (
-          <Ionicons
-            name={icon}
-            size={20}
-            color={COLORS.secondary}
-            style={styles.dropdownIcon}
-          />
-        )}
-        <Text style={[styles.dropdownValue, !selectedOption && styles.dropdownPlaceholder]}>
-          {selectedOption ? selectedOption.label : placeholder}
-        </Text>
-        <Ionicons name={visible ? 'chevron-up' : 'chevron-down'} size={18} color={COLORS.gray} />
-      </TouchableOpacity>
-
-      <Modal
-        transparent
-        visible={visible}
-        animationType="fade"
-        onRequestClose={() => setVisible(false)}
-      >
-        <Pressable style={styles.modalOverlay} onPress={() => setVisible(false)}>
-          <View style={styles.modalContent}>
-            <FlatList
-              data={options}
-              keyExtractor={(item) => item.key}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.modalOption}
-                  onPress={() => handleSelect(item)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.modalOptionText}>{item.label}</Text>
-                </TouchableOpacity>
-              )}
-              ItemSeparatorComponent={() => <View style={styles.modalSeparator} />}
-            />
-          </View>
-        </Pressable>
-      </Modal>
-    </View>
-  );
-};
-
 const UnifiedLoginScreen = ({ navigation }) => {
-  const [selectedRole, setSelectedRole] = useState(ROLE_OPTIONS[0].key);
-  const [selectedBus, setSelectedBus] = useState('');
   const [userId, setUserId] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
 
-  const isManagement = selectedRole === 'management';
-
-  const headerIcon = useMemo(() => {
-    const roleConfig = ROLE_OPTIONS.find((option) => option.key === selectedRole);
-    return roleConfig?.icon || 'log-in-outline';
-  }, [selectedRole]);
+  const headerIcon = 'log-in-outline';
 
   const validateForm = () => {
     const validationErrors = {};
@@ -133,20 +38,9 @@ const UnifiedLoginScreen = ({ navigation }) => {
     if (!password.trim()) {
       validationErrors.password = 'Password is required';
     }
-    if (!isManagement && !selectedBus) {
-      validationErrors.busNumber = 'Bus number is required';
-    }
 
     setErrors(validationErrors);
     return Object.keys(validationErrors).length === 0;
-  };
-
-  const handleRoleChange = (roleKey) => {
-    setSelectedRole(roleKey);
-    if (roleKey === 'management') {
-      setSelectedBus('');
-    }
-    setErrors({});
   };
 
   const handleLogin = async () => {
@@ -158,8 +52,6 @@ const UnifiedLoginScreen = ({ navigation }) => {
       const loginResult = await authService.login({
         userId: userId.trim(),
         password: password.trim(),
-        role: selectedRole,
-        busNumber: isManagement ? undefined : selectedBus,
       });
 
       setLoading(false);
@@ -169,7 +61,8 @@ const UnifiedLoginScreen = ({ navigation }) => {
         return;
       }
 
-      const nextRoute = ROLE_ROUTE_MAP[selectedRole];
+      const resolvedRole = loginResult.user?.role || '';
+      const nextRoute = ROLE_ROUTE_MAP[resolvedRole] || ROLE_ROUTE_MAP.student;
 
       navigation.reset({
         index: 0,
@@ -205,39 +98,10 @@ const UnifiedLoginScreen = ({ navigation }) => {
                 </View>
               </View>
 
-              <DropdownField
-                label="Role"
-                placeholder="Select role"
-                options={ROLE_OPTIONS}
-                value={selectedRole}
-                onSelect={(roleKey) => handleRoleChange(roleKey)}
-                icon="people-outline"
-              />
-              {errors.role && <Text style={styles.errorText}>{errors.role}</Text>}
-
-              {!isManagement && (
-                <>
-                  <DropdownField
-                    label="Bus Number"
-                    placeholder="Select your bus"
-                    options={BUS_OPTIONS}
-                    value={selectedBus}
-                    onSelect={(busKey) => {
-                      setSelectedBus(busKey);
-                      setErrors((prev) => ({ ...prev, busNumber: undefined }));
-                    }}
-                    icon="bus-outline"
-                  />
-                  {errors.busNumber && <Text style={styles.errorText}>{errors.busNumber}</Text>}
-                </>
-              )}
-
               <View style={styles.fieldsStack}>
                 <Input
-                  label={isManagement ? 'Username' : 'User ID / Register Number'}
-                  placeholder={
-                    isManagement ? 'Enter management username' : 'Enter register number or ID'
-                  }
+                  label={'Username'}
+                  placeholder={'Enter username'}
                   value={userId}
                   onChangeText={setUserId}
                   icon="person-outline"
@@ -284,7 +148,7 @@ const UnifiedLoginScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: '#E8F9E6',
   },
   keyboardAvoid: {
     flex: 1,

@@ -136,21 +136,18 @@ class AuthService {
 
   async login({ userId, password, role, busNumber }) {
     try {
-      const trimmedRole = role?.toLowerCase();
-      if (!userId || !password || !trimmedRole) {
+      if (!userId || !password) {
         return { success: false, message: buildLoginError('Please fill in all required fields.') };
       }
 
-      if (trimmedRole === 'management') {
+      const normalizedUserId = userId.trim();
+      const trimmedRole = role?.toLowerCase() || null;
+
+      // Allow management login without requiring role selection on the client
+      const ADMIN_USERNAME = CONFIG.MANAGEMENT_CREDENTIALS.username;
+      if (normalizedUserId === ADMIN_USERNAME && (!trimmedRole || trimmedRole === 'management')) {
         return this.loginManagement(userId, password);
       }
-
-      const providedBus = normalizeBusNumber(busNumber || '');
-      if (!providedBus) {
-        return { success: false, message: buildLoginError('Please select your bus number.') };
-      }
-
-      const normalizedUserId = userId.trim();
 
       const userRecord = await this.fetchUserRecord(normalizedUserId);
 
@@ -163,7 +160,11 @@ class AuthService {
       const storedPassword = (userData.password || '').trim();
       const storedBus = normalizeBusNumber(userData.busNumber || userData.busNo || userData.busId || '');
 
-      if (userRole !== trimmedRole) {
+      if (!userRole) {
+        return { success: false, message: buildLoginError('Role missing for this account. Contact administration.') };
+      }
+
+      if (trimmedRole && userRole !== trimmedRole) {
         return { success: false, message: buildLoginError('Role mismatch for this account.') };
       }
 
@@ -175,11 +176,12 @@ class AuthService {
         return { success: false, message: buildLoginError('Your account is inactive. Please contact management.') };
       }
 
-      if (!storedBus) {
+      if (!storedBus && userRole !== 'management') {
         return { success: false, message: buildLoginError('Bus assignment missing. Please contact administration.') };
       }
 
-      if (storedBus !== providedBus) {
+      const providedBus = normalizeBusNumber(busNumber || '');
+      if (providedBus && storedBus && storedBus !== providedBus) {
         return {
           success: false,
           message: buildLoginError('Selected bus number does not match this account. Please verify your selection.'),
@@ -188,12 +190,12 @@ class AuthService {
 
       const sessionUser = {
         ...userData,
-        role: trimmedRole,
+        role: userRole,
         userId: normalizedUserId,
         registerNumber: userData.registerNumber || normalizedUserId,
         busNumber: storedBus,
         busId: userData.busId || storedBus,
-        selectedBus: providedBus,
+        selectedBus: storedBus,
         uid: userDocId,
         id: userDocId,
         authenticated: true,
@@ -207,7 +209,7 @@ class AuthService {
 
       await this.updateLastLogin(userDocId);
 
-      if (['student', 'coadmin', 'driver', 'management'].includes(trimmedRole)) {
+      if (['student', 'coadmin', 'driver', 'management'].includes(userRole)) {
         try {
           await registerPushTokenAsync(sessionUser);
         } catch (tokenError) {
