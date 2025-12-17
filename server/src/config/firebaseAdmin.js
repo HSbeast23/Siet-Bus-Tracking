@@ -14,13 +14,22 @@ function resolveServiceAccountPath() {
 		return absolute;
 	}
 
-	const fallback = path.resolve(__dirname, '..', '..', 'serviceAccountKey.json');
-	if (!fs.existsSync(fallback)) {
-		throw new Error(
-			`serviceAccountKey.json missing. Set ${SERVICE_ACCOUNT_ENV} or place the file at ${fallback}.`
-		);
+	const fallbackCandidates = [
+		// server/serviceAccountKey.json – historical location for the notification server
+		path.resolve(__dirname, '..', '..', 'serviceAccountKey.json'),
+		// projectRoot/serviceAccountKey.json – used by scripts/importCSV.js and local tooling
+		path.resolve(__dirname, '..', '..', '..', 'serviceAccountKey.json'),
+	];
+
+	for (const candidate of fallbackCandidates) {
+		if (fs.existsSync(candidate)) {
+			return candidate;
+		}
 	}
-	return fallback;
+
+	throw new Error(
+		`serviceAccountKey.json missing. Set ${SERVICE_ACCOUNT_ENV} or place the file in either the project root or server directory.`
+	);
 }
 
 function loadServiceAccount() {
