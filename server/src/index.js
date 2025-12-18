@@ -1,26 +1,17 @@
 require('dotenv').config();
 
 const express = require('express');
-const admin = require('firebase-admin');
 const cors = require('cors');
+
+const busRoutes = require('./routes/busRoutes');
+const { admin } = require('./config/firebaseAdmin');
 
 const app = express();
 
 app.use(express.json());
 app.use(cors());
+app.use(busRoutes);
 
-try {
-  const serviceAccount = JSON.parse(process.env.FIREBASE_ADMIN_KEY);
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
-  console.log('✅ Firebase Admin initialized');
-} catch (error) {
-  console.error('❌ Firebase Admin initialization failed:', error.message);
-  process.exit(1);
-}
-
-const db = admin.firestore();
 const messaging = admin.messaging();
 
 app.get('/', (req, res) => {
@@ -48,6 +39,12 @@ app.post('/send-notification', async (req, res) => {
     console.error('❌ Error sending notification:', error.message);
     res.status(500).json({ error: error.message });
   }
+});
+
+app.use((error, req, res, next) => {
+  console.error('Unhandled error:', error);
+  const status = error.status || 500;
+  res.status(status).json({ error: error.message || 'Internal server error' });
 });
 
 const PORT = process.env.PORT || 3000;

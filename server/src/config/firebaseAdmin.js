@@ -2,10 +2,26 @@ const fs = require('fs');
 const path = require('path');
 const admin = require('firebase-admin');
 
-const SERVICE_ACCOUNT_ENV = 'FIREBASE_SERVICE_ACCOUNT_PATH';
+const SERVICE_ACCOUNT_PATH_ENV = 'FIREBASE_SERVICE_ACCOUNT_PATH';
+const SERVICE_ACCOUNT_JSON_ENV = 'FIREBASE_ADMIN_KEY';
+
+function loadServiceAccountFromEnv() {
+	const inlineCredentials = process.env[SERVICE_ACCOUNT_JSON_ENV];
+	if (!inlineCredentials) {
+		return null;
+	}
+
+	try {
+		return JSON.parse(inlineCredentials);
+	} catch (error) {
+		throw new Error(
+			`Unable to parse ${SERVICE_ACCOUNT_JSON_ENV} JSON from environment: ${error.message}`
+		);
+	}
+}
 
 function resolveServiceAccountPath() {
-	const customPath = process.env[SERVICE_ACCOUNT_ENV];
+	const customPath = process.env[SERVICE_ACCOUNT_PATH_ENV];
 	if (customPath) {
 		const absolute = path.resolve(customPath);
 		if (!fs.existsSync(absolute)) {
@@ -28,11 +44,16 @@ function resolveServiceAccountPath() {
 	}
 
 	throw new Error(
-		`serviceAccountKey.json missing. Set ${SERVICE_ACCOUNT_ENV} or place the file in either the project root or server directory.`
+		`serviceAccountKey.json missing. Set ${SERVICE_ACCOUNT_PATH_ENV} or place the file in either the project root or server directory.`
 	);
 }
 
 function loadServiceAccount() {
+	const inlineCredentials = loadServiceAccountFromEnv();
+	if (inlineCredentials) {
+		return inlineCredentials;
+	}
+
 	const filePath = resolveServiceAccountPath();
 	const raw = fs.readFileSync(filePath, 'utf8');
 	try {
