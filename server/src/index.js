@@ -47,7 +47,8 @@ app.use((error, req, res, next) => {
   res.status(status).json({ error: error.message || 'Internal server error' });
 });
 
-const PORT = process.env.PORT || 3000;
+const DEFAULT_PORT = 4000;
+const PORT = Number(process.env.PORT) || DEFAULT_PORT;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📍 Health check: http://localhost:${PORT}`);
