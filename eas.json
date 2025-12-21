@@ -15,6 +15,9 @@
       }
     },
     "production": {
+      "env": {
+        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyAIWmje7La9fVx_LY_a74R2hmUIuO-bhF8"
+      },
       "android": {
         "buildType": "apk"
       }
