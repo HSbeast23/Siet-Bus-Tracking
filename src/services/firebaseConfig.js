@@ -1,60 +1,17 @@
-import { Platform } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { initializeApp, getApp, getApps } from 'firebase/app';
-import { getFirestore, initializeFirestore } from 'firebase/firestore';
-import {
-  getAuth,
-  initializeAuth,
-  getReactNativePersistence,
-} from 'firebase/auth';
-
-const baseFirebaseConfig = {
-  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
-  measurementId: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID,
-};
-
-const androidOverrides = Platform.OS === 'android'
-  ? {
-      apiKey: process.env.EXPO_PUBLIC_FIREBASE_ANDROID_API_KEY || baseFirebaseConfig.apiKey,
-      appId: process.env.EXPO_PUBLIC_FIREBASE_ANDROID_APP_ID || baseFirebaseConfig.appId,
-    }
-  : {};
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
 
 const firebaseConfig = {
-  ...baseFirebaseConfig,
-  ...androidOverrides,
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+  authDomain: 'iet-bus-tracking.firebaseapp.com',
+  databaseURL: 'https://iet-bus-tracking-default-rtdb.firebaseio.com',
+  projectId: 'iet-bus-tracking',
+  storageBucket: 'iet-bus-tracking.firebasestorage.app',
+  messagingSenderId: '320610474479',
+  appId: '1:320610474479:web:47cac40db8a99556077e1a',
+  measurementId: 'G-1Y5EBZPK1F',
 };
 
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-
-let auth;
-
-if (Platform.OS === 'web') {
-  auth = getAuth(app);
-} else {
-  try {
-    auth = initializeAuth(app, {
-      persistence: getReactNativePersistence(AsyncStorage),
-    });
-  } catch (error) {
-    auth = getAuth(app);
-  }
-}
-
-let db;
-
-try {
-  db = initializeFirestore(app, {
-    experimentalForceLongPolling: true,
-    useFetchStreams: false,
-  });
-} catch (error) {
-  db = getFirestore(app);
-}
-
-export { app, auth, db };
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+export default app;
