@@ -1,8 +1,24 @@
 import { Platform } from 'react-native';
 import * as Crypto from 'expo-crypto';
-import { CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET, CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_FOLDER } from '@env';
 
-const DEFAULT_FOLDER = (CLOUDINARY_UPLOAD_FOLDER || 'siet-bus/profiles').replace(/\/+$/u, '');
+const getEnv = (primary, fallback) => {
+  if (primary && process.env[primary]) {
+    return process.env[primary];
+  }
+  if (fallback && process.env[fallback]) {
+    return process.env[fallback];
+  }
+  return undefined;
+};
+
+const CLOUDINARY_CLOUD_NAME = getEnv('EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_CLOUD_NAME');
+const CLOUDINARY_API_KEY = getEnv('EXPO_PUBLIC_CLOUDINARY_API_KEY', 'CLOUDINARY_API_KEY');
+const CLOUDINARY_API_SECRET = getEnv('EXPO_PUBLIC_CLOUDINARY_API_SECRET', 'CLOUDINARY_API_SECRET');
+export const CLOUDINARY_BASE_FOLDER = (
+  getEnv('EXPO_PUBLIC_CLOUDINARY_UPLOAD_FOLDER', 'CLOUDINARY_UPLOAD_FOLDER') || 'siet-bus/profiles'
+).replace(/\/+$/u, '');
+
+const DEFAULT_FOLDER = CLOUDINARY_BASE_FOLDER;
 
 const ensureConfig = () => {
   if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {

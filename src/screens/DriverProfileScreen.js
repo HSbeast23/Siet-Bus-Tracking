@@ -16,8 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONTS, RADIUS, SHADOWS, SPACING } from '../utils/constants';
 import { authService } from '../services/authService';
 import { normalizeBusNumber } from '../services/locationService';
-import { uploadImageToCloudinary } from '../services/cloudinaryService';
-import { CLOUDINARY_UPLOAD_FOLDER } from '@env';
+import { uploadImageToCloudinary, CLOUDINARY_BASE_FOLDER } from '../services/cloudinaryService';
 
 const DriverProfileScreen = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(true);
@@ -110,7 +109,7 @@ const DriverProfileScreen = ({ navigation }) => {
       if (isLocalAvatar) {
         try {
           const uploadResult = await uploadImageToCloudinary(resolvedAvatar, {
-            folder: `${CLOUDINARY_UPLOAD_FOLDER || 'siet-bus/profiles'}/drivers`,
+            folder: `${CLOUDINARY_BASE_FOLDER}/drivers`,
             publicId: profile?.userId || profile?.uid || undefined,
           });
           resolvedAvatar = uploadResult.secureUrl;

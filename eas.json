@@ -16,7 +16,12 @@
     },
     "production": {
       "env": {
-        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyAIWmje7La9fVx_LY_a74R2hmUIuO-bhF8"
+        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyAIWmje7La9fVx_LY_a74R2hmUIuO-bhF8",
+        "EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME": "dg35x6vyp",
+        "EXPO_PUBLIC_CLOUDINARY_API_KEY": "224194557274458",
+        "EXPO_PUBLIC_CLOUDINARY_API_SECRET": "h0qZPE5u-B9V-8NdKrSz7yNZvz8",
+        "EXPO_PUBLIC_CLOUDINARY_UPLOAD_FOLDER": "siet-bus/profiles",
+        "CLOUDINARY_UPLOAD_FOLDER": "siet-bus/profiles"
       },
       "android": {
         "buildType": "apk"

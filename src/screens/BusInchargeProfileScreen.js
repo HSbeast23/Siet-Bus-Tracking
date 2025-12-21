@@ -19,8 +19,7 @@ import { COLORS, FONTS, RADIUS, SHADOWS, SPACING } from '../utils/constants';
 import { authService } from '../services/authService';
 import BusInchargeBottomNav from '../components/BusInchargeBottomNav';
 import { normalizeBusNumber } from '../services/locationService';
-import { uploadImageToCloudinary } from '../services/cloudinaryService';
-import { CLOUDINARY_UPLOAD_FOLDER } from '@env';
+import { uploadImageToCloudinary, CLOUDINARY_BASE_FOLDER } from '../services/cloudinaryService';
 
 const TEAM_ROLES = [
   { key: 'coadmin', label: 'Bus Incharge' },
@@ -116,7 +115,7 @@ const BusInchargeProfileScreen = ({ navigation }) => {
       if (isLocalAvatar) {
         try {
           const uploadResult = await uploadImageToCloudinary(resolvedAvatar, {
-            folder: `${CLOUDINARY_UPLOAD_FOLDER || 'siet-bus/profiles'}/bus-incharge`,
+            folder: `${CLOUDINARY_BASE_FOLDER}/bus-incharge`,
             publicId: profile?.userId || profile?.uid || undefined,
           });
           resolvedAvatar = uploadResult.secureUrl;
