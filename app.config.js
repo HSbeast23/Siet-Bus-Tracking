@@ -151,10 +151,9 @@ const baseExpoConfig = {
       uploadFolder: process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_FOLDER,
     },
     eas: {
-      projectId: '7ccd10d2-9d0a-439a-8816-260ef2b9d6b6',
+      projectId: 'f1a8be95-5cf7-4464-a1ef-c52e7bdc02f9',
     },
   },
-  owner: 'haarhish23',
 };
 
 module.exports = () => ({
